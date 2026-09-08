@@ -6739,8 +6739,12 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       </h3>
                       <div className="space-y-3">
                         <div>
-                          <p className="text-xs font-bold text-primary">v2.0.0 (April 2026)</p>
-                          <p className="text-[10px] text-slate-600 font-medium">Major Release: Lansering av Basen, ny Semester-modell, og oppgraderte AI-motorer.</p>
+                          <p className="text-xs font-bold text-primary">v3.0.0 (September 2026)</p>
+                          <p className="text-[10px] text-slate-600 font-medium">Major Release 3.0: Oppgradering av AI-modeller, ny automatisk deployment og optimalisert ytelse.</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">v2.0.0 (April 2026)</p>
+                          <p className="text-[10px] text-slate-500">Major Release: Lansering av Basen, ny Semester-modell, og oppgraderte AI-motorer.</p>
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-800">v1.2.0 (April 2026)</p>

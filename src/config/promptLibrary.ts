@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.0.0',
+    date: '2026-09-08',
+    title: 'Oppgradering til versjon 3.0.0',
+    changes: [
+      'Oppgradering av kjerne- og AI-arkitektur',
+      'Forbedret referansegenerator med støtte for KI-modeller (APA 7 og Kildekompasset)',
+      'Optimalisering av ytelse og automatisk produksjonsutrulling'
+    ]
+  },
+  {
     version: 'v2.4.0',
     date: '2025-05-15',
     title: 'Integrasjon av komplett Prompt-bibliotek og Sikkerhetsprotokoll',
