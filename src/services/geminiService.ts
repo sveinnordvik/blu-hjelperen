@@ -79,6 +79,14 @@ export async function callGoogleAIProxy(params: {
         if (resp.status === 404 || (typeof statusMsg === 'string' && statusMsg.includes("is not found for API version"))) {
            throw new Error("Feil: Modellen '" + targetModel + "' er ikke tilgjengelig for din API-nøkkel. Prøv en annen modell, f.eks gemini-2.5-flash.");
         }
+        if (resp.status === 429 || (typeof statusMsg === 'string' && (
+          statusMsg.includes("prepayment credits are depleted") ||
+          statusMsg.includes("RESOURCE_EXHAUSTED") ||
+          statusMsg.includes("quota") ||
+          statusMsg.includes("429")
+        ))) {
+          throw new Error("Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å fylle på kreditter eller administrere prosjektet, eller oppdater din GEMINI_API_KEY i Settings -> Secrets.");
+        }
         
         // La serverfeil gå til catch-blokken for retry
         throw { status: resp.status, message: statusMsg, isServerError: true, url: targetUrl };
@@ -107,7 +115,10 @@ export async function callGoogleAIProxy(params: {
            error.message.includes("Mangler GEMINI_API_KEY") || 
            error.message.includes("Ugyldig Gemini API-nøkkel") || 
            error.message.includes("API key not valid") ||
-           error.message.includes("er ikke tilgjengelig for din API")
+           error.message.includes("er ikke tilgjengelig for din API") ||
+           error.message.includes("kreditter er oppbrukt") ||
+           error.message.includes("prepayment credits") ||
+           error.message.includes("RESOURCE_EXHAUSTED")
          )) {
         throw error;
       }
@@ -260,7 +271,7 @@ export async function generateAcademicResponse(prompt: string, history: any[] = 
 export async function analyzeThesisStructure(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Analyser følgende utkast eller idé til oppgave og gi kritisk tilbakemelding basert på akademiske standarder og nasjonale krav i barnehagelærerutdanningen.
       
       Du skal vurdere teksten spesifikt opp mot disse tolv faglige kravene:
@@ -322,7 +333,7 @@ export async function analyzeThesisStructure(content: string) {
 export async function generateOutlineFromChat(chatContent: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Basert på følgende skisserte idé eller diskusjon, sett opp en strukturert disposisjon på ca. 4-5 hovedpunkter for en akademisk barnehageoppgave.
       
       Strukturen skal være i tråd med nasjonale akademiske standarder og inkludere:
@@ -409,7 +420,7 @@ export async function brainstormPerspectives(topic: string) {
 export async function evaluateThesis(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
     contents: `Du skal nå utføre en FAGLIG VURDERING av studentens utkast. Opptre som en konstruktiv sensor og vurder teksten opp mot nasjonale vurderingskriterier.
 
 STRUKTUR PÅ TILBAKEMELDINGEN:
@@ -447,7 +458,7 @@ ${content.substring(0, 30000)}`,
 export async function evaluateThesisAsDevilAdvocate(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
     contents: `Du er "Djevelens advokat" – en kritisk, men rettferdig akademisk opponent. Din jobb er å stressteste studentens tekst, finne de svakeste leddene i argumentasjonen, og utfordre det faglige ståstedet deres.
 
 STRUKTUR PÅ SVARET DITT:
@@ -483,7 +494,7 @@ ${content.substring(0, 30000)}`,
 export async function analyzeWithSystemPrompt(content: string, systemPrompt: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
     contents: content.substring(0, 30000),
     config: {
       systemInstruction: systemPrompt,
@@ -529,7 +540,7 @@ Til: 'I dag har vi hatt en kjempegøy dag i skogen, selv om sola ikke skinte så
 export async function synthesizeEvaluations(results: string[]) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Du har utført flere del-analyser av en lang akademisk tekst. Din oppgave er å sy sammen disse del-analysene til én helhetlig, profesjonell sensor-rapport.
     
     Her er del-analysene:
@@ -558,7 +569,7 @@ export async function synthesizeEvaluations(results: string[]) {
 export async function checkPlagiarism(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Du skal nå utføre en INTEGRITETSSJEKK (Dyp plagiat- og KI-sjekk). Analyser teksten for "røde flagg" knyttet til KI-bruk og mangelfull kildehenvisning.
 
 VIKTIG: Du har ikke tilgang til eksterne plagiatdatabaser. Din sjekk vurderer språklige mønstre og kildemangler, ikke direkte kildekopiering fra nettet.
@@ -624,7 +635,7 @@ export async function analyzeMultiPdfs(texts: { name: string, content: string }[
     const combinedText = texts.map(t => `DOKUMENT: ${t.name}\nINNHOLD:\n${t.content}`).join('\n\n---\n\n');
 
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Du har fått tilgang til flere pensumartikler/dokumenter samtidig. Din oppgave er å syntetisere informasjonen på tvers av disse dokumentene.
     
     ${query ? `BRUKERENS SPØRSMÅL: ${query}` : 'Gi en overordnet syntese av de viktigste temaene som går igjen i disse dokumentene, og hvordan de utfyller hverandre.'}
@@ -769,7 +780,7 @@ export async function performDeepSourceAnalysis(sourceDescription: string, evalu
 export async function analyzePdfContent(text: string): Promise<string> {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Du er en sylskarp, akademisk lesepartner for barnehagelærerstudenter (BLU). Din oppgave er å analysere PDF-dokumenter, artikler eller notater som studenten laster opp, og trekke ut den informasjonen som er mest relevant for deres utdanning og praksis.
 
 FØLG DISSE REGLENE STRENGT:
@@ -815,7 +826,7 @@ ${text.substring(0, 20000)}`,
 export async function analyzeAssignmentText(text: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Analyser følgende oppgavetekst/arbeidskrav for en barnehagelærerstudent og trekk ut nøkkelinformasjon for å sette opp skriveprosessen.
     
     Oppgavetekst:
@@ -848,7 +859,7 @@ export async function analyzeAssignmentText(text: string) {
 export async function performDeepPdfAnalysis(text: string, initialAnalysis: any) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: `Utfør en dypanalyse av følgende PDF-innhold.
     Full tekst (utdrag): ${text.substring(0, 30000)}
     

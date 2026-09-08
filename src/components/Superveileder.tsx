@@ -13,7 +13,8 @@ import {
   Check, 
   Loader2,
   RefreshCw,
-  Lightbulb
+  Lightbulb,
+  Search
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { generateAcademicResponse, askSocraticAgent, askApaAgent, askLanguageAgent } from '../services/geminiService';
@@ -95,7 +96,9 @@ export function Superveileder(_props?: { [key: string]: any }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
+  const prevMsgCountRef = useRef(0);
 
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0];
   const activeMode = activeChat?.activeMode || 'Auto';
@@ -109,10 +112,41 @@ export function Superveileder(_props?: { [key: string]: any }) {
     }
   }, [chats]);
 
-  // Scroll to bottom on new messages
+  // Ensure window is always at top on mount
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeChat?.messages, isLoading]);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
+
+  // Scroll to bottom on new messages ONLY inside the chat container, never the window
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevMsgCountRef.current = activeChat?.messages?.length || 0;
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      return;
+    }
+
+    const currentMsgCount = activeChat?.messages?.length || 0;
+    if (currentMsgCount > prevMsgCountRef.current || isLoading) {
+      prevMsgCountRef.current = currentMsgCount;
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [activeChat?.messages?.length, isLoading]);
+
+  // Reset scroll to top when changing chat sessions
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = 0;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeChatId]);
 
   const handleNewChat = () => {
     const newId = Date.now().toString();
@@ -197,6 +231,13 @@ export function Superveileder(_props?: { [key: string]: any }) {
         aiResponseText = await askApaAgent(userText);
       } else if (activeMode === 'Språkvask') {
         aiResponseText = await askLanguageAgent(userText);
+      } else if (activeMode === 'Metode') {
+        aiResponseText = await generateAcademicResponse(
+          userText,
+          [],
+          'balanced',
+          { frameworkFocus: 'Modus: Metode & Forskningsdesign. Gi didaktisk og vitenskapsteoretisk veiledning for barnehagelærerutdanningen: problemstilling, kvalitativ/kvantitativ metode, observasjon, intervju, dokumentanalyse, litteraturstudie, etikk (NESH/samtykke) og pålitelighet/gyldighet (reliabilitet/validitet).' }
+        );
       } else {
         aiResponseText = await generateAcademicResponse(
           userText,
@@ -303,7 +344,8 @@ export function Superveileder(_props?: { [key: string]: any }) {
     { id: 'Sokratisk', icon: <MessageSquare className="w-4 h-4" />, desc: 'Stiller reflekterende spørsmål' },
     { id: 'Rammeplan', icon: <BookOpen className="w-4 h-4" />, desc: 'Kobling til fagområder og lovverk' },
     { id: 'APA', icon: <Quote className="w-4 h-4" />, desc: 'Korrekt kildereferanse og sitat' },
-    { id: 'Språkvask', icon: <PenTool className="w-4 h-4" />, desc: 'Akademisk formulering' }
+    { id: 'Språkvask', icon: <PenTool className="w-4 h-4" />, desc: 'Akademisk formulering' },
+    { id: 'Metode', icon: <Search className="w-4 h-4" />, desc: 'Forskningsdesign og metode' }
   ];
 
   return (
@@ -320,10 +362,13 @@ export function Superveileder(_props?: { [key: string]: any }) {
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
     >
-      <div className="flex flex-col h-full bg-slate-50/50">
-        
-        {/* Modus-velger i toppen */}
-        <div className="bg-white p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-center gap-2 z-10 shadow-xs">
+      {({ isCollapsed }) => (
+        <div className="flex flex-col h-full bg-slate-50/50">
+          
+          {/* Modus-velger i toppen */}
+          <div className={`bg-white p-3.5 border-b border-slate-200 flex flex-wrap items-center justify-center gap-2 z-10 shadow-xs transition-all duration-300 ${
+            isCollapsed ? 'pl-16 sm:pl-36' : ''
+          }`}>
           {modes.map(m => (
             <button
               key={m.id}
@@ -342,69 +387,96 @@ export function Superveileder(_props?: { [key: string]: any }) {
         </div>
 
         {/* Chat-meldinger */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar">
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar"
+        >
           <div className="max-w-3xl mx-auto w-full space-y-6">
             
-            {activeChat?.messages.map((msg) => (
-              <div 
-                key={msg.id}
-                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-1 border border-primary/20">
-                    <Bot className="w-4 h-4" />
+            {/* Velkomstkort */}
+            {(!activeChat?.messages || activeChat.messages.filter(m => m.role === 'user').length === 0) ? (
+              <div className="flex flex-col items-start max-w-2xl mx-auto w-full">
+                <span className="text-[10px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1">
+                  <Bot className="w-3 h-3 text-indigo-500" /> Superveilederen
+                </span>
+                <div className="bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl rounded-bl-sm shadow-sm text-sm">
+                  Hei! Jeg er Superveilederen din. Still meg et spørsmål, eller velg modus i menyen over for spesifikk hjelp med APA, språkvask, rammeplanen – eller <strong>metodevalg og forskningsdesign</strong>.
+                  {activeMode === 'Metode' && (
+                    <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-800 text-xs">
+                      <strong>💡 Metode-tips:</strong> Skriv inn problemstillingen din her, og nevn gjerne om du vurderer kvalitativ, kvantitativ eller litteraturstudie, så hjelper jeg deg med å bygge et solid design!
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {activeMode === 'Metode' && (
+                  <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-800 text-xs max-w-2xl mx-auto w-full">
+                    <strong>💡 Metode-tips:</strong> Skriv inn problemstillingen din her, og nevn gjerne om du vurderer kvalitativ, kvantitativ eller litteraturstudie, så hjelper jeg deg med å bygge et solid design!
                   </div>
                 )}
-
-                <div className={`flex flex-col max-w-[82%] sm:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  
-                  <div className="flex items-center gap-2 mb-1 px-1 text-[11px] font-semibold text-slate-400">
-                    <span>{msg.role === 'assistant' ? 'Superveilederen' : 'Deg'}</span>
-                    {msg.mode && (
-                      <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.2 rounded font-bold">
-                        {msg.mode}
-                      </span>
-                    )}
-                    <span>•</span>
-                    <span>{msg.timestamp}</span>
-                  </div>
-
+                {activeChat.messages.map((msg) => (
                   <div 
-                    className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
-                      msg.role === 'user'
-                        ? 'bg-primary text-white rounded-br-xs shadow-sm shadow-primary/20'
-                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
-                    }`}
+                    key={msg.id}
+                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    {msg.role === 'assistant' && (
+                      <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-1 border border-primary/20">
+                        <Bot className="w-4 h-4" />
+                      </div>
+                    )}
+
+                    <div className={`flex flex-col max-w-[82%] sm:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      
+                      <div className="flex items-center gap-2 mb-1 px-1 text-[11px] font-semibold text-slate-400">
+                        <span>{msg.role === 'assistant' ? 'Superveilederen' : 'Deg'}</span>
+                        {msg.mode && (
+                          <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.2 rounded font-bold">
+                            {msg.mode}
+                          </span>
+                        )}
+                        <span>•</span>
+                        <span>{msg.timestamp}</span>
+                      </div>
+
+                      <div 
+                        className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-white rounded-br-xs shadow-sm shadow-primary/20'
+                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
+                        }`}
+                      >
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+
+                        {/* Kopi-knapp for assistent-svar */}
+                        {msg.role === 'assistant' && (
+                          <button
+                            onClick={() => handleCopy(msg.id, msg.content)}
+                            className="absolute bottom-2 right-2 p-1.5 bg-white/90 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg border border-slate-200 shadow-xs opacity-0 group-hover:opacity-100 transition-all"
+                            title="Kopier svar"
+                          >
+                            {copiedId === msg.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+
                     </div>
 
-                    {/* Kopi-knapp for assistent-svar */}
-                    {msg.role === 'assistant' && (
-                      <button
-                        onClick={() => handleCopy(msg.id, msg.content)}
-                        className="absolute bottom-2 right-2 p-1.5 bg-white/90 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg border border-slate-200 shadow-xs opacity-0 group-hover:opacity-100 transition-all"
-                        title="Kopier svar"
-                      >
-                        {copiedId === msg.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                    {msg.role === 'user' && (
+                      <div className="w-8 h-8 rounded-xl bg-slate-800 text-slate-200 flex items-center justify-center shrink-0 mt-1">
+                        <User className="w-4 h-4" />
+                      </div>
                     )}
                   </div>
-
-                </div>
-
-                {msg.role === 'user' && (
-                  <div className="w-8 h-8 rounded-xl bg-slate-800 text-slate-200 flex items-center justify-center shrink-0 mt-1">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
-              </div>
-            ))}
+                ))}
+              </>
+            )}
 
             {/* Laster-indikator */}
             {isLoading && (
@@ -419,7 +491,7 @@ export function Superveileder(_props?: { [key: string]: any }) {
               </div>
             )}
 
-            <div ref={messagesEndRef} />
+            <div className="h-2" />
           </div>
         </div>
 
@@ -430,7 +502,7 @@ export function Superveileder(_props?: { [key: string]: any }) {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={`Spør om fag, rammeplan, APA eller tekst (${activeMode}-modus)...`}
+              placeholder={activeMode === 'Metode' ? 'Spør om noe (Metode-modus)...' : `Spør om fag, rammeplan, APA eller tekst (${activeMode}-modus)...`}
               className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-slate-400"
               disabled={isLoading}
             />
@@ -444,7 +516,8 @@ export function Superveileder(_props?: { [key: string]: any }) {
           </form>
         </div>
 
-      </div>
+        </div>
+      )}
     </WorkspaceLayout>
   );
 }

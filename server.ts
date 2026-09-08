@@ -148,6 +148,12 @@ Når du svarer, følg disse retningslinjene:
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Serverfeil ved kontakt med Gemini for /api/chat/message:", error);
+      const errMsg = error?.message || String(error);
+      if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429) {
+        return res.status(429).json({ 
+          error: "Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å administrere prosjektet eller fylle på kreditter, eller oppdater GEMINI_API_KEY i innstillingene." 
+        });
+      }
       res.status(500).json({ error: "Klarte ikke å hente svar fra KI-modellen." });
     }
   });
@@ -170,17 +176,41 @@ Når du svarer, følg disse retningslinjene:
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
       
-      const response = await ai.models.generateContent({
-        model: model || "gemini-2.5-flash",
-        contents,
-        config,
-      });
+      const targetModel = model || "gemini-2.5-flash";
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model: targetModel,
+          contents,
+          config,
+        });
+      } catch (innerErr: any) {
+        // Dersom en pro-modell eller spesiell modell feiler, forsøk fallback til gemini-2.5-flash
+        if (targetModel !== "gemini-2.5-flash" && targetModel !== "gemini-3.8-flash") {
+          console.warn(`Fallback fra ${targetModel} til gemini-2.5-flash grunnet feil:`, innerErr?.message || innerErr);
+          response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents,
+            config,
+          });
+        } else {
+          throw innerErr;
+        }
+      }
 
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Gemini API error:", error);
-      const status = error?.status || 500;
-      res.status(status).json({ error: String(error) });
+      const errMsg = error?.message || String(error);
+      const status = error?.status || (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") ? 429 : 500);
+
+      if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("RESOURCE_EXHAUSTED") || status === 429) {
+        return res.status(429).json({
+          error: "Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å administrere prosjektet eller fylle på kreditter, eller oppdater din GEMINI_API_KEY under Settings -> Secrets."
+        });
+      }
+
+      res.status(status).json({ error: errMsg });
     }
   });
 

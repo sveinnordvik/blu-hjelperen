@@ -466,19 +466,22 @@ Gi en strukturert tilbakemelding med:
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
     >
-      {!activeDoc ? (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
-          Velg et dokument eller opprett et nytt.
-        </div>
-      ) : (
-        <div className="flex flex-col h-full bg-white relative">
-          
-          {/* Toppmeny for det aktive dokumentet */}
-          <div className="flex items-center justify-between p-3.5 md:p-4 border-b border-slate-200 bg-white z-10 gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <h2 className="text-base md:text-lg font-black text-slate-800 truncate max-w-xs md:max-w-md">
-                {activeDoc.title}
-              </h2>
+      {({ isCollapsed }) => (
+        !activeDoc ? (
+          <div className="flex-1 flex items-center justify-center text-slate-400">
+            Velg et dokument eller opprett et nytt.
+          </div>
+        ) : (
+          <div className="flex flex-col h-full bg-white relative">
+            
+            {/* Toppmeny for det aktive dokumentet */}
+            <div className={`flex items-center justify-between p-3.5 md:p-4 border-b border-slate-200 bg-white z-10 gap-3 transition-all duration-300 ${
+              isCollapsed ? 'pl-16 sm:pl-36' : 'pl-3.5 md:pl-4'
+            }`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <h2 className="text-base md:text-lg font-black text-slate-800 truncate max-w-xs md:max-w-md lg:max-w-xl">
+                  {activeDoc.title}
+                </h2>
               <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
                 <button 
                   onClick={() => setViewMode('editor')}
@@ -753,9 +756,10 @@ Gi en strukturert tilbakemelding med:
             
           </div>
         </div>
-      )}
-    </WorkspaceLayout>
-  );
+      )
+    )}
+  </WorkspaceLayout>
+);
 }
 
 export default WritingWorkshop;

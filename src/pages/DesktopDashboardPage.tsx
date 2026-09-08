@@ -31,13 +31,22 @@ export default function DesktopDashboardPage({
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
 
   const { messages, isLoading, error, sendMessage, setMessages } = useChat(userId, currentChatId);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
-  // Auto-scroll til bunnen hver gang "messages" endrer seg
+  // Auto-scroll kun internt i chat-beholderen ved nye meldinger, aldri selve nettleservinduet
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages.length, isLoading]);
 
   // Hent tidligere chat-sesjoner for innlogget bruker
   useEffect(() => {
@@ -187,8 +196,8 @@ export default function DesktopDashboardPage({
         </header>
 
         {/* Selve chat-loggen */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 scroll-smooth bg-slate-50/50">
-          <div ref={chatContainerRef} className="max-w-4xl mx-auto w-full space-y-4">
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 scroll-smooth bg-slate-50/50">
+          <div className="max-w-4xl mx-auto w-full space-y-4">
             <AIWarning dismissible={true} />
             
             {messages.length === 0 ? (
@@ -231,7 +240,7 @@ export default function DesktopDashboardPage({
                 )}
                 
                 {/* Usynlig anker for auto-scroll */}
-                <div ref={messagesEndRef} className="h-2" />
+                <div className="h-2" />
               </div>
             )}
           </div>

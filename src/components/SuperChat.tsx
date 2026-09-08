@@ -43,11 +43,21 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
   const [isLoading, setIsLoading] = useState(false);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages.length, isLoading]);
 
   useEffect(() => {
     return () => {
@@ -270,7 +280,7 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
       )}
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
         {messages.map((msg, idx) => {
           const isUser = msg.role === 'user';
           const agentStyle = !isUser ? getAgentStyling(msg.agent) : null;
@@ -364,7 +374,7 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
             </div>
           </div>
         )}
-        <div ref={chatEndRef} />
+        <div className="h-2" />
       </div>
 
       {/* Input area */}

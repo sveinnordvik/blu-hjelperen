@@ -18,15 +18,25 @@ export function SocraticPartner({ user, didacticProfile }: SocraticPartnerProps)
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
+  const isInitialMount = useRef(true);
 
   const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages.length, isLoading]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -61,7 +71,7 @@ export function SocraticPartner({ user, didacticProfile }: SocraticPartnerProps)
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed ${
@@ -81,7 +91,7 @@ export function SocraticPartner({ user, didacticProfile }: SocraticPartnerProps)
             </div>
           </div>
         )}
-        <div ref={chatEndRef} />
+        <div className="h-2" />
       </div>
 
       <div className="p-4 bg-white border-t border-slate-100 space-y-3">

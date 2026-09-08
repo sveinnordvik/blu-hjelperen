@@ -37,11 +37,21 @@ export function TeamChat({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [playingAudioIdx, setPlayingAudioIdx] = useState<number | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages.length, isLoading]);
 
   const handleSend = async (askAgent = false) => {
     const text = input.trim();
@@ -139,7 +149,7 @@ export function TeamChat({
       </div>
 
       {/* Messages Container */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-4">
+      <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-4">
         {messages.map((msg, idx) => {
           const currentUserName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Student';
           const isMe = msg.sender === currentUserName || (msg.role === 'user' && !msg.sender);
@@ -200,7 +210,7 @@ export function TeamChat({
             </div>
           </div>
         )}
-        <div ref={chatEndRef} />
+        <div className="h-2" />
       </div>
 
       {/* Input controls */}

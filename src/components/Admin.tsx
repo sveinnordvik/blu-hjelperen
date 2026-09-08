@@ -325,7 +325,7 @@ I mai vil vi rette oppmerksomheten mot alt som spirer og vokser rundt oss. Med u
 Hva skjer med naturen når det blir varmere? Hvilke tegn kan vi se på at nytt liv er på vei? Og hvordan kan vi ta vare på det som vokser rundt oss?`;
 
       const response = await callGoogleAIProxy({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "Du er en pedagogisk leder. Bruk Skoggruppemetoden (Læring gjennom mestring, PLAGG-modellen, den med-undrende voksne) og Rammeplan 2017. Harmoniser teksten med opplastede årsplaner. FORMAT: Månedsbrev strukturert for PowerPoint.",

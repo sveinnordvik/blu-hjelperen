@@ -7,8 +7,10 @@ import { TermsOfService } from './components/TermsOfService';
 import { ContextFilesManager } from './components/ContextFilesManager';
 import { DidaktiskPlanlegger } from './components/DidaktiskPlanlegger';
 import { VisualContentGenerator } from './components/VisualContentGenerator';
-import { OralSimulator } from './components/OralSimulator';
+import { RoleplaySimulator } from './components/RoleplaySimulator';
 import { PresentationGenerator } from './components/PresentationGenerator';
+import { Resources } from './components/Resources';
+import { Profile as ProfileComponent } from './components/Profile';
 
 /**
  * @license
@@ -40,6 +42,8 @@ import {
   PlusCircle,
   PlayCircle,
   Presentation,
+  FileSearch,
+  Wrench,
   Trash2,
   ChevronUp,
   ChevronDown,
@@ -151,9 +155,10 @@ import { LanguageBot } from './components/LanguageBot';
 import { SuperChat } from './components/SuperChat';
 import { PromptLibrary } from './components/PromptLibrary';
 import { DesktopDashboardPage } from './pages/DesktopDashboardPage';
-import { SensorTool } from './components/tools/SensorTool';
+import { DocumentAnalysis } from './components/DocumentAnalysis';
+import { Encyclopedia } from './components/Encyclopedia';
 import { AiTextRewriter } from './components/AiTextRewriter';
-import { Samarbeidsverktoy } from './components/tools/Samarbeidsverktoy';
+import { Basen } from './components/Basen';
 import WelcomeGuide, { PedagogicalProfile } from './components/WelcomeGuide';
 
 interface AppDocument {
@@ -334,7 +339,8 @@ const GlossaryCard = ({
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy'>('home');
+  const [activeSubTab, setActiveSubTab] = useState<'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('simulator');
   const [writingStep, setWritingStep] = useState(1);
 
   // Global Inactivity Router (Idle Timeout)
@@ -933,13 +939,10 @@ export default function App() {
       { id: 'process-log', label: 'Prosesslogg', icon: BookOpen, requiredTier: 'free' }
     ]},
     { id: 'verktoy', label: 'Verktøy', icon: Zap, subTabs: [
-      { id: 'presentation-generator', label: 'Presentasjons-generator', icon: Presentation, requiredTier: 'free' },
-      { id: 'oral-simulator', label: 'Rollespill & Simulator', icon: PlayCircle, requiredTier: 'free' },
-      { id: 'sensor', label: 'Sensorverktøy', icon: Scale, requiredTier: 'yearly' },
-      { id: 'literature-ref', label: 'Referansehjelperen', icon: BookOpen, requiredTier: 'monthly' },
-      { id: 'glossary-auto', label: 'Begrepsavklaring', icon: Search, requiredTier: 'free' },
-      { id: 'method-ethics', label: 'Metode & Etikk', icon: Shield, requiredTier: 'monthly' },
-      { id: 'pdf-analysis', label: 'PDF Analyse', icon: FileText, requiredTier: 'monthly' }
+      { id: 'simulator', label: 'Simulator', icon: PlayCircle, requiredTier: 'free' },
+      { id: 'presentations', label: 'Presentasjoner', icon: Presentation, requiredTier: 'free' },
+      { id: 'document-analysis', label: 'Dokumentanalyse', icon: FileSearch, requiredTier: 'free' },
+      { id: 'dictionary', label: 'Oppslagsverk', icon: Library, requiredTier: 'free' }
     ]},
     { id: 'basen', label: 'Basen', icon: Users, subTabs: [
       { id: 'collaboration', label: 'Basen', icon: Users, requiredTier: 'free' }
@@ -949,9 +952,7 @@ export default function App() {
       { id: 'file-archive', label: 'Filarkiv', icon: Archive, requiredTier: 'free' }
     ]},
     { id: 'profil', label: 'Profil', icon: User, subTabs: [
-      { id: 'profile', label: 'Min Profil', icon: User, requiredTier: 'free' },
-      { id: 'settings', label: 'Innstillinger', icon: Settings, requiredTier: 'free' },
-      { id: 'about', label: 'Om BLU-Hjelperen', icon: Info, requiredTier: 'free' }
+      { id: 'profile', label: 'Konto & Profil', icon: User, requiredTier: 'free' }
     ]}
   ];
 
@@ -972,7 +973,7 @@ export default function App() {
     }
   }
 
-  const activeGroup = navigationGroups.find(group => group.subTabs.some(sub => sub.id === activeTab)) || navigationGroups[0];
+  const activeGroup = navigationGroups.find(group => group.id === activeTab || group.subTabs.some(sub => sub.id === activeTab)) || navigationGroups[0];
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -1054,17 +1055,22 @@ export default function App() {
       const isAdmin = (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com');
       if (!isAdmin) {
         setActiveTab('home');
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
         return;
       }
     }
 
-    // Allow navigation for all in preview mode
-    if (checkAccess(requiredTier)) {
-      setActiveTab(tabId);
-    } else {
-      // If premium check fails, still allow tab navigation but premium features will be locked in child components
-      setActiveTab(tabId);
+    if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(tabId)) {
+      setActiveSubTab(tabId as any);
     }
+
+    // Allow navigation for all in preview mode
+    setActiveTab(tabId);
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
   };
 
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -1508,9 +1514,20 @@ export default function App() {
 
 
 
-  // Scroll to top on tab change (especially for mobile)
+  // Scroll to top on tab change for all devices and views
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    // A small RAF to catch any DOM layout shifts
+    const rafId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+
+    return () => cancelAnimationFrame(rafId);
   }, [activeTab]);
 
   // Pomodoro Logic
@@ -3075,7 +3092,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
   // Automatic AI glossary search
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (activeTab === 'glossary-auto' && searchQuery.length > 2 && filteredGlossary.length === 0 && !isAiDefining) {
+      if ((activeTab === 'glossary-auto' || activeTab === 'dictionary') && searchQuery.length > 2 && filteredGlossary.length === 0 && !isAiDefining) {
         handleGlossarySearch();
       }
     }, 1500);
@@ -3295,7 +3312,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
   // Sørg for at data er lastet når profil-fanen aktiveres
   useEffect(() => {
-    if (activeTab === 'profile' && user) {
+    if ((activeTab === 'profile' || activeTab === 'settings' || activeTab === 'about') && user) {
       const refreshProfile = async () => {
         try {
           const snap = await getDoc(doc(db, 'users', user.uid));
@@ -3801,20 +3818,20 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
       {/* Desktop Main Nav */}
       <div className="hidden md:flex flex-1 items-center relative overflow-hidden group/nav">
-        {canScrollLeft && (
-          <button 
-            onClick={() => scrollNav('left')}
-            className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-start hover:scale-110 transition-transform"
-          >
-            <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 ml-1">
-              <ChevronLeft className="w-4 h-4 text-primary" />
-            </div>
-          </button>
-        )}
+        <button 
+          onClick={() => scrollNav('left')}
+          className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-start hover:scale-110 transition-transform cursor-pointer"
+          title="Rull mot venstre"
+          aria-label="Rull mot venstre"
+        >
+          <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 ml-1">
+            <ChevronLeft className="w-4 h-4 text-primary" />
+          </div>
+        </button>
         <nav 
           ref={navRef}
           onScroll={checkScroll}
-          className="flex items-center gap-1 lg:gap-2 flex-1 justify-start overflow-x-auto no-scrollbar py-1 scroll-smooth"
+          className="flex items-center gap-1 lg:gap-2 flex-1 justify-start overflow-x-auto no-scrollbar py-1 px-8 scroll-smooth"
         >
           {navigationGroups.filter(g => !lowStressMode || ['hjem', 'skriving', 'profil'].includes(g.id)).map((group) => (
             <button
@@ -3833,16 +3850,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             </button>
           ))}
         </nav>
-        {canScrollRight && (
-          <button 
-            onClick={() => scrollNav('right')}
-            className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-end hover:scale-110 transition-transform"
-          >
-            <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 mr-1">
-              <ChevronRight className="w-4 h-4 text-primary" />
-            </div>
-          </button>
-        )}
+        <button 
+          onClick={() => scrollNav('right')}
+          className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-end hover:scale-110 transition-transform cursor-pointer"
+          title="Rull mot høyre"
+          aria-label="Rull mot høyre"
+        >
+          <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 mr-1">
+            <ChevronRight className="w-4 h-4 text-primary" />
+          </div>
+        </button>
       </div>
 
       <div className="flex items-center gap-2 lg:gap-4 shrink-0">
@@ -4023,7 +4040,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                     onClick={() => handleTabClick(sub.id, sub.requiredTier)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                      activeTab === sub.id 
+                      (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id))
                         ? "bg-white text-primary shadow-sm border border-slate-200" 
                         : "text-slate-500 hover:text-slate-800"
                     )}
@@ -4084,7 +4101,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 onClick={() => handleTabClick(sub.id, sub.requiredTier)}
                 className={cn(
                   "flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-2",
-                  activeTab === sub.id 
+                  (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id))
                     ? "bg-primary text-white shadow-md shadow-primary-light" 
                     : "bg-white text-slate-600 border border-slate-200"
                 )}
@@ -4325,7 +4342,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'collaboration' && (
-            <Samarbeidsverktoy key="collaboration"
+            <Basen key="collaboration"
               user={user}
               pricingTier={pricingTier}
               setActiveTab={setActiveTab}
@@ -4816,35 +4833,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
 
           {activeTab === 'sensor' && (
-            <SensorTool key="sensor" 
-              sensorOption={sensorOption}
-              setSensorOption={setSensorOption}
-              isDevilAdvocate={isDevilAdvocate}
-              setIsDevilAdvocate={setIsDevilAdvocate}
-              sensorUploadMode={sensorUploadMode}
-              setSensorUploadMode={setSensorUploadMode}
-              sensorInput={sensorInput}
-              setSensorInput={setSensorInput}
-              sensorFile={sensorFile}
-              setSensorFile={setSensorFile}
-              teacherFeedback={teacherFeedback}
-              setTeacherFeedback={setTeacherFeedback}
-              handleAnalyze={handleAnalyze}
-              isEvaluating={isEvaluating}
-              evaluationResult={evaluationResult}
-              copyToClipboard={copyToClipboard}
-              copiedId={copiedId}
-              pricingTier={pricingTier}
-              isGuest={isGuest}
-              plagiarismError={plagiarismError}
-              plagiarismResult={plagiarismResult}
-              isCheckingPlagiarism={isCheckingPlagiarism}
-              handlePlagiarismCheck={handlePlagiarismCheck}
-              setPlagiarismResult={setPlagiarismResult}
-              setPlagiarismError={setPlagiarismError}
-              setActiveTab={setActiveTab}
-              checkAccess={checkAccess}
-            />
+            <DocumentAnalysis key="sensor" />
           )}
 
           {showCancelModal && (
@@ -5328,9 +5317,33 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
 
 
-          {activeTab === 'presentation-generator' && (
+          {/* Verktøy routing */}
+          {activeTab === 'verktoy' && (
+            (() => {
+              switch (activeSubTab) {
+                case 'simulator':
+                  return <RoleplaySimulator key="simulator" />;
+                case 'presentations':
+                  return (
+                    <PresentationGenerator 
+                      key="presentations"
+                      documentText={activeDocument?.content ? Object.values(activeDocument.content).filter(Boolean).join('\n\n') : ''}
+                      documentTitle={activeDocument?.title}
+                    />
+                  );
+                case 'document-analysis':
+                  return <DocumentAnalysis key="document-analysis" />;
+                case 'dictionary':
+                  return <Encyclopedia key="dictionary" />;
+                default:
+                  return <RoleplaySimulator key="simulator-default" />;
+              }
+            })()
+          )}
+
+          {(activeTab === 'presentation-generator' || activeTab === 'presentations') && (
             <motion.div 
-              key="presentation-generator"
+              key="presentations"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -5343,296 +5356,42 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             </motion.div>
           )}
 
-          {activeTab === 'oral-simulator' && (
+          {(activeTab === 'oral-simulator' || activeTab === 'simulator') && (
             <motion.div 
-              key="oral-simulator"
+              key="simulator"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="w-full"
             >
-              <OralSimulator />
+              <RoleplaySimulator />
             </motion.div>
           )}
 
-          {activeTab === 'glossary-auto' && (
+          {(activeTab === 'glossary-auto' || activeTab === 'dictionary') && (
             <motion.div 
-              key="glossary-auto"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col gap-6"
+              key="dictionary"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full"
             >
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-primary-light p-2 rounded-lg">
-                    <Search className="text-primary w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-lg">Begrepsavklaring</h2>
-                    <p className="text-sm text-slate-500">Lurer du på hva et begrep betyr? Skriv det inn, så forklarer jeg det på en enkel måte!</p>
-                    <HelpSection 
-                      title="Begreper" 
-                      content="Akademiske tekster krever presisjon. Her kan du få hjelp til å definere og forklare sentrale fagbegreper slik at leseren forstår nøyaktig hva du mener." 
-                    />
-                  </div>
-                </div>
-                <div className="relative mb-6">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input 
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    disabled={isGuest}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleGlossarySearch();
-                      }
-                    }}
-                    placeholder={isGuest ? "🔒 Logg inn for å søke" : "Søk i begreper (f.eks. Resiliens)..."}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {isAiDefining && (
-                  <div className="mb-6 p-4 bg-primary/5 border border-primary/10 rounded-2xl flex items-center gap-4 animate-pulse">
-                    <div className="bg-white p-2 rounded-lg shadow-sm">
-                      <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-primary">Henter definisjon fra AI...</p>
-                      <p className="text-[10px] text-primary/60 font-medium italic">Analyserer "{searchQuery}" i lys av barnehagepedagogikk og Rammeplanen</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-                  {filteredGlossary.map((item, i) => (
-                    <GlossaryCard 
-                      key={`${item.term}-${i}`}
-                      item={item}
-                      index={i}
-                      searchCounts={searchCounts}
-                      incrementSearchCount={incrementSearchCount}
-                      copyToClipboard={copyToClipboard}
-                      copiedId={copiedId}
-                    />
-                  ))}
-                  {filteredGlossary.length === 0 && !isAiDefining && searchQuery && (
-                    <div className="col-span-full text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                        <Search className="w-6 h-6 text-slate-300" />
-                      </div>
-                      <p className="text-sm text-slate-500 font-medium mb-4">Ingen lokale treff for "{searchQuery}"</p>
-                      <button 
-                        onClick={handleGlossarySearch}
-                        disabled={isGuest}
-                        className="bg-primary text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-primary-hover transition-all shadow-lg shadow-primary-light flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isGuest ? '🔒 Logg inn' : <><Sparkles className="w-4 h-4" /> Hent akademisk definisjon med AI</>}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <Encyclopedia />
             </motion.div>
           )}
 
 
 
 
-          {activeTab === 'pdf-analysis' && (
+          {(activeTab === 'pdf-analysis' || activeTab === 'document-analysis') && (
             <motion.div 
-              key="pdf-analysis"
-              initial={{ opacity: 0, scale: 0.95 }}
+              key="document-analysis"
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               className="space-y-6"
             >
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 text-center">
-                <div className="w-16 h-16 bg-primary-light rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-8 h-8 text-primary" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Analyser din PDF</h2>
-                <p className="text-slate-500 mb-6 max-w-md mx-auto">Last opp en artikkel eller et kapittel for å få et sammendrag og forslag til relevant teori.</p>
-                <HelpSection 
-                  title="PDF Analyse" 
-                  content="Last opp pensumartikler eller andre PDF-er for å få raske sammendrag, forklaringer på vanskelige begreper eller hjelp til å finne spesifikke temaer i teksten." 
-                />
-                
-                  <div className="flex flex-wrap justify-center gap-4">
-                  <label className={cn(
-                    "inline-flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-hover transition-all cursor-pointer",
-                    (isGuest || !checkAccess('monthly')) && "opacity-50 cursor-not-allowed"
-                  )}>
-                    <Upload className="w-5 h-5" />
-                    {getAccessLabel('monthly', 'Velg PDF-fil')}
-                    <input type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} disabled={isGuest || !checkAccess('monthly')} />
-                  </label>
-
-                  {checkAccess('yearly') && (
-                    <label className={cn(
-                      "inline-flex items-center gap-2 bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all cursor-pointer",
-                      (isGuest || !checkAccess('yearly')) && "opacity-50 cursor-not-allowed"
-                    )}>
-                      <Library className="w-5 h-5" />
-                      {getAccessLabel('yearly', 'Last opp flere PDF-er')}
-                      <input type="file" accept=".pdf" multiple className="hidden" onChange={handleMultiPdfUpload} disabled={isGuest || !checkAccess('yearly')} />
-                    </label>
-                  )}
-                </div>
-                
-                {pdfFiles.length > 0 && (
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {pdfFiles.map((f, i) => (
-                      <div key={`pdf-file-${f.name}-${f.size}-${i}`} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-bold flex items-center gap-2">
-                        <FileText className="w-3 h-3" />
-                        {f.name} ({formatBytes(f.size)})
-                        <button onClick={() => setPdfFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-red-500">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Multi-PDF Analysis (Snakk med pensum) */}
-              {pdfFiles.length > 0 && (
-                <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-emerald-100 p-2 rounded-lg">
-                      <MessageSquare className="text-emerald-600 w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">Snakk med pensum</h3>
-                      <p className="text-sm text-slate-500">Still spørsmål på tvers av alle opplastede dokumenter.</p>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <input 
-                      type="text"
-                      value={multiPdfQuery}
-                      disabled={isGuest}
-                      onChange={(e) => setMultiPdfQuery(e.target.value)}
-                      placeholder={isGuest ? "🔒 Logg inn for å snakke med pensum" : "F.eks: Hva sier disse tekstene om barns medvirkning?"}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <button 
-                      onClick={handleMultiPdfAnalysis}
-                      disabled={isMultiPdfLoading || isGuest}
-                      className="absolute right-2 top-2 bottom-2 px-4 bg-primary text-white rounded-xl font-bold hover:bg-primary-hover transition-all disabled:opacity-50"
-                    >
-                      {isMultiPdfLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isGuest ? '🔒' : <Send className="w-5 h-5" />)}
-                    </button>
-                  </div>
-
-                  {multiPdfAnalysis && (
-                    <div className="p-6 bg-emerald-50/30 rounded-2xl border border-emerald-100 prose prose-sm max-w-none">
-                      <ReactMarkdown>{multiPdfAnalysis}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {isPdfLoading && (
-                <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                  <p className="text-slate-500 font-medium animate-pulse">Analyserer innholdet... Dette kan ta litt tid.</p>
-                </div>
-              )}
-
-              {pdfAnalysis && !isPdfLoading && (
-                <div className="flex-1 flex flex-col gap-6">
-                  <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 relative group">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-primary-light p-2 rounded-lg">
-                          <Sparkles className="text-primary w-5 h-5" />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-900">Analyse av dokumentet</h3>
-                      </div>
-                      <button 
-                        onClick={() => copyToClipboard(pdfAnalysis, 'pdf-analysis')}
-                        className={cn(
-                          "p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 hover:text-primary hover:border-primary transition-all flex items-center gap-2 text-xs font-bold",
-                          copiedId === 'pdf-analysis' && "text-emerald-500 border-emerald-100 bg-emerald-50"
-                        )}
-                      >
-                        {copiedId === 'pdf-analysis' ? <><Check className="w-4 h-4" /> Kopiert!</> : <><Copy className="w-4 h-4" /> Kopier analyse</>}
-                      </button>
-                    </div>
-                    
-                    <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed">
-                      <ReactMarkdown>{pdfAnalysis}</ReactMarkdown>
-                    </div>
-                  </div>
-
-                  {/* Deep Analysis Section for PDF */}
-                  <div className={cn(
-                    "p-8 rounded-3xl border-2 transition-all",
-                    checkAccess('yearly') 
-                      ? "bg-white border-primary/20 shadow-sm" 
-                      : "bg-slate-50 border-slate-200 opacity-80"
-                  )}>
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("p-2 rounded-lg", checkAccess('yearly') ? "bg-primary-light" : "bg-slate-200")}>
-                          <Zap className={cn("w-5 h-5", checkAccess('yearly') ? "text-primary" : "text-slate-400")} />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900">KI-drevet Dypanalyse</h3>
-                          <p className="text-sm text-slate-500">Gå dypere inn i teksten for å avdekke metodisk validitet og teoretisk dybde.</p>
-                        </div>
-                      </div>
-                      {!checkAccess('yearly') && (
-                        <span className="text-[10px] font-black bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg uppercase tracking-wider flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> Krever Årsabonnement
-                        </span>
-                      )}
-                    </div>
-
-                    {!deepPdfAnalysis && !isDeepAnalyzing ? (
-                      <div className="space-y-4">
-                        <button 
-                          onClick={!checkAccess('yearly') ? () => setActiveTab('pricing') : handleDeepPdfAnalysis}
-                          className={cn(
-                            "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all",
-                            checkAccess('yearly')
-                              ? "bg-cta text-white hover:bg-cta-hover shadow-lg shadow-cta/20" 
-                              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                          )}
-                        >
-                          {getAccessLabel('yearly', 'Kjør dypanalyse nå')}
-                        </button>
-                      </div>
-                    ) : isDeepAnalyzing ? (
-                      <div className="py-12 flex flex-col items-center justify-center space-y-4">
-                        <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                        <p className="text-sm font-bold text-primary animate-pulse uppercase tracking-[0.2em]">Utfører dypanalyse...</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed bg-primary-light/10 p-6 rounded-3xl border border-primary-light/20">
-                          <ReactMarkdown>{deepPdfAnalysis || ''}</ReactMarkdown>
-                        </div>
-                        <button 
-                          onClick={() => setDeepPdfAnalysis(null)}
-                          className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-[0.2em] transition-colors"
-                        >
-                          Nullstill dypanalyse
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <DocumentAnalysis />
             </motion.div>
           )}
 
@@ -5870,11 +5629,31 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             </motion.div>
           )}
 
-          {activeTab === 'settings' && (
-            <SettingsComponent key="settings" 
+          {(activeTab === 'profile' || activeTab === 'settings' || activeTab === 'about') && (
+            <ProfileComponent 
+              key="profile-hub"
+              initialMenu={activeTab === 'settings' ? 'settings' : activeTab === 'about' ? 'about' : 'profile'}
+              profile={profile}
+              setProfile={setProfile}
+              handleSaveProfile={handleSaveProfile}
+              isSavingProfile={isSavingProfile}
+              user={user}
+              handleLogout={handleLogout}
+              setShowAuthModal={setShowAuthModal}
+              pedagogicalProfile={pedagogicalProfile}
+              setShowWelcomeGuide={setShowWelcomeGuide}
+              isSaving={isSaving}
+              isSyncing={isSyncing}
+              isQuotaExceeded={isQuotaExceeded}
+              lastCloudSyncTime={lastCloudSyncTime}
+              handleManualSync={handleManualSync}
+              lowStressMode={lowStressMode}
+              setLowStressMode={setLowStressMode}
+              pricingTier={pricingTier}
+              pricingModels={pricingModels}
+              handleCancelSubscription={handleCancelSubscription}
               settings={settings}
               setSettings={setSettings}
-              pricingTier={pricingTier}
               selectedTheme={selectedTheme}
               setSelectedTheme={setSelectedTheme}
               themes={themes}
@@ -5884,8 +5663,6 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               permissionStatus={permissionStatus}
               handleExportData={handleExportData}
               handleDeleteData={handleDeleteData}
-              user={user}
-              handleLogout={handleLogout}
               onNavigate={setActiveTab}
             />
           )}
@@ -5898,665 +5675,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             <TermsOfService key="terms" onBack={() => setActiveTab('settings')} />
           )}
 
-          {activeTab === 'profile' && (
-            <motion.div 
-              key="profile"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col gap-8"
-            >
-              {(!profile.studyProgram || !profile.studentId || !profile.deadline) && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-amber-50 border border-amber-100 rounded-3xl p-6 flex items-center gap-4 shadow-sm"
-                >
-                  <div className="bg-amber-100 p-3 rounded-2xl">
-                    <AlertTriangle className="w-6 h-6 text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-lg font-bold text-amber-900">Fullfør profilen din</p>
-                    <p className="text-sm text-amber-700">
-                      Fyll ut studieprogram, studentnummer og innleveringsfrist for å få bedre personlige forslag og påminnelser.
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
-              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
-                <div className="flex flex-col items-center gap-4 mb-8 pb-8 border-b border-slate-100 w-full">
-                  <div className="relative group">
-                    {user?.photoURL ? (
-                      <img 
-                        src={user.photoURL} 
-                        alt={profile.name || "Profilbilde"} 
-                        referrerPolicy="no-referrer"
-                        className="w-24 h-24 mx-auto mb-6 rounded-full object-cover border-4 border-white shadow-md"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 mx-auto mb-6 bg-primary-light rounded-full flex items-center justify-center text-primary border-4 border-white shadow-md">
-                        <User className="w-12 h-12" />
-                      </div>
-                    )}
-                    <div className="absolute bottom-6 right-0 bg-emerald-500 text-white p-1.5 rounded-full shadow-lg border-2 border-white">
-                      <Check className="w-3 h-3" />
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <h2 className="text-3xl font-black text-slate-900 mb-2">{profile.name || 'Studentprofil'}</h2>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold uppercase tracking-wider">
-                        {profile.studyProgram || 'Ingen studieprogram valgt'}
-                      </span>
-                      <span className="px-3 py-1 bg-primary-light text-primary-dark rounded-lg text-xs font-bold uppercase tracking-wider">
-                        {pricingModels.find(m => m.id === pricingTier)?.name || 'Gratis'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Fullt navn</label>
-                    <input 
-                      type="text"
-                      value={profile.name}
-                      onChange={(e) => setProfile({...profile, name: e.target.value})}
-                      placeholder="Oppgi navnet ditt"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">E-postadresse</label>
-                    <input 
-                      type="email"
-                      value={profile.email}
-                      onChange={(e) => setProfile({...profile, email: e.target.value})}
-                      placeholder="navn@student.no"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Studentnummer</label>
-                    <input 
-                      type="text"
-                      value={profile.studentId}
-                      onChange={(e) => setProfile({...profile, studentId: e.target.value})}
-                      placeholder="Ditt studentnummer"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Kandidatnummer</label>
-                    <input 
-                      type="text"
-                      value={profile.candidateId}
-                      onChange={(e) => setProfile({...profile, candidateId: e.target.value})}
-                      placeholder="F.eks. 101"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Kull / Årgang</label>
-                    <input 
-                      type="text"
-                      value={profile.year}
-                      onChange={(e) => setProfile({...profile, year: e.target.value})}
-                      placeholder="F.eks. 2024-2027"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Innleveringsfrist</label>
-                    <input 
-                      type="date"
-                      value={profile.deadline}
-                      onChange={(e) => setProfile({...profile, deadline: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Studiested (Høyskole/Uni)</label>
-                    <input 
-                      type="text"
-                      value={profile.studiested || ''}
-                      onChange={(e) => setProfile({...profile, studiested: e.target.value})}
-                      placeholder="F.eks. DMMH, OsloMet, NTNU..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Spesialisering / Fordypning</label>
-                    <input 
-                      type="text"
-                      value={profile.specialization}
-                      onChange={(e) => setProfile({...profile, specialization: e.target.value})}
-                      placeholder="F.eks. Natur, helse og bevegelse"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Studieprogram</label>
-                    <select 
-                      value={profile.studyProgram}
-                      onChange={(e) => {
-                        if (e.target.value === 'Annet' && pricingTier !== 'semester') {
-                          setActiveTab('pricing');
-                          return;
-                        }
-                        setProfile({...profile, studyProgram: e.target.value});
-                      }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    >
-                      <option value="">Velg studieprogram...</option>
-                      <option value="Barnehagelærer, heltid">Barnehagelærer, heltid</option>
-                      <option value="Barnehagelærer, deltid">Barnehagelærer, deltid</option>
-                      <option value="Barnehagelærer med vekt på musikk, drama, kunst og håndverk">Barnehagelærer med vekt på musikk, drama, kunst og håndverk</option>
-                      <option value="Barnehagelærer med vekt på natur og friluftsliv">Barnehagelærer med vekt på natur og friluftsliv</option>
-                      <option value="Barnehagelærer med vekt på flerkulturell forståelse">Barnehagelærer med vekt på flerkulturell forståelse</option>
-                      <option value="Annet">Annet / Egendefinert... {pricingTier !== 'semester' ? '🔒' : ''}</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Studiemodell</label>
-                    <input 
-                      type="text"
-                      value={profile.studyModel}
-                      onChange={(e) => setProfile({...profile, studyModel: e.target.value})}
-                      placeholder="F.eks. 2023-modell"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2 space-y-3">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Aktuelle emner (for litteraturforslag)</label>
-                    <input 
-                      type="text"
-                      value={profile.courses}
-                      onChange={(e) => setProfile({...profile, courses: e.target.value})}
-                      placeholder="F.eks. BHG3000, PED2000"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
-                    />
-                    <p className="text-[10px] text-slate-500 italic ml-1">
-                      Ved å oppgi emnekoder kan assistenten gi mer relevante litteraturforslag basert på pensumlistene.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end mt-12">
-                  <button 
-                    onClick={handleSaveProfile}
-                    disabled={isSavingProfile}
-                    className={cn(
-                      "px-10 py-4 bg-primary text-white rounded-2xl font-black hover:bg-primary-hover shadow-xl shadow-primary-light transition-all flex items-center gap-3 group",
-                      isSavingProfile && "opacity-70 cursor-not-allowed"
-                    )}
-                  >
-                    {isSavingProfile ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    )}
-                    {isSavingProfile ? 'Lagrer...' : 'Lagre endringer'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Pedagogisk Profil & Prinsipp-sjekk */}
-              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary-light/30 p-2.5 rounded-2xl text-primary">
-                      <BookOpen className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900 tracking-tight">Pedagogisk profil & Rammeplan</h3>
-                      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Ditt faglige fokus fra Velkomstguiden</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setShowWelcomeGuide(true)}
-                    className="px-5 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-primary-light/20 hover:text-primary hover:border-primary/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start sm:self-auto"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    Åpne Prinsipp-sjekk / Guide
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Fokusområde i Rammeplanen</span>
-                    <p className="text-sm font-bold text-slate-900">
-                      {pedagogicalProfile?.frameworkFocus || "Ikke valgt ennå"}
-                    </p>
-                  </div>
-                  <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Dine kjernebegreper & verdier</span>
-                    {pedagogicalProfile?.coreValues && pedagogicalProfile.coreValues.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {pedagogicalProfile.coreValues.map((v, i) => (
-                          <span key={`core-val-${i}-${v}`} className="px-2.5 py-1 bg-white border border-slate-200 text-primary font-bold text-xs rounded-lg shadow-2xl shadow-black/5">
-                            {v}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 italic">Ingen verdier valgt ennå</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Databehandling & Synkronisering */}
-              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-primary/10 p-2 rounded-xl">
-                    <Database className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Databehandling & Synkronisering</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Alt du gjør lagres lokalt umiddelbart</p>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="space-y-2 text-center md:text-left">
-                    <div className="flex items-center justify-center md:justify-start gap-3 text-base font-bold text-slate-700">
-                      <span>Sky-synkronisering:</span>
-                      {isSaving || isSyncing ? (
-                        <span className="flex items-center gap-2 text-primary animate-pulse">
-                          <RefreshCw className="w-4 h-4 animate-spin" /> Synkroniserer...
-                        </span>
-                      ) : isQuotaExceeded ? (
-                        <span className="flex items-center gap-2 text-amber-600">
-                          <AlertTriangle className="w-4 h-4" /> Utsett pga. dagskvote
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2 text-emerald-600">
-                          <CheckCircle2 className="w-4 h-4" /> Synkronisert med skyen
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-center md:justify-start gap-2">
-                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                          Sist lagret: {lastCloudSyncTime > 0 ? new Date(lastCloudSyncTime).toLocaleTimeString('no-NO') : 'Venter på første lagring...'}
-                       </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap justify-center gap-3">
-                    <button 
-                      onClick={handleManualSync}
-                      disabled={isSaving || isSyncing || isQuotaExceeded || !user}
-                      className={cn(
-                        "px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
-                        (isQuotaExceeded || !user)
-                          ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200" 
-                          : "bg-white text-primary border border-primary/20 hover:bg-primary-light shadow-sm active:scale-95"
-                      )}
-                    >
-                      <RefreshCw className={cn("w-4 h-4", (isSaving || isSyncing) && "animate-spin")} />
-                      Synkroniser nå
-                    </button>
-                  </div>
-                </div>
-
-                {isQuotaExceeded && (
-                  <div className="mt-6 p-6 bg-amber-50 border border-amber-100 rounded-[2rem] flex items-start gap-4">
-                    <div className="bg-amber-100 p-2 rounded-xl shrink-0">
-                      <Info className="w-5 h-5 text-amber-600" />
-                    </div>
-                    <div className="text-xs leading-relaxed text-amber-800 font-medium">
-                      <strong className="block mb-1 text-sm">Dagskvote for Enterprise Firestore (Spark-plan) er nådd.</strong> 
-                      Dette prosjektet har en grense på 20 000 skriveoperasjoner per dag i AI Studio-sandboksen. 
-                      Endringene dine er trygt lagret i nettleseren din og vil automatisk synkroniseres til skyen så snart kvoten nullstilles (vanligvis kl. 09:00). 
-                      Ingenting går tapt!
-                    </div>
-                  </div>
-                )}
-
-                {!user && (
-                  <div className="mt-6 p-6 bg-slate-50 border border-slate-100 rounded-[2rem] flex items-start gap-4">
-                    <div className="bg-slate-100 p-2 rounded-xl shrink-0">
-                      <Lock className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div className="text-xs leading-relaxed text-slate-800 font-medium">
-                      <strong className="block mb-1 text-sm">Logg inn for sky-lagring.</strong> 
-                      Du bruker appen som gjest. Dataene dine lagres kun lokalt i denne nettleseren. Logg inn for å synkronisere dataene dine på tvers av enheter.
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 relative group overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full -mr-6 -mt-6"></div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="bg-emerald-100 p-2 rounded-xl text-emerald-600">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-black text-slate-900 uppercase tracking-widest">Lokal-først</span>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      Appen prioriterer hastighet og sikkerhet ved å lagre alt du gjør i nettleserens minne umiddelbart. Du mister aldri data selv om nettet forsvinner.
-                    </p>
-                  </div>
-                  <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100 relative group overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full -mr-6 -mt-6"></div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-black text-slate-900 uppercase tracking-widest">Smarte intervaller</span>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                      Data synkroniseres til skyen hvert 5. minutt ved aktivitet, eller 2 minutter etter at du har sluttet å skrive, for å sikre optimal ytelse.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* App-innstillinger */}
-              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
-                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
-                  <Settings className="w-6 h-6 text-primary" /> App-innstillinger
-                </h3>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
-                    <div className="space-y-1">
-                      <p className="font-bold text-slate-900 flex items-center gap-2">
-                        <Moon className="w-4 h-4 text-primary" /> Lav-stress modus
-                      </p>
-                      <p className="text-xs text-slate-500">Forenkler grensesnittet og fjerner forstyrrende elementer for en roligere skriveopplevelse.</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        const newVal = !lowStressMode;
-                        setLowStressMode(newVal);
-                      }}
-                      className={cn(
-                        "w-14 h-8 rounded-full transition-all relative p-1",
-                        lowStressMode ? "bg-primary" : "bg-slate-200"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-6 h-6 bg-white rounded-full shadow-sm transition-all",
-                        lowStressMode ? "translate-x-6" : "translate-x-0"
-                      )} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Abonnement / Plan - Nå som eget kort rett under profil */}
-              <div className={cn(
-                "p-10 rounded-[3rem] border-2 shadow-sm transition-all",
-                pricingTier === 'free' ? "bg-white border-slate-100" : 
-                pricingTier === 'preview' ? "bg-emerald-50 border-emerald-200" :
-                "bg-primary-light/10 border-primary/20"
-              )}>
-                <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                  <div className="flex items-center gap-6">
-                    <div className={cn(
-                      "w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg",
-                      pricingTier === 'free' ? "bg-slate-100 text-slate-300" : 
-                      pricingTier === 'preview' ? "bg-emerald-500 text-white" :
-                      "bg-primary text-white"
-                    )}>
-                      {pricingTier === 'preview' ? <Zap className="w-10 h-10 animate-pulse" /> : <CreditCard className="w-10 h-10" />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Abonnement & Status</p>
-                      <h4 className="text-3xl font-black text-slate-900">
-                        {pricingTier === 'preview' ? '24-timers Preview aktiv' : 
-                         pricingModels.find(m => m.id === pricingTier)?.name || 'Gratisversjon'}
-                      </h4>
-                      {user ? (
-                        <p className="text-sm text-emerald-600 font-bold mt-1 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4" /> Innlogget som {user.email}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-amber-600 font-bold mt-1 flex items-center gap-2">
-                          <AlertCircle className="w-4 h-4" /> Ikke innlogget. Data lagres kun lokalt.
-                        </p>
-                      )}
-                      <div className="mt-4 space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-bold">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          <span className="text-slate-600">Ubegrenset AI-hjelp</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-bold">
-                          {pricingTier === 'free' ? (
-                            <Lock className="w-4 h-4 text-slate-300" />
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          )}
-                          <span className={pricingTier === 'free' ? "text-slate-400" : "text-slate-600"}>
-                            Dypere kildeanalyse
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-bold">
-                          {pricingTier === 'semester' || pricingTier === 'preview' ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          ) : (
-                            <Lock className="w-4 h-4 text-slate-300" />
-                          )}
-                          <span className={pricingTier === 'semester' || pricingTier === 'preview' ? "text-slate-600" : "text-slate-400"}>
-                            Basen {pricingTier !== 'semester' && pricingTier !== 'preview' && <span className="text-primary ml-1">(Neste milepæl!)</span>}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row w-full gap-3 sm:gap-4 lg:w-auto">
-                    {!user ? (
-                      <button 
-                        onClick={() => setShowAuthModal(true)}
-                        className="w-full sm:w-auto px-6 sm:px-10 py-4 bg-primary text-white rounded-2xl font-black hover:bg-primary-hover shadow-xl shadow-primary-light transition-all flex items-center justify-center gap-2"
-                      >
-                        <UserCheck className="w-5 h-5" /> Logg inn / Opprett konto
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={handleLogout}
-                        className="w-full sm:w-auto px-6 sm:px-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm flex items-center justify-center gap-2"
-                      >
-                        <LogOut className="w-5 h-5" /> Logg ut
-                      </button>
-                    )}
-                    {pricingTier !== 'preview' && (
-                      <button 
-                        onClick={() => setActiveTab('pricing')}
-                        className="w-full sm:w-auto px-6 sm:px-10 py-4 bg-white border border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm flex items-center justify-center gap-2"
-                      >
-                        {pricingTier === 'free' ? <ArrowUpCircle className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
-                        {pricingTier === 'free' ? 'Oppgrader nå' : 'Administrer abonnement'}
-                      </button>
-                    )}
-                    {pricingTier !== 'free' && pricingTier !== 'preview' && (
-                      <button 
-                        onClick={handleCancelSubscription}
-                        className="w-full sm:w-auto px-6 sm:px-10 py-4 bg-red-50 border border-red-100 rounded-2xl text-sm font-bold text-red-600 hover:bg-red-100 transition-all flex items-center justify-center"
-                      >
-                        Si opp
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-10 bg-primary-light/30 rounded-[3rem] border border-primary-light flex items-start gap-6">
-                <ShieldCheck className="w-8 h-8 text-primary shrink-0 mt-1" />
-                  <p className="text-sm text-primary-dark leading-relaxed font-medium">
-                    Informasjonen du legger inn her brukes kun til å gi deg en sømløs opplevelse på tvers av enhetene dine, og for å tilpasse veiledningen i chatten. Dataene dine lagres trygt i en kryptert skydatabase (Firebase), og de brukes aldri til å trene opp kunstig intelligens.
-                  </p>
-                </div>
-              </motion.div>
-            )}
 
           {activeTab === 'resources' && (
-            <motion.div 
-              key="resources"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex flex-col gap-6 md:gap-8"
-            >
-              {/* Din Høgskole (Ressurser) */}
-              <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-primary-light/20 rounded-full blur-3xl"></div>
-                <div className="relative z-10">
-                  <h3 className="text-lg md:text-xl font-black text-slate-900 mb-4 md:mb-6 flex items-center gap-3">
-                    <GraduationCap className="w-6 h-6 text-primary" /> Din Høgskole ({profile.college || 'Ikke valgt'})
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                    {[
-                      { 
-                        label: 'Canvas', 
-                        url: 'https://www.instructure.com/canvas/login', 
-                        icon: <Layout className="w-5 h-5" />, 
-                        desc: 'Læringsplattform' 
-                      },
-                      { label: 'Wiseflow', url: 'https://europe.wiseflow.net/login/search', icon: <FileCheck className="w-5 h-5" />, desc: 'Eksamen og innlevering' },
-                      { label: 'Studentweb', url: 'https://fsweb.no/studentweb/index.jsf', icon: <User className="w-5 h-5" />, desc: 'Semesterregistrering' },
-                      { label: 'Pensumoversikt', url: 'https://oria.no', icon: <BookOpen className="w-5 h-5" />, desc: 'Søk i Oria/Pensum' }
-                    ].map((link, lIdx) => (
-                      link.label === 'Canvas' && !profile.college ? (
-                        <button 
-                          key={`link-main-${lIdx}-${link.label}`}
-                          onClick={() => setActiveTab('profile')}
-                          className="flex flex-col gap-2 p-4 md:p-6 bg-amber-50 border border-amber-100 rounded-2xl md:rounded-3xl hover:border-amber-300 hover:bg-white hover:shadow-xl hover:shadow-amber-500/5 transition-all group text-left"
-                        >
-                          <div className="bg-white p-2 md:p-3 rounded-xl md:rounded-2xl shadow-sm group-hover:text-amber-600 group-hover:scale-110 transition-all w-fit">
-                            <AlertCircle className="w-5 h-5 text-amber-500" />
-                          </div>
-                          <div>
-                            <span className="block text-sm font-bold text-slate-900">{link.desc}</span>
-                            <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Trykk her</span>
-                          </div>
-                        </button>
-                      ) : (
-                        <a 
-                          key={`link-main-${lIdx}-${link.label}`} 
-                          href={link.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex flex-col gap-2 p-4 md:p-6 bg-slate-50 border border-slate-100 rounded-2xl md:rounded-3xl hover:border-primary/30 hover:bg-white hover:shadow-xl hover:shadow-primary/5 transition-all group"
-                        >
-                          <div className="bg-white p-2 md:p-3 rounded-xl md:rounded-2xl shadow-sm group-hover:text-primary group-hover:scale-110 transition-all w-fit">
-                            {link.icon}
-                          </div>
-                          <div>
-                            <span className="block text-sm font-bold text-slate-900">{link.label}</span>
-                            <span className="text-[10px] text-slate-500 font-medium">{link.desc}</span>
-                          </div>
-                        </a>
-                      )
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                {/* Referanser og Verktøy */}
-                <div className="bg-white p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-slate-100">
-                  <h3 className="text-base md:text-lg font-bold text-slate-900 mb-4 md:mb-6 flex items-center gap-3">
-                    <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-blue-500" /> Referanser og Verktøy
-                  </h3>
-                  <div className="grid gap-2 md:gap-3">
-                    {[
-                      { label: 'Kildekompasset (APA 7)', url: 'https://kildekompasset.no/referansestiler/apa-7/', icon: Compass },
-                      { label: 'Zotero', url: 'https://www.zotero.org/', icon: Library },
-                      { label: 'Søk & Skriv', url: 'https://sokogskriv.no/', icon: Search },
-                      { label: 'Nasjonalt Vitenarkiv', url: 'https://nva.unit.no/', icon: Archive }
-                    ].map((link, lIdx) => (
-                      <a key={`link-ref-${lIdx}-${link.label}`} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl hover:bg-white border border-transparent hover:border-slate-100 hover:shadow-sm transition-all group">
-                        <div className="flex items-center gap-3 md:gap-4">
-                          <div className="p-1.5 md:p-2 bg-white rounded-lg md:rounded-xl shadow-sm group-hover:text-primary transition-colors">
-                            <link.icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                          </div>
-                          <span className="text-xs md:text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">{link.label}</span>
-                        </div>
-                        <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-300 group-hover:text-primary transition-colors" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Styringsdokumenter & Etikk */}
-                <div className="bg-white p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] shadow-sm border border-slate-100">
-                  <h3 className="text-base md:text-lg font-bold text-slate-900 mb-4 md:mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-5 h-5 md:w-6 md:h-6 text-emerald-500" /> Styring & Etikk
-                  </h3>
-                  <div className="grid gap-2 md:gap-3">
-                    {[
-                      { label: 'Rammeplan for barnehagen', url: 'https://www.udir.no/laring-og-trivsel/rammeplan-for-barnehagen/', icon: FileText },
-                      { label: 'Barnehageloven', url: 'https://lovdata.no/dokument/NL/lov/2005-06-17-64', icon: Scale },
-                      { label: 'SIKT (Personvern)', url: 'https://sikt.no/logg-inn', icon: UserCheck },
-                      { label: 'NESH Retningslinjer', url: 'https://www.forskningsetikk.no/retningslinjer/hum-sam/forskningsetiske-retningslinjer-for-samfunnsvitenskap-humaniora-juss-og-teologi/', icon: ShieldAlert }
-                    ].map((link, lIdx) => (
-                      <a key={`link-gov-${lIdx}-${link.label}`} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-3 md:p-4 bg-slate-50 rounded-xl md:rounded-2xl hover:bg-white border border-transparent hover:border-slate-100 hover:shadow-sm transition-all group">
-                        <div className="flex items-center gap-3 md:gap-4">
-                          <div className="p-1.5 md:p-2 bg-white rounded-lg md:rounded-xl shadow-sm group-hover:text-emerald-600 transition-colors">
-                            <link.icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                          </div>
-                          <span className="text-xs md:text-sm font-bold text-slate-700 group-hover:text-emerald-600 transition-colors">{link.label}</span>
-                        </div>
-                        <ExternalLink className="w-3.5 h-3.5 md:w-4 md:h-4 text-slate-300 group-hover:text-emerald-600 transition-colors" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-                <div className="bg-emerald-50 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-emerald-100">
-                  <h3 className="text-lg md:text-xl font-black !text-emerald-900 mb-4 md:mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-6 h-6 md:w-7 md:h-7 text-emerald-600" /> Personvern & Sikkerhet
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                    {privacyNotice.map((item, idx) => (
-                      <div key={`privacy-item-${idx}`} className="bg-white/80 backdrop-blur-sm p-4 md:p-5 rounded-xl md:rounded-2xl border border-emerald-100 shadow-sm">
-                        <h4 className="font-bold text-xs md:text-sm text-emerald-800 mb-1">{item.title}</h4>
-                        <p className="text-[10px] md:text-xs text-emerald-700 leading-relaxed">{item.desc}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 p-5 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-amber-100">
-                  <h3 className="text-lg md:text-xl font-black !text-amber-900 mb-4 md:mb-6 flex items-center gap-3">
-                    <Sparkles className="w-6 h-6 md:w-7 md:h-7 text-amber-600" /> KI-vettregler
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                    {aiEthics.map((item, idx) => (
-                      <div key={`ethic-${idx}`} className="bg-white/80 backdrop-blur-sm p-4 md:p-5 rounded-xl md:rounded-2xl border border-amber-100 shadow-sm">
-                        <h4 className="font-bold text-xs md:text-sm text-amber-800 mb-1">{item.title}</h4>
-                        <p className="text-[10px] md:text-xs text-amber-700 leading-relaxed">{item.desc}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-900 p-6 md:p-8 rounded-xl md:rounded-[4rem] text-white relative overflow-hidden shadow-2xl">
-                <div className="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-white/5 rounded-full blur-3xl"></div>
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8">
-                  <div className="max-w-xl text-center md:text-left">
-                    <h3 className="font-serif text-xl md:text-3xl font-black mb-3 md:mb-4 !text-white">Trenger du mer hjelp?</h3>
-                    <p className="text-slate-300 text-sm md:text-lg mb-6 md:mb-8 leading-relaxed">
-                      Besøk biblioteket på ditt eget lærested for en skriveprat, eller ta kontakt med de faglige ressursene på din campus. De kan hjelpe deg med alt fra kildebruk til struktur!
-                    </p>
-                  </div>
-                  <div className="shrink-0 bg-white/5 p-6 md:p-8 rounded-full backdrop-blur-md border border-white/10">
-                    <BookOpen className="w-16 h-16 md:w-24 md:h-24 text-white" strokeWidth={1.5} />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+            <Resources key="resources" collegeName={profile.college || 'DMMH'} initialMenu="library" />
           )}
           {checkoutSuccess && (
             <motion.div 
@@ -6596,7 +5717,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'file-archive' && (
-            <ContextFilesManager key="file-archive" pricingTier={pricingTier} isGuest={!user} />
+            <Resources key="file-archive" collegeName={profile.college || 'DMMH'} initialMenu="files" />
           )}
 
           {activeTab === 'milestones' && (
@@ -6638,148 +5759,6 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                     </div>
                   </div>
                 ))}
-              </div>
-            </motion.div>
-          )}
-          {activeTab === 'about' && (
-            <motion.div 
-              key="about"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col gap-6"
-            >
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="bg-primary-light p-3 rounded-2xl">
-                    <Info className="text-primary w-8 h-8" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Om BLU-hjelperen</h2>
-                    <p className="text-slate-500">Din digitale veileder for akademisk skriving.</p>
-                  </div>
-                </div>
-
-                <div className="prose prose-slate max-w-none">
-                  <p className="text-slate-700 leading-relaxed">
-                    BLU-hjelperen er din digitale skrivepartner gjennom barnehagelærerstudiet. Appen er utviklet for å støtte studenter i deres studiehverdag, uavhengig av universitet eller høyskole. Ved å kombinere pedagogisk fagkunnskap med avansert KI-teknologi, gir BLU-hjelperen deg skreddersydd veiledning i alt fra refleksjonsoppgaver til bacheloroppgaven.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                      <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-emerald-600" /> Personvern og Datasikkerhet
-                      </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        For å gi deg en sømløs skriveopplevelse på tvers av mobil og PC, lagres dine aktive dokumenter og profildata trygt i en kryptert skydatabase (levert av Google Firebase). Dine tekster er private, knyttet til din unike bruker-ID, og deles aldri med tredjeparter. Du eier ditt eget innhold, og kan når som helst slette kontoen din for å fjerne all data fra våre servere.
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                      <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-amber-600" /> Ansvarlig bruk av KI
-                      </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        KI-en er her for å veilede, ikke for å skrive oppgaven for deg. Bruk tilbakemeldingene som et utgangspunkt for din egen refleksjon og skriving. Husk å alltid sjekke offisielle kilder.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-12 p-6 bg-primary-light rounded-2xl border border-primary-light">
-                    <h3 className="font-bold text-primary-dark mb-2">Om utviklingen</h3>
-                      <p className="text-sm text-primary-dark leading-relaxed">
-                        Denne applikasjonen er utviklet på frivillig basis og har ingen formell tilknytning til utdanningsinstitusjoner. Innholdet er basert på offentlig tilgjengelige nasjonale og institusjonelle retningslinjer for barnehagelærerutdanningen, men er ikke et offisielt produkt fra noen av disse lærestedene.
-                      </p>
-                    <div className="mt-4 pt-4 border-t border-primary-light">
-                      <p className="text-sm text-primary-dark font-bold mb-1">Opphavsrett</p>
-                      <p className="text-xs text-primary-dark">
-                        Det er S. Nordvik som har opphavsretten til denne appen. © 2026 Alle rettigheter forbeholdt.
-                      </p>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-primary-light">
-                      <p className="text-sm text-primary-dark font-bold mb-1">Informasjon</p>
-                      <p className="text-sm text-primary-dark leading-relaxed">
-                        Applikasjonen er ment som et supplement til veiledningen du får ved ditt lærested. Ved faglige spørsmål anbefales det å kontakte faglærer eller biblioteket.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                        <Library className="w-5 h-5 text-primary" /> Kildegrunnlag
-                      </h3>
-                      <ul className="text-xs text-slate-600 space-y-2">
-                        <li className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-                          Nasjonale retningslinjer og oppgavehåndbøker for barnehagelærerutdanningen.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-                          Kildekompasset og offisiell APA 7-manual.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-                          Utdanningsdirektoratet (Rammeplan for barnehagen, barnehageloven og offisielt støttemateriell).
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-                          Forskningsetiske retningslinjer for samfunnsvitenskap og humaniora (NESH / SIKT).
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <div className="w-1 h-1 rounded-full bg-primary/40 mt-1.5 shrink-0" />
-                          Anerkjente nasjonale ressurser for akademisk skriving og metode (f.eks. Søk & Skriv).
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-                        <Edit3 className="w-5 h-5 text-primary" /> Versjonshistorikk
-                      </h3>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs font-bold text-primary">v3.0.0 (September 2026)</p>
-                          <p className="text-[10px] text-slate-600 font-medium">Major Release 3.0: Oppgradering av AI-modeller, ny automatisk deployment og optimalisert ytelse.</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">v2.0.0 (April 2026)</p>
-                          <p className="text-[10px] text-slate-500">Major Release: Lansering av Basen, ny Semester-modell, og oppgraderte AI-motorer.</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">v1.2.0 (April 2026)</p>
-                          <p className="text-[10px] text-slate-500">Nytt navn (Studie-Assistent), utvidet målgruppe, nye oppgavetyper og oppdatert sensorverktøy.</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">v1.1.0 (April 2026)</p>
-                          <p className="text-[10px] text-slate-500">Lagt til "Kopier til utklippstavle", PDF-analyse og utvidet "Om"-seksjon.</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">v1.0.0 (Mars 2026)</p>
-                          <p className="text-[10px] text-slate-500">Første lansering med chat, referansekontroll og sensor-simulering.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 p-6 bg-slate-50 rounded-2xl border border-slate-200">
-                    <h3 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                      <CheckSquare className="w-5 h-5 text-primary" /> Bruksvilkår
-                    </h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      Denne assistenten er ment som et <strong>supplement</strong> til ordinær veiledning fra faglærer og bibliotekets tjenester. Den erstatter ikke formell veiledning. All bruk av KI-generert tekst i din endelige oppgave må skje i tråd med gjeldende regler for fusk og kildebruk ved ditt studiested.
-                    </p>
-                  </div>
-
-                  <div className="mt-6 p-6 bg-amber-50 rounded-2xl border border-amber-100">
-                    <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
-                      <ShieldAlert className="w-5 h-5" /> Viktig ansvarsfraskrivelse
-                    </h3>
-                    <p className="text-sm text-amber-800 leading-relaxed">
-                      Dette er et KI-basert verktøy. Kunstig intelligens kan generere feilaktig informasjon, hallusinere kilder eller misforstå kontekst. Du som student er selv ansvarlig for innholdet i dine tekster og akademiske arbeider og for å kontrollere at alle referanser og påstander er korrekte i henhold til gjeldende krav.
-                    </p>
-                  </div>
-                </div>
               </div>
             </motion.div>
           )}

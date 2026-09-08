@@ -264,7 +264,10 @@ Foreslå:
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
     >
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-slate-50/50 custom-scrollbar">
+      {({ isCollapsed }) => (
+        <div className={`flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-slate-50/50 custom-scrollbar transition-all duration-300 ${
+          isCollapsed ? 'pt-16 md:pt-8' : ''
+        }`}>
         <div className="w-full max-w-3xl space-y-6">
           
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-xs border border-slate-200 space-y-6">
@@ -496,7 +499,8 @@ Foreslå:
           </div>
           
         </div>
-      </div>
+        </div>
+      )}
     </WorkspaceLayout>
   );
 }

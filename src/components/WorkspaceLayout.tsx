@@ -20,8 +20,24 @@ export interface HistoryItem {
   title: string;
   subtitle?: string;
   isPinned?: boolean;
+  icon?: React.ReactNode;
+  hideActions?: boolean;
   [key: string]: any;
 }
+
+export interface WorkspaceContextType {
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+  toggleCollapsed: () => void;
+}
+
+export const WorkspaceContext = React.createContext<WorkspaceContextType>({
+  isCollapsed: false,
+  setIsCollapsed: () => {},
+  toggleCollapsed: () => {},
+});
+
+export const useWorkspace = () => React.useContext(WorkspaceContext);
 
 export interface WorkspaceLayoutProps {
   title: string;
@@ -31,11 +47,12 @@ export interface WorkspaceLayoutProps {
   onActionClick: () => void;
   historyItems?: HistoryItem[];
   activeItemId?: string | null;
+  historySectionTitle?: string;
   onItemClick: (id: string) => void;
   onPinItem?: (id: string, isPinned: boolean) => void;
   onRenameItem?: (id: string, newTitle: string) => void;
   onDeleteItem?: (id: string) => void;
-  children: React.ReactNode;
+  children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void }) => React.ReactNode);
 }
 
 export function WorkspaceLayout({ 
@@ -46,8 +63,9 @@ export function WorkspaceLayout({
   onActionClick, 
   historyItems = [], 
   activeItemId, 
+  historySectionTitle,
   onItemClick, 
-  onPinItem,
+  onPinItem, 
   onRenameItem,
   onDeleteItem,
   children 
@@ -116,8 +134,11 @@ export function WorkspaceLayout({
   const pinnedItems = historyItems.filter(item => item.isPinned);
   const unpinnedItems = historyItems.filter(item => !item.isPinned);
 
+  const toggleCollapsed = () => setIsCollapsed(prev => !prev);
+
   return (
-    <div className="flex w-full h-[calc(100vh-140px)] min-h-[700px] bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+    <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed }}>
+      <div className="flex w-full h-[calc(100vh-140px)] min-h-[700px] bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
       
       {/* SIDEMENY (Mørkt tema) */}
       <aside 
@@ -162,7 +183,9 @@ export function WorkspaceLayout({
                     }`}
                     title={item.title}
                   >
-                    {item.isPinned ? (
+                    {item.icon ? (
+                      item.icon
+                    ) : item.isPinned ? (
                       <Pin className="w-4 h-4 text-amber-400 fill-amber-400" />
                     ) : (
                       <FileText className="w-4 h-4" />
@@ -228,9 +251,11 @@ export function WorkspaceLayout({
 
               {/* TIDLIGERE ARBEID (UNPINNED) */}
               <div className="space-y-1">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 px-2">
-                  Tidligere arbeid
-                </h3>
+                {historySectionTitle !== '' && (
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 px-2">
+                    {historySectionTitle || 'Tidligere arbeid'}
+                  </h3>
+                )}
                 {unpinnedItems.length === 0 && pinnedItems.length === 0 ? (
                   <p className="text-sm text-slate-600 px-2 italic">Ingen historikk enda.</p>
                 ) : unpinnedItems.length === 0 ? (
@@ -251,14 +276,15 @@ export function WorkspaceLayout({
         {isCollapsed && (
           <button
             onClick={() => setIsCollapsed(false)}
-            className="absolute top-4 left-4 z-20 p-2 bg-white/90 backdrop-blur-sm border border-slate-200 shadow-sm rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center gap-1.5 text-xs font-semibold"
+            className="absolute top-3.5 md:top-4 left-3.5 md:left-4 z-20 h-9 px-3 bg-white/95 backdrop-blur-sm border border-slate-200 shadow-xs rounded-xl text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer select-none"
             title="Åpne sidemeny"
+            aria-label="Åpne sidemeny"
           >
             <PanelLeftOpen className="w-4 h-4 text-primary" />
             <span className="hidden sm:inline">Vis meny</span>
           </button>
         )}
-        {children}
+        {typeof children === 'function' ? children({ isCollapsed, toggleCollapsed }) : children}
       </main>
 
       {/* SLETT BEKREFTELSES-MODAL */}
@@ -292,7 +318,8 @@ export function WorkspaceLayout({
         </div>
       )}
       
-    </div>
+      </div>
+    </WorkspaceContext.Provider>
   );
 
   function renderHistoryItem(item: HistoryItem) {
@@ -344,7 +371,12 @@ export function WorkspaceLayout({
             }`}
           >
             <div className="flex-1 min-w-0 pr-1">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
+                {item.icon && (
+                  <span className={`shrink-0 ${isActive ? 'text-primary-light' : 'text-slate-400'}`}>
+                    {item.icon}
+                  </span>
+                )}
                 {item.isPinned && (
                   <Pin className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />
                 )}
@@ -358,7 +390,8 @@ export function WorkspaceLayout({
             </div>
 
             {/* Tre prikker meny-knapp (Gemini-stil) */}
-            <div className="relative shrink-0">
+            {(Boolean(onPinItem || onRenameItem || onDeleteItem) && !item.hideActions) && (
+              <div className="relative shrink-0">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -426,8 +459,9 @@ export function WorkspaceLayout({
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
       </div>
     );
   }
