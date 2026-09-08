@@ -1,0 +1,306 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription data",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "pricingTier": {
+          "type": "string",
+          "enum": [
+            "free",
+            "monthly",
+            "semester",
+            "preview"
+          ]
+        },
+        "profile": {
+          "type": "object"
+        },
+        "pedagogicalProfile": {
+          "type": "object"
+        },
+        "hasCompletedOnboarding": {
+          "type": "boolean"
+        },
+        "notificationSettings": {
+          "type": "object"
+        },
+        "fcmToken": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email"
+      ]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "User's active writing documents",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "object"
+        },
+        "activeDisposition": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "title"
+      ]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "User's project data including milestones and progress",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "milestones": {
+          "type": "array"
+        },
+        "progress": {
+          "type": "array"
+        },
+        "checklist": {
+          "type": "array"
+        },
+        "outline": {
+          "type": "array"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId"
+      ]
+    },
+    "ContextFile": {
+      "title": "ContextFile",
+      "description": "User's context files and folders for analysis",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "folderId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "folder"
+          ]
+        },
+        "userId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "name",
+        "type"
+      ]
+    },
+    "ChatHistory": {
+      "title": "ChatHistory",
+      "description": "User's chat messages with Assistant",
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "messages"
+      ]
+    },
+    "PedagogicalDocumentation": {
+      "title": "PedagogicalDocumentation",
+      "description": "Daily and monthly pedagogical texts",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "daily",
+            "monthly"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "adminId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "monthFolder": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "type",
+        "timestamp"
+      ]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "Collaboration group containing members, shared Rag context, flashcards, files, events, todos, and chat",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "groupName": {
+          "type": "string"
+        },
+        "sharedRagContext": {
+          "type": "string"
+        },
+        "flashcards": {
+          "type": "array"
+        },
+        "userProgress": {
+          "type": "object"
+        },
+        "messages": {
+          "type": "array"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "todos": {
+          "type": "array"
+        },
+        "files": {
+          "type": "array"
+        },
+        "events": {
+          "type": "array"
+        },
+        "members": {
+          "type": "array"
+        },
+        "activity": {
+          "type": "array"
+        },
+        "meetingLink": {
+          "type": "string"
+        },
+        "calendarLink": {
+          "type": "string"
+        },
+        "unreadChat": {
+          "type": "boolean"
+        },
+        "isDemo": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile and settings"
+    },
+    "/users/{userId}/documents/{docId}": {
+      "schema": "Document",
+      "description": "User's writing documents"
+    },
+    "/users/{userId}/chatHistory/main": {
+      "schema": "ChatHistory",
+      "description": "User's main chat history"
+    },
+    "/users/{userId}/projects/main": {
+      "schema": "Project",
+      "description": "User's main project state"
+    },
+    "/context_files/{fileId}": {
+      "schema": "ContextFile",
+      "description": "User's uploaded context files and folders"
+    },
+    "/pedagogical_documentation/{docId}": {
+      "schema": "PedagogicalDocumentation",
+      "description": "Pedagogical documentation archive"
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Collaboration groups"
+    }
+  }
+}
