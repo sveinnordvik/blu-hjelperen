@@ -12,10 +12,23 @@ const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    databaseURL: "https://gen-lang-client-0721397173-default-rtdb.firebaseio.com",
+    // Hvis du bruker Firestore med spesifikk ID:
+  });
 }
 
-const db = admin.firestore();
+// For å sikre at Firestore bruker din eksisterende database-ID:
+let db;
+try {
+  const { getFirestore } = require("firebase-admin/firestore");
+  const specificDbId = process.env.FIRESTORE_DATABASE_ID || "ai-studio-6d584f24-0d3b-4358-ba43-396b2f0a6101";
+  db = specificDbId ? getFirestore(specificDbId) : admin.firestore();
+} catch (e) {
+  db = admin.firestore();
+}
+// (Firebase henter som regel riktig database når prosjekt-ID er satt i miljøet, 
+// men vi kan eksplisitt hente ut fra prosjektet om nødvendig).
 
 // Hent Stripe API-nøkler fra environment variables eller Firebase Functions config
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || functions.config().stripe?.secret_key;
