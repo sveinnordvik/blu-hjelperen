@@ -7,10 +7,13 @@ import {
   Coins,
   Gift,
   ShieldCheck,
-  Users
+  Users,
+  CreditCard,
+  Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL, getStripePaymentUrl } from '../config/accessConfig';
 
 interface PricingModel {
   id: string;
@@ -34,6 +37,10 @@ interface PricingProps {
   handleCheckout: (model: PricingModel) => void;
   handleCancelSubscription: () => void;
   isGuest: boolean;
+  humanizerCredits?: number;
+  onBuyCredits?: (count: number) => void;
+  userUid?: string;
+  userEmail?: string;
 }
 
 export const Pricing: React.FC<PricingProps> = ({
@@ -43,8 +50,24 @@ export const Pricing: React.FC<PricingProps> = ({
   pricingModels,
   handleCheckout,
   handleCancelSubscription,
-  isGuest
+  isGuest,
+  humanizerCredits,
+  onBuyCredits,
+  userUid,
+  userEmail
 }) => {
+  const [copiedLink, setCopiedLink] = React.useState(false);
+
+  const handleCopyReferralLink = () => {
+    if (!userUid) {
+      alert("Vennligst logg inn for å få din personlige vervelenke.");
+      return;
+    }
+    const link = `${window.location.origin}/?ref=${userUid}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
   const [showPromo, setShowPromo] = React.useState(false);
   const [promoExpired, setPromoExpired] = React.useState(false);
   const [showPricingModal, setShowPricingModal] = React.useState(false);
@@ -194,7 +217,7 @@ export const Pricing: React.FC<PricingProps> = ({
                   </ul>
                   {model.stripeUrl && pricingTier !== model.id ? (
                     <a
-                      href={model.stripeUrl}
+                      href={getStripePaymentUrl(model.stripeUrl, userUid, userEmail)}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => {
@@ -307,6 +330,14 @@ export const Pricing: React.FC<PricingProps> = ({
                           </span>
                         </div>
                       </div>
+                      {humanizerCredits !== undefined && (
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 font-semibold uppercase block">Din saldo</span>
+                          <span className="inline-block text-xs font-black text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-200">
+                            {humanizerCredits} {humanizerCredits === 1 ? 'vask' : 'vask'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">
                       Humanizer-boten er <strong>aldri inkludert som ubegrenset</strong> i noe abonnement (heller ikke Semester-pakka). Dette er et bevisst etisk valg for å skape sunn friksjon og motvirke snarveier.
@@ -320,9 +351,41 @@ export const Pricing: React.FC<PricingProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Enkeltkjøp via Stripe</span>
-                    <span className="text-xs font-black text-amber-700">10 kr / gang</span>
+                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Enkeltkjøp via Stripe</span>
+                      <span className="text-xs font-black text-amber-700">10 kr / gang</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          if (STRIPE_HUMANIZER_CREDITS_1_URL && !STRIPE_HUMANIZER_CREDITS_1_URL.includes('test_humanizer')) {
+                            window.open(getStripePaymentUrl(STRIPE_HUMANIZER_CREDITS_1_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
+                          } else {
+                            // Hvis live Stripe-lenke ikke er lagt inn enda, åpne URL med ?success=true&buy_credits=1
+                            window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_credits=1`, '_self');
+                          }
+                        }}
+                        className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Kjøp 1 vask (10,-)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (STRIPE_HUMANIZER_CREDITS_10_URL && !STRIPE_HUMANIZER_CREDITS_10_URL.includes('test_humanizer')) {
+                            window.open(getStripePaymentUrl(STRIPE_HUMANIZER_CREDITS_10_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
+                          } else {
+                            // Hvis live Stripe-lenke ikke er lagt inn enda, åpne URL med ?success=true&buy_credits=10
+                            window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_credits=10`, '_self');
+                          }
+                        }}
+                        className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Coins className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Kjøp 10 vask (100,-)</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -337,14 +400,60 @@ export const Pricing: React.FC<PricingProps> = ({
                         <div>
                           <h4 className="font-bold text-slate-900 text-base">Verv en medstudent</h4>
                           <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-                            50,- kr bonus til begge
+                            10 gratis vask + 50,- kr bonus
                           </span>
                         </div>
                       </div>
                     </div>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Del din personlige vervelenke fra din Profil. Når medstudenten registrerer seg, får dere begge <strong>50 kr i bonus</strong> på kontoen.
+                      Del din personlige vervelenke i kollokviegruppa. Når en medstudent registrerer seg, får du <strong>10 gratis Humanizer-vask</strong> og <strong>50 kr rabatt</strong> på Semester-pakka. Vennen din får <strong>5 gratis vask</strong> i velkomstbonus!
                     </p>
+
+                    {/* Vervespor delingsfelt & Kopier-knapp */}
+                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-primary" /> Din unike vervelenke:
+                        </span>
+                        {userUid && (
+                          <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            Aktiv
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={userUid ? `${window.location.origin}/?ref=${userUid}` : 'Logg inn for å hente din vervelenke'}
+                          className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-700 select-all outline-none focus:border-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCopyReferralLink}
+                          className={cn(
+                            "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-xs",
+                            copiedLink 
+                              ? "bg-emerald-600 text-white" 
+                              : "bg-primary text-white hover:bg-primary/90"
+                          )}
+                        >
+                          {copiedLink ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-white" />
+                              <span>Kopiert!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Kopier min lenke</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 text-[11px] text-slate-800 space-y-1">
                       <p className="font-bold flex items-center gap-1.5 text-primary">
                         <Users className="w-3.5 h-3.5" /> Gjelder på Semester-pakka
@@ -355,8 +464,8 @@ export const Pricing: React.FC<PricingProps> = ({
                     </div>
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Finn lenken din under Profil</span>
-                    <span className="text-xs font-black text-primary">Spar 50,-</span>
+                    <span className="text-xs text-slate-500">Ubegrenset antall vervinger</span>
+                    <span className="text-xs font-black text-primary">+10 vask per venn</span>
                   </div>
                 </div>
               </div>

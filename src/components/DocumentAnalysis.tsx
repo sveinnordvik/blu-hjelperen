@@ -29,7 +29,7 @@ import { generateAcademicResponse, askLanguageAgent } from '../services/geminiSe
 import { db } from '../firebase';
 import { getAuth } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
-import { isUnlimitedUser } from '../config/accessConfig';
+import { isUnlimitedUser, STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL } from '../config/accessConfig';
 
 export type AnalysisToolType = 'sensor' | 'summary' | 'humanizer';
 
@@ -97,13 +97,19 @@ export function DocumentAnalysis({
   userEmail,
   onUpgrade,
   initialTool = 'sensor',
-  onBackToTools
+  onBackToTools,
+  humanizerCredits: externalCredits,
+  onDeductCredit,
+  onAddCredits
 }: { 
   pricingTier?: string; 
   userEmail?: string;
   onUpgrade?: () => void; 
   initialTool?: AnalysisToolType;
   onBackToTools?: () => void;
+  humanizerCredits?: number;
+  onDeductCredit?: () => Promise<void> | void;
+  onAddCredits?: (count: number) => Promise<void> | void;
 }) {
   const currentUserEmail = userEmail || getAuth().currentUser?.email || '';
   const isUnlimited = isUnlimitedUser(currentUserEmail);
@@ -143,10 +149,11 @@ export function DocumentAnalysis({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Humanizer-kreditter (pay-per-use via Stripe: 10,- kr/vask)
-  const [humanizerCredits, setHumanizerCredits] = useState<number>(() => {
+  const [localCredits, setLocalCredits] = useState<number>(() => {
     const saved = localStorage.getItem('blu_humanizer_credits');
     return saved !== null ? parseInt(saved, 10) : 1;
   });
+  const humanizerCredits = externalCredits !== undefined ? externalCredits : localCredits;
   const [showHumanizerModal, setShowHumanizerModal] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,9 +165,13 @@ export function DocumentAnalysis({
   }, [initialTool]);
 
   const handleBuyCredits = (count: number) => {
-    const updated = humanizerCredits + count;
-    setHumanizerCredits(updated);
-    localStorage.setItem('blu_humanizer_credits', updated.toString());
+    if (onAddCredits) {
+      onAddCredits(count);
+    } else {
+      const updated = humanizerCredits + count;
+      setLocalCredits(updated);
+      localStorage.setItem('blu_humanizer_credits', updated.toString());
+    }
   };
 
   const handleNewAnalysis = () => {
@@ -338,9 +349,13 @@ export function DocumentAnalysis({
           return;
         }
         // Trekk 1 kreditt kun for vanlige brukere
-        const updatedCredits = Math.max(0, humanizerCredits - 1);
-        setHumanizerCredits(updatedCredits);
-        localStorage.setItem('blu_humanizer_credits', updatedCredits.toString());
+        if (onDeductCredit) {
+          await onDeductCredit();
+        } else {
+          const updatedCredits = Math.max(0, humanizerCredits - 1);
+          setLocalCredits(updatedCredits);
+          localStorage.setItem('blu_humanizer_credits', updatedCredits.toString());
+        }
       }
     }
 
@@ -444,10 +459,14 @@ ${inputText.slice(0, 8000)}
     } catch (err: any) {
       console.error('Analysis error:', err);
       // Tilbakefør kreditt ved feil i Humanizer
-      if (activeTool === 'humanizer') {
-        const refunded = humanizerCredits;
-        setHumanizerCredits(refunded);
-        localStorage.setItem('blu_humanizer_credits', refunded.toString());
+      if (activeTool === 'humanizer' && !isUnlimited) {
+        if (onAddCredits) {
+          onAddCredits(1);
+        } else {
+          const refunded = humanizerCredits + 1;
+          setLocalCredits(refunded);
+          localStorage.setItem('blu_humanizer_credits', refunded.toString());
+        }
       }
       setErrorMessage(err.message || 'Kunne ikke gjennomføre analysen. Prøv igjen.');
     } finally {
@@ -957,8 +976,12 @@ ${inputText.slice(0, 8000)}
             <div className="space-y-2.5">
               <button
                 onClick={() => {
-                  handleBuyCredits(1);
                   setShowHumanizerModal(false);
+                  if (STRIPE_HUMANIZER_CREDITS_1_URL && !STRIPE_HUMANIZER_CREDITS_1_URL.includes('test_humanizer')) {
+                    window.open(STRIPE_HUMANIZER_CREDITS_1_URL, '_blank', 'noopener,noreferrer');
+                  } else {
+                    handleBuyCredits(1);
+                  }
                 }}
                 className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-md shadow-amber-500/20 transition-all flex items-center justify-between cursor-pointer"
               >
@@ -971,16 +994,20 @@ ${inputText.slice(0, 8000)}
 
               <button
                 onClick={() => {
-                  handleBuyCredits(5);
                   setShowHumanizerModal(false);
+                  if (STRIPE_HUMANIZER_CREDITS_10_URL && !STRIPE_HUMANIZER_CREDITS_10_URL.includes('test_humanizer')) {
+                    window.open(STRIPE_HUMANIZER_CREDITS_10_URL, '_blank', 'noopener,noreferrer');
+                  } else {
+                    handleBuyCredits(10);
+                  }
                 }}
                 className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-md transition-all flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <Coins className="w-4 h-4 text-amber-400" />
-                  <span>Kjøp 5 vask (Pakke)</span>
+                  <span>Kjøp 10 vask (100 kr via Stripe)</span>
                 </div>
-                <span className="bg-slate-800 px-2 py-0.5 rounded-md text-xs font-mono text-amber-300">50,- NOK</span>
+                <span className="bg-slate-800 px-2 py-0.5 rounded-md text-xs font-mono text-amber-300">100,- NOK</span>
               </button>
             </div>
 

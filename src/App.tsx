@@ -117,7 +117,8 @@ import {
   updateDoc,
   onSnapshot,
   Timestamp,
-  serverTimestamp 
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 import { 
@@ -340,7 +341,36 @@ const GlossaryCard = ({
   );
 };
 
+// Steg 1: Fang opp vervesporet fra URL umiddelbart ved oppstart
+if (typeof window !== 'undefined' && window.location?.search) {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refParam = urlParams.get('ref');
+    if (refParam && refParam.trim()) {
+      localStorage.setItem('referredBy', refParam.trim());
+    }
+  } catch (e) {
+    // try/catch for sikkerhet
+  }
+}
+
 export default function App() {
+  // Steg 1: Fang opp vervesporet (App.tsx)
+  // Når en student trykker på en vervelenke (f.eks. blu-hjelperen.no/?ref=12345), må vi huske hvem som vervet dem.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const refValue = params.get('ref');
+      if (refValue && refValue.trim()) {
+        const cleanRef = refValue.trim();
+        localStorage.setItem('referredBy', cleanRef);
+        console.log('[Vervesystem] Vervespor lagret i localStorage:', cleanRef);
+      }
+    } catch (err) {
+      console.error('Feil ved lesing av ref fra URL:', err);
+    }
+  }, []);
+
   const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools'>('home');
   const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('tools-overview');
   const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
@@ -679,6 +709,11 @@ export default function App() {
   const [pricingTier, setPricingTier] = useState<'free' | 'monthly' | 'semester' | 'preview' | 'yearly'>(() => {
     const saved = localStorage.getItem('blu_pricing_tier_guest');
     return (saved as any) || 'free';
+  });
+
+  const [humanizerCredits, setHumanizerCredits] = useState<number>(() => {
+    const saved = localStorage.getItem('blu_humanizer_credits');
+    return saved !== null ? parseInt(saved, 10) : 1;
   });
 
   const [milestones, setMilestones] = useState<{ id: string; title: string; date: string; completed: boolean }[]>(() => {
@@ -2374,17 +2409,34 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
     const planId = params.get('plan_id');
+    const buyCredits = params.get('buy_credits');
 
-    if (success === 'true' && planId) {
+    if (success === 'true' && (planId || buyCredits)) {
       setIsVerifyingPayment(true);
       
       // In a production app with a backend, you would verify the session_id here
       // For this client-side implementation, we wait for the return signal
       setTimeout(() => {
-        setPricingTier(planId as any);
-        if (user) {
-          setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email || 'unknown@example.com', pricingTier: planId }, { merge: true }).catch(console.error);
+        if (planId) {
+          setPricingTier(planId as any);
+          if (user) {
+            setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email || 'unknown@example.com', pricingTier: planId }, { merge: true }).catch(console.error);
+          }
         }
+
+        if (buyCredits) {
+          const count = parseInt(buyCredits, 10) || 1;
+          setHumanizerCredits(prev => prev + count);
+          if (user) {
+            setDoc(doc(db, 'users', user.uid), {
+              humanizerCredits: increment(count)
+            }, { merge: true }).catch(console.error);
+          } else {
+            const current = parseInt(localStorage.getItem('blu_humanizer_credits') || '1', 10);
+            localStorage.setItem('blu_humanizer_credits', (current + count).toString());
+          }
+        }
+
         setCheckoutSuccess(true);
         setIsVerifyingPayment(false);
         
@@ -2395,6 +2447,31 @@ export default function App() {
       }, 1500);
     }
   }, [user]);
+
+  const handleDeductHumanizerCredit = async () => {
+    setHumanizerCredits(prev => Math.max(0, prev - 1));
+    if (user) {
+      await setDoc(doc(db, 'users', user.uid), {
+        humanizerCredits: increment(-1)
+      }, { merge: true }).catch(console.error);
+    } else {
+      const current = parseInt(localStorage.getItem('blu_humanizer_credits') || '1', 10);
+      const updated = Math.max(0, current - 1);
+      localStorage.setItem('blu_humanizer_credits', updated.toString());
+    }
+  };
+
+  const handleAddHumanizerCredits = async (count: number) => {
+    setHumanizerCredits(prev => prev + count);
+    if (user) {
+      await setDoc(doc(db, 'users', user.uid), {
+        humanizerCredits: increment(count)
+      }, { merge: true }).catch(console.error);
+    } else {
+      const current = parseInt(localStorage.getItem('blu_humanizer_credits') || '1', 10);
+      localStorage.setItem('blu_humanizer_credits', (current + count).toString());
+    }
+  };
 
   const handleCheckout = (plan: any) => {
     if (plan.id === 'free') {
@@ -3289,6 +3366,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         setShowWelcomeGuide(false);
         setLowStressMode(false);
         setPricingTier('free');
+        setHumanizerCredits(1);
         isRestored.current = false; // VIKTIG: Nullstill restaurerings-flagget ved utlogging
       }
     });
@@ -3304,6 +3382,12 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
       const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
+          if (data.pricingTier) {
+            setPricingTier(data.pricingTier);
+          }
+          if (data.humanizerCredits !== undefined) {
+            setHumanizerCredits(data.humanizerCredits);
+          }
           if (data.profile) {
             setProfile(prev => {
               // Bare oppdater hvis det faktisk er endringer for å unngå unødvendige re-renders
@@ -3395,6 +3479,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         if (userSnap.exists()) {
           const data = userSnap.data();
           if (data.pricingTier) { setPricingTier(data.pricingTier); mainData.pricingTier = data.pricingTier; }
+          if (data.humanizerCredits !== undefined) { setHumanizerCredits(data.humanizerCredits); }
           if (data.profile) { setProfile(data.profile); mainData.profile = data.profile; }
           if (data.notificationSettings) { setNotificationSettings(data.notificationSettings); mainData.notificationSettings = data.notificationSettings; }
           if (data.documents) { setDocuments(data.documents); mainData.documents = data.documents; }
@@ -3424,8 +3509,41 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           if (data.aiTerms) { setAiTerms(data.aiTerms); mainData.aiTerms = data.aiTerms; }
           if (data.searchCounts) { setSearchCounts(data.searchCounts); mainData.searchCounts = data.searchCounts; }
         } else {
-          // Brand new user profile in Firestore
+          // Brand new user profile in Firestore (Studenten logger inn for første gang)
           setShowWelcomeGuide(true);
+
+          // Steg 2: Knytt brukerne sammen ved registrering (App.tsx)
+          // Rett før setDoc(doc(db, 'users', user.uid), ...) kjøres, sjekk om det ligger en verdi i localStorage.getItem('referredBy').
+          // Legg til feltet referredBy: "ID_TIL_VERVER" i det nye brukerdokumentet. Rens deretter localStorage så det ikke brukes igjen ved en feiltakelse.
+          const refValue = localStorage.getItem('referredBy');
+          const isReferred = !!(refValue && refValue.trim() && refValue.trim() !== uid);
+
+          const initialNewUserData: any = {
+            uid: uid,
+            email: auth.currentUser?.email || user?.email || 'unknown@example.com',
+            name: auth.currentUser?.displayName || user?.displayName || '',
+            pricingTier: 'free',
+            humanizerCredits: isReferred ? 6 : 1, // 1 basisvask + 5 vask velkomstbonus hvis vervet
+            hasCompletedOnboarding: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+
+          if (isReferred) {
+            initialNewUserData.referredBy = refValue!.trim();
+            try {
+              localStorage.removeItem('referredBy');
+              console.log('[Vervesystem] Bruker knyttet til verver:', refValue!.trim());
+            } catch (err) {
+              console.error('Feil ved sletting av referredBy fra localStorage:', err);
+            }
+          }
+
+          try {
+            await setDoc(doc(db, 'users', uid), initialNewUserData, { merge: true });
+          } catch (createErr) {
+            console.error("Feil ved opprettelse av nytt brukerdokument i Firestore:", createErr);
+          }
         }
 
         // 2. Project data
@@ -3796,6 +3914,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         handleCheckout={handleCheckout}
         handleCancelSubscription={handleCancelSubscription}
         isGuest={isGuest}
+        humanizerCredits={humanizerCredits}
+        onBuyCredits={handleAddHumanizerCredits}
+        userUid={user?.uid}
+        userEmail={user?.email || undefined}
       />
 
       {/* Guest Banner */}
@@ -4876,7 +4998,15 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
 
           {activeTab === 'sensor' && (
-            <DocumentAnalysis key="sensor" />
+            <DocumentAnalysis 
+              key="sensor"
+              pricingTier={pricingTier}
+              userEmail={user?.email || profile.email}
+              onUpgrade={() => setActiveTab('pricing')}
+              humanizerCredits={humanizerCredits}
+              onDeductCredit={handleDeductHumanizerCredit}
+              onAddCredits={handleAddHumanizerCredits}
+            />
           )}
 
           {showCancelModal && (
@@ -5369,6 +5499,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                     <ToolsDashboard 
                       key="tools-overview"
                       pricingTier={pricingTier}
+                      userEmail={user?.email || profile.email}
+                      humanizerCredits={humanizerCredits}
+                      onBuyCredits={handleAddHumanizerCredits}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                           setDocAnalysisInitialTool('humanizer');
@@ -5419,6 +5552,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       userEmail={user?.email || profile.email}
                       onUpgrade={() => setActiveTab('pricing')}
                       initialTool={docAnalysisInitialTool}
+                      humanizerCredits={humanizerCredits}
+                      onDeductCredit={handleDeductHumanizerCredit}
+                      onAddCredits={handleAddHumanizerCredits}
                       onBackToTools={() => {
                         setActiveSubTab('tools-overview');
                         setActiveTab('verktoy');
@@ -5441,6 +5577,8 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       key="tools-default"
                       pricingTier={pricingTier}
                       userEmail={user?.email || profile.email}
+                      humanizerCredits={humanizerCredits}
+                      onBuyCredits={handleAddHumanizerCredits}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                           setDocAnalysisInitialTool('humanizer');
@@ -5473,6 +5611,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             >
               <ToolsDashboard 
                 pricingTier={pricingTier}
+                userEmail={user?.email || profile.email}
+                humanizerCredits={humanizerCredits}
+                onBuyCredits={handleAddHumanizerCredits}
                 onSelectTool={(toolId) => {
                   if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                     setDocAnalysisInitialTool('humanizer');
@@ -5564,6 +5705,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 userEmail={user?.email || profile.email}
                 onUpgrade={() => setActiveTab('pricing')}
                 initialTool={docAnalysisInitialTool}
+                humanizerCredits={humanizerCredits}
+                onDeductCredit={handleDeductHumanizerCredit}
+                onAddCredits={handleAddHumanizerCredits}
                 onBackToTools={() => {
                   setActiveSubTab('tools-overview');
                   setActiveTab('verktoy');

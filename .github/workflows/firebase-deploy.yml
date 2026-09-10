@@ -1,0 +1,37 @@
+name: Deploy til Firebase (Hosting & Functions)
+
+on:
+  push:
+    branches:
+      - main # Endre til 'master' hvis det er standardgrenen din
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sjekk ut kode
+        uses: actions/checkout@v4
+
+      - name: Sett opp Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Installer og bygg frontend (React)
+        run: |
+          npm install
+          npm run build
+
+      - name: Installer backend-avhengigheter (Functions)
+        run: |
+          cd functions
+          npm install
+
+      - name: Konfigurer miljøvariabler for backend
+        run: |
+          cd functions
+          echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+
+      - name: Rull ut til Firebase
+        run: npx firebase-tools deploy --only hosting,functions --token "${{ secrets.FIREBASE_TOKEN }}"

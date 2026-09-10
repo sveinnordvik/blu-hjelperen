@@ -33,3 +33,36 @@ export const isAdminUser = (email?: string | null): boolean => {
   const normalized = email.trim().toLowerCase();
   return ADMIN_EMAILS.some(e => e.toLowerCase() === normalized);
 };
+
+/**
+ * Stripe Payment Links for Humanizer credits (Pay-per-use):
+ * Opprett disse i Stripe Dashboard og legg inn dine Payment Links her.
+ * I Stripe Dashboard under 'After payment' -> 'Don't show confirmation page / Redirect customers to your website':
+ * - For 1 vask: https://din-app.web.app/?success=true&buy_credits=1
+ * - For 10 vask: https://din-app.web.app/?success=true&buy_credits=10
+ */
+export const STRIPE_HUMANIZER_CREDITS_1_URL = 'https://buy.stripe.com/test_humanizer_1';
+export const STRIPE_HUMANIZER_CREDITS_10_URL = 'https://buy.stripe.com/test_humanizer_10';
+
+/**
+ * Bygger en Stripe betalingslenke med brukerens Firebase UID som client_reference_id
+ * og e-post pre-utfylt. Dette gjør at Stripe sender client_reference_id til webhooks 
+ * ved checkout.session.completed slik at backend-funksjonen kan oppdatere Firestore sikkert.
+ */
+export const getStripePaymentUrl = (baseUrl: string, uid?: string, email?: string): string => {
+  if (!baseUrl) return '';
+  try {
+    const url = new URL(baseUrl);
+    if (uid) url.searchParams.set('client_reference_id', uid);
+    if (email) url.searchParams.set('prefilled_email', email);
+    return url.toString();
+  } catch {
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const params: string[] = [];
+    if (uid) params.push(`client_reference_id=${encodeURIComponent(uid)}`);
+    if (email) params.push(`prefilled_email=${encodeURIComponent(email)}`);
+    return `${baseUrl}${params.length ? separator + params.join('&') : ''}`;
+  }
+};
+
+

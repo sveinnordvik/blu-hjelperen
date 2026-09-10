@@ -137,7 +137,7 @@ service cloud.firestore {
       allow update: if isOwner(userId) && isValidUser(incoming()) && (
         isAdmin() || 
         // Action: standard profile and app state sync
-        (incoming().diff(existing()).affectedKeys().hasOnly(['profile', 'pedagogicalProfile', 'hasCompletedOnboarding', 'notificationSettings', 'theme', 'settings', 'notificationsEnabled', 'onboardingComplete', 'lowStressMode', 'activeTab', 'writingStep', 'selectedReferenceStyle', 'aiTerms', 'searchCounts', 'updatedAt', 'pricingTier', 'documents', 'folders', 'fcmToken', 'name', 'uid', 'email']))
+        (incoming().diff(existing()).affectedKeys().hasOnly(['profile', 'pedagogicalProfile', 'hasCompletedOnboarding', 'notificationSettings', 'theme', 'settings', 'notificationsEnabled', 'onboardingComplete', 'lowStressMode', 'activeTab', 'writingStep', 'selectedReferenceStyle', 'aiTerms', 'searchCounts', 'updatedAt', 'pricingTier', 'humanizerCredits', 'referredBy', 'documents', 'folders', 'fcmToken', 'name', 'uid', 'email']))
       );
       allow delete: if isOwner(userId) || isAdmin();
       

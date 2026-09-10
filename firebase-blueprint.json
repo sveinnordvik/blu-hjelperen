@@ -38,6 +38,14 @@
         "fcmToken": {
           "type": "string"
         },
+        "humanizerCredits": {
+          "type": "number",
+          "description": "Available credits for Humanizer-bot washes"
+        },
+        "referredBy": {
+          "type": "string",
+          "description": "UID of the student who referred this user"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"

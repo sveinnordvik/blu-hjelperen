@@ -16,37 +16,47 @@ import {
   Library
 } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
-import { isUnlimitedUser } from '../config/accessConfig';
+import { isUnlimitedUser, STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL } from '../config/accessConfig';
 
 interface ToolsDashboardProps {
   pricingTier?: string;
   userEmail?: string;
   onSelectTool: (toolId: string) => void;
   onUpgrade?: () => void;
+  humanizerCredits?: number;
+  onBuyCredits?: (count: number) => void;
 }
 
 export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
   pricingTier = 'free',
   userEmail,
   onSelectTool,
-  onUpgrade
+  onUpgrade,
+  humanizerCredits: externalCredits,
+  onBuyCredits
 }) => {
   const currentUserEmail = userEmail || getAuth().currentUser?.email || '';
   const isUnlimited = isUnlimitedUser(currentUserEmail);
   const isSemester = isUnlimited || ['semester', 'yearly', 'preview'].includes(pricingTier?.toLowerCase() || '');
   const isPremium = isUnlimited || ['monthly', 'premium', 'semester', 'yearly', 'preview'].includes(pricingTier?.toLowerCase() || '');
 
-  const [humanizerCredits, setHumanizerCredits] = useState<number>(() => {
+  const [localCredits, setLocalCredits] = useState<number>(() => {
     const saved = localStorage.getItem('blu_humanizer_credits');
     return saved !== null ? parseInt(saved, 10) : 1;
   });
 
+  const humanizerCredits = externalCredits !== undefined ? externalCredits : localCredits;
+
   const [showHumanizerModal, setShowHumanizerModal] = useState(false);
 
   const handleBuyCredits = (count: number) => {
-    const updated = humanizerCredits + count;
-    setHumanizerCredits(updated);
-    localStorage.setItem('blu_humanizer_credits', updated.toString());
+    if (onBuyCredits) {
+      onBuyCredits(count);
+    } else {
+      const updated = humanizerCredits + count;
+      setLocalCredits(updated);
+      localStorage.setItem('blu_humanizer_credits', updated.toString());
+    }
   };
 
   return (
@@ -452,9 +462,13 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
             <div className="space-y-2.5">
               <button
                 onClick={() => {
-                  handleBuyCredits(1);
                   setShowHumanizerModal(false);
-                  onSelectTool('document-analysis-humanizer');
+                  if (STRIPE_HUMANIZER_CREDITS_1_URL && !STRIPE_HUMANIZER_CREDITS_1_URL.includes('test_humanizer')) {
+                    window.open(STRIPE_HUMANIZER_CREDITS_1_URL, '_blank', 'noopener,noreferrer');
+                  } else {
+                    handleBuyCredits(1);
+                    onSelectTool('document-analysis-humanizer');
+                  }
                 }}
                 className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-extrabold text-sm shadow-md shadow-amber-500/20 transition-all flex items-center justify-between cursor-pointer"
               >
@@ -467,17 +481,21 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
 
               <button
                 onClick={() => {
-                  handleBuyCredits(5);
                   setShowHumanizerModal(false);
-                  onSelectTool('document-analysis-humanizer');
+                  if (STRIPE_HUMANIZER_CREDITS_10_URL && !STRIPE_HUMANIZER_CREDITS_10_URL.includes('test_humanizer')) {
+                    window.open(STRIPE_HUMANIZER_CREDITS_10_URL, '_blank', 'noopener,noreferrer');
+                  } else {
+                    handleBuyCredits(10);
+                    onSelectTool('document-analysis-humanizer');
+                  }
                 }}
                 className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-md transition-all flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <Coins className="w-4 h-4 text-amber-400" />
-                  <span>Kjøp 5 vask (Pakke)</span>
+                  <span>Kjøp 10 vask (100 kr via Stripe)</span>
                 </div>
-                <span className="bg-slate-800 px-2 py-0.5 rounded-md text-xs font-mono text-amber-300">50,-</span>
+                <span className="bg-slate-800 px-2 py-0.5 rounded-md text-xs font-mono text-amber-300">100,-</span>
               </button>
 
               {humanizerCredits > 0 && (
