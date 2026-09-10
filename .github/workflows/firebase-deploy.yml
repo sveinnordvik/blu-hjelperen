@@ -34,4 +34,4 @@ jobs:
           echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
 
       - name: Rull ut til Firebase
-        run: npx firebase-tools deploy --only hosting,functions --token "${{ secrets.FIREBASE_TOKEN }}"
+        run: npx firebase-tools deploy --only hosting,functions --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}"
