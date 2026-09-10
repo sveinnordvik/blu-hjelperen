@@ -304,7 +304,7 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
                     : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm shadow-sm'
                 }`}>
                   <div className="prose prose-sm max-w-none prose-slate">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}</ReactMarkdown>
                   </div>
                   
                   {/* Actions for assistant message */}

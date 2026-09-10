@@ -66,6 +66,9 @@
         "title": {
           "type": "string"
         },
+        "folderId": {
+          "type": "string"
+        },
         "content": {
           "type": "object"
         },
@@ -84,6 +87,33 @@
       "required": [
         "userId",
         "title"
+      ]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "User folders for organizing writing documents",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "isExpanded": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "name"
       ]
     },
     "Project": {
@@ -271,9 +301,75 @@
           "format": "date-time"
         }
       }
+    },
+    "ProcessLog": {
+      "title": "ProcessLog",
+      "description": "Student pedagogical process logs and reflections",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "folderId": {
+          "type": "string"
+        },
+        "documentId": {
+          "type": "string"
+        },
+        "documentTitle": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "situation": {
+          "type": "string"
+        },
+        "reflection": {
+          "type": "string"
+        },
+        "theoryLinks": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "string"
+        },
+        "isPinned": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId"
+      ]
     }
   },
   "firestore": {
+    "/documents/{docId}": {
+      "schema": "Document",
+      "description": "User writing documents and assignments"
+    },
+    "/folders/{folderId}": {
+      "schema": "Folder",
+      "description": "User folders for document organization"
+    },
+    "/processLogs/{logId}": {
+      "schema": "ProcessLog",
+      "description": "User pedagogical process logs"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile and settings"
@@ -285,6 +381,14 @@
     "/users/{userId}/chatHistory/main": {
       "schema": "ChatHistory",
       "description": "User's main chat history"
+    },
+    "/users/{userId}/chats/{chatId}": {
+      "schema": "ChatHistory",
+      "description": "User's BLU-hjelper chat sessions and messages"
+    },
+    "/users/{userId}/superveileder_chats/{chatId}": {
+      "schema": "ChatHistory",
+      "description": "User's Superveileder chat sessions and messages"
     },
     "/users/{userId}/projects/main": {
       "schema": "Project",

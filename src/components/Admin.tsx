@@ -38,6 +38,7 @@ import { extractTextFromDocx } from '../lib/docxUtils';
 import { callGoogleAIProxy } from '../services/geminiService';
 import { VisualContentGenerator } from './VisualContentGenerator';
 import { PromptLibrary } from './PromptLibrary';
+import { isAdminUser } from '../config/accessConfig';
 
 interface AdminProps {
   userEmail: string | null;
@@ -55,7 +56,7 @@ const INTERVIEW_QUESTIONS = [
 ];
 
 export const Admin: React.FC<AdminProps> = ({ userEmail, isQuotaExceeded, handleFirestoreError }) => {
-  const isAdmin = userEmail === 'svein.nordvik@gmail.com';
+  const isAdmin = isAdminUser(userEmail || auth.currentUser?.email);
 
   if (!isAdmin) {
     return (
@@ -266,7 +267,7 @@ export const Admin: React.FC<AdminProps> = ({ userEmail, isQuotaExceeded, handle
       SVAR KUN med en kort beskrivelse av den valgte situasjonen og hvorfor den er pedagogisk viktig. Brukeren vil senere utdype denne situasjonen gjennom et intervju.`;
 
       const response = await callGoogleAIProxy({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           temperature: 0.3,
@@ -325,7 +326,7 @@ I mai vil vi rette oppmerksomheten mot alt som spirer og vokser rundt oss. Med u
 Hva skjer med naturen når det blir varmere? Hvilke tegn kan vi se på at nytt liv er på vei? Og hvordan kan vi ta vare på det som vokser rundt oss?`;
 
       const response = await callGoogleAIProxy({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           systemInstruction: "Du er en pedagogisk leder. Bruk Skoggruppemetoden (Læring gjennom mestring, PLAGG-modellen, den med-undrende voksne) og Rammeplan 2017. Harmoniser teksten med opplastede årsplaner. FORMAT: Månedsbrev strukturert for PowerPoint.",
@@ -491,7 +492,7 @@ Hva skjer med naturen når det blir varmere? Hvilke tegn kan vi se på at nytt l
     try {
       const prompt = `Her er dagens hendelser/stikkord: ${keywords}`;
       const response = await callGoogleAIProxy({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: {
           systemInstruction: `Lag en kort, engasjerende tekst til 'dagens bilde' fra barnehagen.

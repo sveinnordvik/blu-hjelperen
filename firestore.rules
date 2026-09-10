@@ -18,7 +18,7 @@ service cloud.firestore {
     }
     
     function isVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "svein.nordvik@gmail.com");
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com"]);
     }
 
     function isOwner(userId) {
@@ -27,7 +27,7 @@ service cloud.firestore {
     
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "svein.nordvik@gmail.com" ||
+        request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com"] ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -58,7 +58,14 @@ service cloud.firestore {
       return data.keys().hasAll(['userId', 'title']) &&
              data.userId == request.auth.uid &&
              data.title is string && data.title.size() > 0 && data.title.size() < 255 &&
-             (!('content' in data) || data.content is map);
+             (!('folderId' in data) || data.folderId is string || data.folderId == null) &&
+             (!('content' in data) || data.content is string || data.content is map);
+    }
+
+    function isValidFolder(data) {
+      return data.keys().hasAll(['userId', 'name']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 255;
     }
 
     function isValidProject(data) {
@@ -104,6 +111,22 @@ service cloud.firestore {
              (!('userProgress' in data) || data.userProgress is map);
     }
 
+    function isValidProcessLog(data) {
+      return data.keys().hasAll(['userId']) &&
+             data.userId == request.auth.uid &&
+             (!('situation' in data) || (data.situation is string && data.situation.size() <= 20000)) &&
+             (!('reflection' in data) || (data.reflection is string && data.reflection.size() <= 20000)) &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 500)) &&
+             (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 500)) &&
+             (!('folderId' in data) || data.folderId is string || data.folderId == null) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 200)) &&
+             (!('documentId' in data) || (data.documentId is string && data.documentId.size() <= 200)) &&
+             (!('documentTitle' in data) || (data.documentTitle is string && data.documentTitle.size() <= 500)) &&
+             (!('sources' in data) || (data.sources is string && data.sources.size() <= 5000)) &&
+             (!('theoryLinks' in data) || (data.theoryLinks is string && data.theoryLinks.size() <= 5000)) &&
+             (!('isPinned' in data) || data.isPinned is bool);
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -124,6 +147,16 @@ service cloud.firestore {
       // Subcollection for chats / chat messages (GDPR & Chat History)
       match /chats/{chatId} {
         allow read, write: if isOwner(userId);
+        match /{document=**} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /superveileder_chats/{chatId} {
+        allow read, write: if isOwner(userId);
+        match /{document=**} {
+          allow read, write: if isOwner(userId);
+        }
       }
 
       match /documents/{docId} {
@@ -188,6 +221,30 @@ service cloud.firestore {
       allow create: if isVerified() && isValidGroup(incoming());
       allow update: if isVerified() && isValidGroup(incoming());
       allow delete: if isVerified() || isAdmin();
+    }
+
+    match /processLogs/{logId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidProcessLog(incoming());
+      allow update: if isSignedIn() && isValidProcessLog(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /documents/{docId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidDocument(incoming());
+      allow update: if isSignedIn() && isValidDocument(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /folders/{folderId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidFolder(incoming());
+      allow update: if isSignedIn() && isValidFolder(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }
 }

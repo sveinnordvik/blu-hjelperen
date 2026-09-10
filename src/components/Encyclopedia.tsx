@@ -24,7 +24,11 @@ interface DictionaryEntry {
   example?: string;
 }
 
-export function Encyclopedia() {
+export function Encyclopedia({
+  onBackToTools
+}: {
+  onBackToTools?: () => void;
+} = {}) {
   const [activeMenuId, setActiveMenuId] = useState('litteratur');
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedTerm, setCopiedTerm] = useState<string | null>(null);
@@ -197,6 +201,7 @@ Strukturer svaret ryddig og akademisk:
       icon={<Library className="w-6 h-6" />}
       actionButtonLabel="Søk i pensum"
       onActionClick={() => setActiveMenuId('litteratur')}
+      onBackToTools={onBackToTools}
       historyItems={menuItems}
       activeItemId={activeMenuId}
       onItemClick={setActiveMenuId}

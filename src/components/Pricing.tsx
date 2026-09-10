@@ -3,7 +3,11 @@ import {
   Check, 
   Zap, 
   Sparkles, 
-  X
+  X,
+  Coins,
+  Gift,
+  ShieldCheck,
+  Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -282,6 +286,77 @@ export const Pricing: React.FC<PricingProps> = ({
                         <p className="text-3xl font-black text-primary">HØYT</p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tilleggsmoduler & Kampanjer: Humanizer-bot & Verveprogram */}
+              <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                {/* Humanizer-bot Mikrotransaksjon */}
+                <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-700">
+                          <Coins className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base">Humanizer-boten</h4>
+                          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            10,- kr per vask (Pay-per-use)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Humanizer-boten er <strong>aldri inkludert som ubegrenset</strong> i noe abonnement (heller ikke Semester-pakka). Dette er et bevisst etisk valg for å skape sunn friksjon og motvirke snarveier.
+                    </p>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5 text-slate-800">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Etisk forankring
+                      </p>
+                      <p>
+                        Gjennomgår teksten din for robotaktige vendinger og gir forslag som ivaretar din personlige stemme og akademiske integritet.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Enkeltkjøp via Stripe</span>
+                    <span className="text-xs font-black text-amber-700">10 kr / gang</span>
+                  </div>
+                </div>
+
+                {/* Verveprogram */}
+                <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-primary-light flex items-center justify-center text-primary">
+                          <Gift className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base">Verv en medstudent</h4>
+                          <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
+                            50,- kr bonus til begge
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Del din personlige vervelenke fra din Profil. Når medstudenten registrerer seg, får dere begge <strong>50 kr i bonus</strong> på kontoen.
+                    </p>
+                    <div className="p-3 bg-primary/5 rounded-xl border border-primary/10 text-[11px] text-slate-800 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5 text-primary">
+                        <Users className="w-3.5 h-3.5" /> Gjelder på Semester-pakka
+                      </p>
+                      <p>
+                        Vervebonusen kan utelukkende benyttes som direkte rabatt ved oppgradering til <strong>Semester-pakka</strong> (opptil 100 kr totalrabatt).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Finn lenken din under Profil</span>
+                    <span className="text-xs font-black text-primary">Spar 50,-</span>
                   </div>
                 </div>
               </div>

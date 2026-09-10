@@ -63,6 +63,54 @@ const getDirname = () => {
 };
 const _dirname = getDirname();
 
+// Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
+async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
+  let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
+  if (initial.includes("2.5") || initial.includes("1.5") || initial.includes("2.0")) {
+    initial = "gemini-3.8-flash";
+  }
+
+  // Modellrekke for robusthet mot 429 (kvote) og 503 (stor pågang)
+  const modelCandidates = [
+    initial,
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  let lastError: any = null;
+
+  for (let i = 0; i < modelCandidates.length; i++) {
+    const currentModel = modelCandidates[i];
+    try {
+      const response = await ai.models.generateContent({
+        model: currentModel,
+        contents,
+        config,
+      });
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = err?.message || String(err);
+      const isQuotaOrRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || err?.status === 429;
+      const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || err?.status === 503 || errMsg.includes("high demand");
+
+      // Kritiske konfigurasjonsfeil som ikke vil løses med ny modell
+      if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid") || err?.status === 400) {
+        throw err;
+      }
+
+      console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}).`);
+
+      // Hvis flere modeller gjenstår, vent et lite øyeblikk og prøv neste
+      if (i < modelCandidates.length - 1) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -135,23 +183,27 @@ Når du svarer, følg disse retningslinjene:
         parts: [{ text: promptText }]
       });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents,
-        config: {
-          systemInstruction,
-          temperature: 0.7,
-          maxOutputTokens: 4096,
-        },
+      const response = await callGenAIWithFallback(ai, "gemini-3.8-flash", contents, {
+        systemInstruction,
+        temperature: 0.7,
+        maxOutputTokens: 4096,
       });
 
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Serverfeil ved kontakt med Gemini for /api/chat/message:", error);
       const errMsg = error?.message || String(error);
-      if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429) {
+      const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
+      const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
+
+      if (isRateLimit) {
         return res.status(429).json({ 
-          error: "Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å administrere prosjektet eller fylle på kreditter, eller oppdater GEMINI_API_KEY i innstillingene." 
+          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent 15-20 sekunder og prøv igjen, eller legg inn en API-nøkkel med høyere kvote under Settings -> Secrets." 
+        });
+      }
+      if (isUnavailable) {
+        return res.status(503).json({
+          error: "KI-modellen opplever stor pågang akkurat nå (503 High Demand). Vent noen sekunder og prøv igjen."
         });
       }
       res.status(500).json({ error: "Klarte ikke å hente svar fra KI-modellen." });
@@ -176,41 +228,27 @@ Når du svarer, følg disse retningslinjene:
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
       
-      const targetModel = model || "gemini-2.5-flash";
-      let response;
-      try {
-        response = await ai.models.generateContent({
-          model: targetModel,
-          contents,
-          config,
-        });
-      } catch (innerErr: any) {
-        // Dersom en pro-modell eller spesiell modell feiler, forsøk fallback til gemini-2.5-flash
-        if (targetModel !== "gemini-2.5-flash" && targetModel !== "gemini-3.8-flash") {
-          console.warn(`Fallback fra ${targetModel} til gemini-2.5-flash grunnet feil:`, innerErr?.message || innerErr);
-          response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents,
-            config,
-          });
-        } else {
-          throw innerErr;
-        }
-      }
+      const response = await callGenAIWithFallback(ai, model, contents, config);
 
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Gemini API error:", error);
       const errMsg = error?.message || String(error);
-      const status = error?.status || (errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") ? 429 : 500);
+      const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
+      const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
 
-      if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("RESOURCE_EXHAUSTED") || status === 429) {
+      if (isRateLimit) {
         return res.status(429).json({
-          error: "Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å administrere prosjektet eller fylle på kreditter, eller oppdater din GEMINI_API_KEY under Settings -> Secrets."
+          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent 15-20 sekunder og prøv igjen, eller legg inn en API-nøkkel med høyere kvote under Settings -> Secrets."
+        });
+      }
+      if (isUnavailable) {
+        return res.status(503).json({
+          error: "KI-modellen opplever stor pågang akkurat nå (503 High Demand). Vent noen sekunder og prøv igjen."
         });
       }
 
-      res.status(status).json({ error: errMsg });
+      res.status(error?.status || 500).json({ error: errMsg });
     }
   });
 
@@ -303,12 +341,14 @@ Når du svarer, følg disse retningslinjene:
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = fs.existsSync(path.join(process.cwd(), 'dist'))
+      ? path.join(process.cwd(), 'dist')
+      : path.join(process.cwd(), 'build');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');
       if (!fs.existsSync(indexPath)) {
-         return res.status(404).send("<b>Frontend (dist/index.html) mangler på serveren.</b> Sjekk at Cloud Build kjører bygget, eller at du har lastet opp dist-mappen. Sjekket sti: " + indexPath);
+         return res.status(404).send("<b>Frontend (index.html) mangler på serveren.</b> Sjekk at Cloud Build kjører bygget, eller at du har lastet opp dist/build-mappen. Sjekket sti: " + indexPath);
       }
       res.sendFile(indexPath);
     });

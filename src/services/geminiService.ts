@@ -49,7 +49,11 @@ export async function callGoogleAIProxy(params: {
   }
 
   // Modellnavn type validation fallback
-  const targetModel = (typeof params.model === 'string' && params.model.trim()) ? params.model : "gemini-2.5-flash";
+  let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : "gemini-3.8-flash";
+  if (requestedModel.includes("2.5") || requestedModel.includes("1.5") || requestedModel.includes("2.0")) {
+    requestedModel = "gemini-3.8-flash";
+  }
+  const targetModel = requestedModel;
 
   while (attempt <= maxRetries) {
     try {
@@ -77,18 +81,10 @@ export async function callGoogleAIProxy(params: {
            throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
         }
         if (resp.status === 404 || (typeof statusMsg === 'string' && statusMsg.includes("is not found for API version"))) {
-           throw new Error("Feil: Modellen '" + targetModel + "' er ikke tilgjengelig for din API-nøkkel. Prøv en annen modell, f.eks gemini-2.5-flash.");
-        }
-        if (resp.status === 429 || (typeof statusMsg === 'string' && (
-          statusMsg.includes("prepayment credits are depleted") ||
-          statusMsg.includes("RESOURCE_EXHAUSTED") ||
-          statusMsg.includes("quota") ||
-          statusMsg.includes("429")
-        ))) {
-          throw new Error("Dine forhåndsbetalte Gemini API-kreditter er oppbrukt (Resource Exhausted - 429). Gå til AI Studio på https://ai.studio/projects for å fylle på kreditter eller administrere prosjektet, eller oppdater din GEMINI_API_KEY i Settings -> Secrets.");
+           throw new Error("Feil: Modellen '" + targetModel + "' er ikke tilgjengelig for din API-nøkkel. Prøv en annen modell, f.eks gemini-3.8-flash.");
         }
         
-        // La serverfeil gå til catch-blokken for retry
+        // Serverfeil, 429 og 503 sendes til catch-blokken for retry med backoff
         throw { status: resp.status, message: statusMsg, isServerError: true, url: targetUrl };
       }
 
@@ -110,30 +106,31 @@ export async function callGoogleAIProxy(params: {
         text: data.text || ""
       };
     } catch (error: any) {
-      // Returner feilen direkte hvis det er en eksplisitt feil vi ikke skal repetere på
+      // Returner feilen direkte hvis det er en permanent feil vi ikke skal repetere på
       if (error instanceof Error && (
            error.message.includes("Mangler GEMINI_API_KEY") || 
            error.message.includes("Ugyldig Gemini API-nøkkel") || 
            error.message.includes("API key not valid") ||
-           error.message.includes("er ikke tilgjengelig for din API") ||
-           error.message.includes("kreditter er oppbrukt") ||
-           error.message.includes("prepayment credits") ||
-           error.message.includes("RESOURCE_EXHAUSTED")
-         )) {
+           error.message.includes("er ikke tilgjengelig for din API")
+          )) {
         throw error;
       }
 
-      if (attempt === maxRetries) {
-        const msg = error && typeof error === 'object' && error.message ? error.message : "";
+      const msg = error && typeof error === 'object' && error.message ? String(error.message) : (error instanceof Error ? error.message : "");
+
+      if (attempt >= maxRetries) {
+        if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+          throw new Error("Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent 15-20 sekunder og prøv igjen, eller legg inn en API-nøkkel med høyere kvote under Settings -> Secrets.");
+        }
+        if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE")) {
+          throw new Error("KI-modellen opplever stor pågang akkurat nå (503). Prøv igjen om et lite øyeblikk.");
+        }
         throw new Error(`${UIfriendlyError} (Siste feilmelding: ${msg})`);
       }
       
-      const status = error && typeof error === 'object' ? error.status : undefined;
-      const msg = error && typeof error === 'object' && error.message ? String(error.message) : "";
-      
-      // Retry for alle feil her (vi venter litt lenger for hver gang)
       attempt++;
-      const delayMs = Math.pow(2, attempt) * 1000;
+      const isRateOrBusy = msg.includes("429") || msg.includes("503") || error?.status === 429 || error?.status === 503;
+      const delayMs = isRateOrBusy ? (attempt * 2000) : (Math.pow(2, attempt) * 1000);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
@@ -254,7 +251,7 @@ export async function generateAcademicResponse(prompt: string, history: any[] = 
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents,
       config: {
         systemInstruction: `${SYSTEM_INSTRUCTION}\n\n${profileContext}\n\n${taskContext}\n\nDin nåværende veiledningsstil: ${strictnessInstructions[strictness]}`,
@@ -271,7 +268,7 @@ export async function generateAcademicResponse(prompt: string, history: any[] = 
 export async function analyzeThesisStructure(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Analyser følgende utkast eller idé til oppgave og gi kritisk tilbakemelding basert på akademiske standarder og nasjonale krav i barnehagelærerutdanningen.
       
       Du skal vurdere teksten spesifikt opp mot disse tolv faglige kravene:
@@ -333,7 +330,7 @@ export async function analyzeThesisStructure(content: string) {
 export async function generateOutlineFromChat(chatContent: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Basert på følgende skisserte idé eller diskusjon, sett opp en strukturert disposisjon på ca. 4-5 hovedpunkter for en akademisk barnehageoppgave.
       
       Strukturen skal være i tråd med nasjonale akademiske standarder og inkludere:
@@ -396,7 +393,7 @@ export async function generateOutlineFromChat(chatContent: string) {
 export async function brainstormPerspectives(topic: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Jeg står fast med min oppgave om: "${topic}". 
     Kan du gi meg 3-4 ulike faglige vinklinger eller perspektiver jeg kan utforske? 
     Ta utgangspunkt i temaer som er sentrale i barnehagelærerutdanningen og nevn hvordan gode oppgaver ofte belyser slike temaer.
@@ -420,7 +417,7 @@ export async function brainstormPerspectives(topic: string) {
 export async function evaluateThesis(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
     contents: `Du skal nå utføre en FAGLIG VURDERING av studentens utkast. Opptre som en konstruktiv sensor og vurder teksten opp mot nasjonale vurderingskriterier.
 
 STRUKTUR PÅ TILBAKEMELDINGEN:
@@ -458,7 +455,7 @@ ${content.substring(0, 30000)}`,
 export async function evaluateThesisAsDevilAdvocate(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
     contents: `Du er "Djevelens advokat" – en kritisk, men rettferdig akademisk opponent. Din jobb er å stressteste studentens tekst, finne de svakeste leddene i argumentasjonen, og utfordre det faglige ståstedet deres.
 
 STRUKTUR PÅ SVARET DITT:
@@ -494,7 +491,7 @@ ${content.substring(0, 30000)}`,
 export async function analyzeWithSystemPrompt(content: string, systemPrompt: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
     contents: content.substring(0, 30000),
     config: {
       systemInstruction: systemPrompt,
@@ -511,7 +508,7 @@ export async function analyzeWithSystemPrompt(content: string, systemPrompt: str
 export async function performSpraakvask(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: content,
       config: {
         systemInstruction: `Du er en varm og engasjert barnehagelærer som er ekspert på å skrive gode tekster til foreldre. Din oppgave er å språkvaske den vedlagte teksten.
@@ -540,7 +537,7 @@ Til: 'I dag har vi hatt en kjempegøy dag i skogen, selv om sola ikke skinte så
 export async function synthesizeEvaluations(results: string[]) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du har utført flere del-analyser av en lang akademisk tekst. Din oppgave er å sy sammen disse del-analysene til én helhetlig, profesjonell sensor-rapport.
     
     Her er del-analysene:
@@ -569,7 +566,7 @@ export async function synthesizeEvaluations(results: string[]) {
 export async function checkPlagiarism(content: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du skal nå utføre en INTEGRITETSSJEKK (Dyp plagiat- og KI-sjekk). Analyser teksten for "røde flagg" knyttet til KI-bruk og mangelfull kildehenvisning.
 
 VIKTIG: Du har ikke tilgang til eksterne plagiatdatabaser. Din sjekk vurderer språklige mønstre og kildemangler, ikke direkte kildekopiering fra nettet.
@@ -609,7 +606,7 @@ export async function rewriteText(text: string, mode: 'clarity' | 'precision' | 
     };
 
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Omskriv følgende tekst for å forbedre ${mode === 'clarity' ? 'klarhet' : mode === 'precision' ? 'presisjon' : mode === 'academic' ? 'akademisk tone' : 'kreativitet'}.
       
       Instruks: ${modeInstructions[mode]}
@@ -635,7 +632,7 @@ export async function analyzeMultiPdfs(texts: { name: string, content: string }[
     const combinedText = texts.map(t => `DOKUMENT: ${t.name}\nINNHOLD:\n${t.content}`).join('\n\n---\n\n');
 
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du har fått tilgang til flere pensumartikler/dokumenter samtidig. Din oppgave er å syntetisere informasjonen på tvers av disse dokumentene.
     
     ${query ? `BRUKERENS SPØRSMÅL: ${query}` : 'Gi en overordnet syntese av de viktigste temaene som går igjen i disse dokumentene, og hvordan de utfyller hverandre.'}
@@ -662,7 +659,7 @@ export async function analyzeMultiPdfs(texts: { name: string, content: string }[
 export async function checkAPA7(reference: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Sjekk om følgende referanse følger APA 7-standarden korrekt. Hvis ikke, rett den og forklar feilen.\n\nReferanse: ${reference}`,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -689,7 +686,7 @@ export async function checkAPA7(reference: string) {
 export async function getMethodologyAdvice(design: string, problem: string, tool: string, phase: string, context: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du er BLU-hjelperen, din metodiske veileder. Din oppgave er å hjelpe studenten med å navigere i det metodiske landskapet i barnehageforskning.
     
     Informasjon fra studenten:
@@ -719,7 +716,7 @@ export async function getMethodologyAdvice(design: string, problem: string, tool
 export async function evaluateSource(sourceDescription: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du er BLU-hjelperen, en streng, men konstruktiv kildekritiker. Din oppgave er å lære studenten å skille mellom "synsing" og vitenskapelig dokumentasjon.
     
     Gi din vurdering basert på disse overskriftene:
@@ -756,7 +753,7 @@ export async function evaluateSource(sourceDescription: string) {
 export async function performDeepSourceAnalysis(sourceDescription: string, evaluation: any) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Utfør en dypanalyse av følgende kildebeskrivelse. 
     Kilde: ${sourceDescription}
     
@@ -780,7 +777,7 @@ export async function performDeepSourceAnalysis(sourceDescription: string, evalu
 export async function analyzePdfContent(text: string): Promise<string> {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du er en sylskarp, akademisk lesepartner for barnehagelærerstudenter (BLU). Din oppgave er å analysere PDF-dokumenter, artikler eller notater som studenten laster opp, og trekke ut den informasjonen som er mest relevant for deres utdanning og praksis.
 
 FØLG DISSE REGLENE STRENGT:
@@ -826,7 +823,7 @@ ${text.substring(0, 20000)}`,
 export async function analyzeAssignmentText(text: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Analyser følgende oppgavetekst/arbeidskrav for en barnehagelærerstudent og trekk ut nøkkelinformasjon for å sette opp skriveprosessen.
     
     Oppgavetekst:
@@ -859,7 +856,7 @@ export async function analyzeAssignmentText(text: string) {
 export async function performDeepPdfAnalysis(text: string, initialAnalysis: any) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Utfør en dypanalyse av følgende PDF-innhold.
     Full tekst (utdrag): ${text.substring(0, 30000)}
     
@@ -879,7 +876,7 @@ export async function performDeepPdfAnalysis(text: string, initialAnalysis: any)
 export async function defineTerm(term: string): Promise<string> {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du er BLU-hjelperen, din "Begreps-knekker". Din oppgave er å oversette vanskelig akademisk teori til et språk som er forståelig og praktisk relevant.
     
     Gi en forklaring av begrepet "${term}" som inneholder:
@@ -912,7 +909,7 @@ export async function generateDidaktiskPlan(params: {
 }) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Lag en "${params.plantype}"-plan for barnehagen.
       
 Tema / Hovedfokus: ${params.tema}
@@ -956,7 +953,7 @@ export async function getLiteratureSuggestions(profile: any, topic: string) {
   ` : '';
 
   const response = await callGoogleAIProxy({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.8-flash",
     contents: `Du er en spesialisert akademisk bibliotekar og veileder for barnehagelærerstudenter (BLU) i Norge. Din oppgave er å foreslå relevant, anerkjent og akademisk faglitteratur basert på studentens problemstilling eller tema: "${topic}".
 
 ${profileContext}
@@ -1002,7 +999,7 @@ Svar nøyaktig i følgende format:
 export async function helpWithFeedback(content: string, feedback: string) {
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Du er en empatisk, klarsynt og oppmuntrende "Skrivecoach og Tolk". Brukeren har fått tilbakemelding (ofte kritikk) fra sin veileder/sensor, og din jobb er å oversette akademisk "sensor-språk" til forståelig norsk, fjerne frustrasjonen, og lage en slagplan.
 
 STRUKTUR PÅ SVARET DITT:
@@ -1112,7 +1109,7 @@ Returner KUN den ferdige referansen, absolutt ingen annen tekst, formatering ell
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: inputText }] }],
       config: {
         systemInstruction,
@@ -1173,7 +1170,7 @@ Analyser brukerens tekst og returner KUN én av følgende kategorier (ett enkelt
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: userInput }] }],
       config: {
         systemInstruction,
@@ -1286,7 +1283,7 @@ DINE REGLER:
     }));
 
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: formattedContents,
       config: {
         systemInstruction,
@@ -1340,7 +1337,7 @@ ${sharedRagContext.trim() ? sharedRagContext : "Ingen fellesnotater registrert e
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [
         {
           role: "user",
@@ -1380,7 +1377,7 @@ Format:
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: contextText }] }],
       config: {
         systemInstruction,
@@ -1459,7 +1456,7 @@ Svar KUN med gyldig JSON i dette formatet (uten markdown eller ekstra tekst):
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -1749,7 +1746,7 @@ ABSOLUTTE REGLER:
     }
 
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: formattedContents,
       config: {
         systemInstruction,
@@ -1792,7 +1789,7 @@ Returner svaret KUN som gyldig JSON:
   try {
     const dialogueText = history.map(h => `${h.senderName || h.role}: ${h.content}`).join('\n');
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: 'user', parts: [{ text: `Scenario: ${scenarioTitle}\n\nDialoglogg:\n${dialogueText}` }] }],
       config: {
         systemInstruction,
@@ -1856,7 +1853,7 @@ REGLER:
   try {
     // Parallelt kall: Tekstgenerering og Bildegenerering
     const textPromise = callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: `Aktivitet i dag: ${activity}` }] }],
       config: {
         systemInstruction: textSystemInstruction,
@@ -1941,7 +1938,7 @@ Format:
 
   try {
     const response = await callGoogleAIProxy({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: documentText }] }],
       config: {
         systemInstruction,
@@ -1961,5 +1958,56 @@ Format:
     throw new Error("Kunne ikke generere presentasjon. Sjekk at teksten er lang nok.");
   }
 }
+
+export interface ChatContext {
+  messages: { role: string; content: string }[];
+  mode: string;
+  docContent: string;
+  docTitle: string;
+  taskPrompt: string;
+}
+
+export const chatWithSuperveileder = async (context: ChatContext): Promise<string> => {
+  const systemInstruction = `Du er 'Superveilederen', en KI-veileder for barnehagelærerstudenter.
+Modus valgt av studenten: ${context.mode}
+Dokumenttittel: ${context.docTitle}
+Problemstilling: ${context.taskPrompt || 'Ikke oppgitt'}
+
+Studentens nåværende utkast:
+"""
+${context.docContent || 'Ingen tekst skrevet enda.'}
+"""
+
+Retningslinjer basert på Modus:
+- Auto: Svar naturlig og hjelpsomt basert på teksten.
+- Sokratisk: Ikke gi fasitsvar. Still åpne, reflekterende spørsmål som driver studentens tenkning fremover.
+- Rammeplan: Koble svaret ditt direkte til Rammeplan for barnehagen.
+- APA: Hjelp med akademisk skriving, kildekritikk og APA-formatering.
+- Metode: Fokuser på forskningsmetode, datainnsamling og validitet.
+
+Vær oppmuntrende, presis, og bruk norsk. Unngå å repetere utkastet deres, gi heller retning.`;
+
+  // Formaterer tidligere meldinger til Gemini sitt format (user/model)
+  const contents = context.messages.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'model',
+    parts: [{ text: msg.content }]
+  }));
+
+  try {
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.7
+      }
+    });
+
+    return response.text || "";
+  } catch (error: any) {
+    console.error("Feil i chatWithSuperveileder:", error);
+    throw error;
+  }
+};
 
 

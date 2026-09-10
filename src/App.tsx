@@ -11,6 +11,7 @@ import { RoleplaySimulator } from './components/RoleplaySimulator';
 import { PresentationGenerator } from './components/PresentationGenerator';
 import { Resources } from './components/Resources';
 import { Profile as ProfileComponent } from './components/Profile';
+import { isUnlimitedUser, isAdminUser } from './config/accessConfig';
 
 /**
  * @license
@@ -158,6 +159,7 @@ import { DesktopDashboardPage } from './pages/DesktopDashboardPage';
 import { DocumentAnalysis } from './components/DocumentAnalysis';
 import { Encyclopedia } from './components/Encyclopedia';
 import { AiTextRewriter } from './components/AiTextRewriter';
+import { ToolsDashboard } from './components/ToolsDashboard';
 import { Basen } from './components/Basen';
 import WelcomeGuide, { PedagogicalProfile } from './components/WelcomeGuide';
 
@@ -339,8 +341,9 @@ const GlossaryCard = ({
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy'>('home');
-  const [activeSubTab, setActiveSubTab] = useState<'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('simulator');
+  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools'>('home');
+  const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('tools-overview');
+  const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
   const [writingStep, setWritingStep] = useState(1);
 
   // Global Inactivity Router (Idle Timeout)
@@ -939,10 +942,7 @@ export default function App() {
       { id: 'process-log', label: 'Prosesslogg', icon: BookOpen, requiredTier: 'free' }
     ]},
     { id: 'verktoy', label: 'Verktøy', icon: Zap, subTabs: [
-      { id: 'simulator', label: 'Simulator', icon: PlayCircle, requiredTier: 'free' },
-      { id: 'presentations', label: 'Presentasjoner', icon: Presentation, requiredTier: 'free' },
-      { id: 'document-analysis', label: 'Dokumentanalyse', icon: FileSearch, requiredTier: 'free' },
-      { id: 'dictionary', label: 'Oppslagsverk', icon: Library, requiredTier: 'free' }
+      { id: 'tools-overview', label: 'Verktøykasse', icon: Grid, requiredTier: 'free' }
     ]},
     { id: 'basen', label: 'Basen', icon: Users, subTabs: [
       { id: 'collaboration', label: 'Basen', icon: Users, requiredTier: 'free' }
@@ -956,8 +956,8 @@ export default function App() {
     ]}
   ];
 
-  // Dynamisk tillegg av Admin-fane for eier
-  if (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com') {
+  // Dynamisk tillegg av Admin-fane for eier og godkjente administratorer
+  if (isAdminUser(user?.email || profile.email)) {
     const adminGroup = {
       id: 'admin-group',
       label: 'System',
@@ -973,7 +973,24 @@ export default function App() {
     }
   }
 
-  const activeGroup = navigationGroups.find(group => group.id === activeTab || group.subTabs.some(sub => sub.id === activeTab)) || navigationGroups[0];
+  const activeGroup = navigationGroups.find(group => 
+    group.id === activeTab || 
+    group.subTabs.some(sub => sub.id === activeTab) ||
+    (group.id === 'skriving' && (activeTab === 'blu-hjelper' || activeTab === 'super-chat' || activeTab === 'desktop-dashboard')) ||
+    (group.id === 'verktoy' && [
+      'verktoy', 
+      'tools', 
+      'tools-overview', 
+      'document-analysis', 
+      'simulator', 
+      'presentations', 
+      'dictionary', 
+      'pdf-analysis', 
+      'oral-simulator', 
+      'presentation-generator',
+      'glossary-auto'
+    ].includes(activeTab))
+  ) || navigationGroups[0];
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -1015,14 +1032,7 @@ export default function App() {
 
   const checkAccess = (requiredTier?: string) => {
     // Admin / Premium override
-    const isPremiumUser = [
-      'svein.nordvik@gmail.com', 
-      'annkarin78@hotmail.no'
-    ].includes(user?.email || '') || 
-    [
-      'svein.nordvik@gmail.com', 
-      'annkarin78@hotmail.no'
-    ].includes(profile.email || '');
+    const isPremiumUser = isUnlimitedUser(user?.email || profile.email);
 
     if (isPremiumUser) return true;
     
@@ -1052,7 +1062,7 @@ export default function App() {
   const handleTabClick = (tabId: any, requiredTier?: string) => {
     // Admin access check
     if (tabId === 'admin') {
-      const isAdmin = (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com');
+      const isAdmin = isAdminUser(user?.email || profile.email);
       if (!isAdmin) {
         setActiveTab('home');
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -1062,8 +1072,17 @@ export default function App() {
       }
     }
 
-    if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(tabId)) {
+    if (['tools-overview', 'simulator', 'presentations', 'document-analysis', 'dictionary'].includes(tabId)) {
       setActiveSubTab(tabId as any);
+    }
+
+    if (tabId === 'verktoy' || tabId === 'tools' || tabId === 'tools-overview') {
+      setActiveSubTab('tools-overview');
+      setActiveTab('verktoy');
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      return;
     }
 
     // Allow navigation for all in preview mode
@@ -2326,14 +2345,7 @@ export default function App() {
 
   // Admin / Premium override effect
   useEffect(() => {
-    const isPremiumUser = [
-      'svein.nordvik@gmail.com', 
-      'annkarin78@hotmail.no'
-    ].includes(user?.email || '') || 
-    [
-      'svein.nordvik@gmail.com', 
-      'annkarin78@hotmail.no'
-    ].includes(profile.email || '');
+    const isPremiumUser = isUnlimitedUser(user?.email || profile.email);
 
     if (isPremiumUser && pricingTier !== 'semester') {
       setPricingTier('semester');
@@ -2342,7 +2354,7 @@ export default function App() {
 
   // Security Redirect Effect for Admin/System
   useEffect(() => {
-    const isAdmin = (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com');
+    const isAdmin = isAdminUser(user?.email || profile.email);
     const path = window.location.pathname.toLowerCase();
     
     // Check if user is in unauthorized state for Admin access
@@ -2431,9 +2443,11 @@ export default function App() {
       price: '0,-', 
       period: '/mnd', 
       features: [
-        'Tilgang til enkle AI-verktøy', 
-        'Kan delta i \'Basen\' via invitasjonslenke', 
-        'Begrenset daglig bruk'
+        'Enkle AI-verktøy og oppslagsverk', 
+        'Kan delta i Basen via invitasjonslenke', 
+        'Delte Flashcards for eksamen',
+        'Enkel strukturanalyse i Dokumentanalyse',
+        '1 aktivt dokument & 1 arkivfil'
       ] 
     },
     { 
@@ -2444,10 +2458,11 @@ export default function App() {
       stripeUrl: 'https://buy.stripe.com/28EbIUgz81Cd6KAbuI18c07',
       features: [
         'Standard AI (Gemini Flash)', 
-        'Overfladisk sensor-tilbakemelding', 
-        'Maks 1 gruppe i Basen',
-        'Begrenset lagring',
-        'Enkel strukturanalyse'
+        'Auto-APA 7 kildeformatering', 
+        'Maks 1 opprettet gruppe i Basen',
+        'Inntil 3 parallelle dokumenter',
+        '20 MB filarkiv',
+        'Utvidet strukturanalyse'
       ] 
     },
     {
@@ -2457,8 +2472,8 @@ export default function App() {
       period: '/ 24T',
       features: [
         'Ubegrenset tilgang til alle funksjoner',
-        'Full tilgang til dypanalyser',
-        '100MB arkivplass for kontekst-filer',
+        'Full tilgang til dypanalyser og Sensor-modulen',
+        '100 MB arkivplass for kontekst-filer',
         'Eksklusiv forhåndsvisning'
       ],
       hidden: true
@@ -2474,10 +2489,13 @@ export default function App() {
       stripeUrl: 'https://buy.stripe.com/14AeV61EebcNd8YdCQ18c08',
       features: [
         'Alt i Måned, pluss:', 
-        'Opprett egne grupper i \'Basen\'',
-        'Ubegrenset bruk av Sensor-verktøyet',
-        'Prioritert tilgang til nyeste AI-modeller',
-        'Du sparer 48% (Kun 66,-/mnd)'
+        'Sensor-modulen: Dyp pedagogisk analyse & kildesjekk',
+        'Visuell innholdsgenerator / Imagen 3',
+        'Presentasjons-generator (NotebookLM-logikk)',
+        'Ubegrenset antall grupper i Basen',
+        'Ubegrenset antall dokumenter og mapper',
+        '100 MB filarkiv & prioritert AI-kø',
+        'Spar 48 % (Kun 66,-/mnd)'
       ] 
     }
   ];
@@ -4040,7 +4058,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                     onClick={() => handleTabClick(sub.id, sub.requiredTier)}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2",
-                      (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id))
+                      (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id) || (activeTab === 'blu-hjelper' && sub.id === 'assistant'))
                         ? "bg-white text-primary shadow-sm border border-slate-200" 
                         : "text-slate-500 hover:text-slate-800"
                     )}
@@ -4101,7 +4119,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 onClick={() => handleTabClick(sub.id, sub.requiredTier)}
                 className={cn(
                   "flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-2",
-                  (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id))
+                  (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id) || (activeTab === 'blu-hjelper' && sub.id === 'assistant'))
                     ? "bg-primary text-white shadow-md shadow-primary-light" 
                     : "bg-white text-slate-600 border border-slate-200"
                 )}
@@ -4293,7 +4311,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         isFocusMode && "max-w-3xl pt-12"
       )}>
         <AnimatePresence mode="wait">
-          {activeTab === 'admin' && (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com') && (
+          {activeTab === 'admin' && isAdminUser(user?.email || profile.email) && (
             <AdminComponent key="admin" 
               userEmail={user?.email || profile.email || null} 
               isQuotaExceeded={isQuotaExceeded}
@@ -4301,11 +4319,15 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             />
           )}
 
-          {activeTab === 'dagens-bilde' && (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com') && (
-            <VisualContentGenerator key="dagens-bilde" />
+          {activeTab === 'dagens-bilde' && isAdminUser(user?.email || profile.email) && (
+            <VisualContentGenerator 
+              key="dagens-bilde" 
+              pricingTier={pricingTier}
+              onUpgrade={() => setActiveTab('pricing')}
+            />
           )}
 
-          {activeTab === 'didaktisk-planlegger' && (user?.email === 'svein.nordvik@gmail.com' || profile.email === 'svein.nordvik@gmail.com') && (
+          {activeTab === 'didaktisk-planlegger' && isAdminUser(user?.email || profile.email) && (
             <DidaktiskPlanlegger key="didaktisk-planlegger" />
           )}
 
@@ -4338,7 +4360,23 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'assistant' && (
-            <Superveileder key="assistant" />
+            <Superveileder 
+              key="assistant" 
+              user={user} 
+              didacticProfile={pedagogicalProfile} 
+              onSwitchToBlu={() => setActiveTab('blu-hjelper')} 
+            />
+          )}
+
+          {activeTab === 'blu-hjelper' && (
+            <div key="blu-hjelper" className="flex-1 flex flex-col py-2">
+              <DesktopDashboardPage 
+                user={user} 
+                onOpenSettings={() => setActiveTab('settings')} 
+                onBackToHome={() => setActiveTab('home')} 
+                onSwitchToSuperveileder={() => setActiveTab('assistant')}
+              />
+            </div>
           )}
 
           {activeTab === 'collaboration' && (
@@ -4564,7 +4602,11 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
           {activeTab === 'super-chat' && (
             <div key="super-chat" className="flex-1 flex flex-col py-2">
-              <SuperChat user={user} didacticProfile={pedagogicalProfile} />
+              <Superveileder 
+                user={user} 
+                didacticProfile={pedagogicalProfile} 
+                onSwitchToBlu={() => setActiveTab('blu-hjelper')} 
+              />
             </div>
           )}
 
@@ -4574,6 +4616,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 user={user} 
                 onOpenSettings={() => setActiveTab('settings')} 
                 onBackToHome={() => setActiveTab('home')} 
+                onSwitchToSuperveileder={() => setActiveTab('assistant')}
               />
             </div>
           )}
@@ -5321,24 +5364,133 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           {activeTab === 'verktoy' && (
             (() => {
               switch (activeSubTab) {
+                case 'tools-overview':
+                  return (
+                    <ToolsDashboard 
+                      key="tools-overview"
+                      pricingTier={pricingTier}
+                      onSelectTool={(toolId) => {
+                        if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
+                          setDocAnalysisInitialTool('humanizer');
+                          setActiveSubTab('document-analysis');
+                          setActiveTab('verktoy');
+                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                          if (toolId === 'document-analysis') {
+                            setDocAnalysisInitialTool('sensor');
+                          }
+                          setActiveSubTab(toolId as any);
+                          setActiveTab('verktoy');
+                        } else {
+                          setActiveTab(toolId as any);
+                        }
+                      }}
+                      onUpgrade={() => setActiveTab('pricing')}
+                    />
+                  );
                 case 'simulator':
-                  return <RoleplaySimulator key="simulator" />;
+                  return (
+                    <RoleplaySimulator 
+                      key="simulator" 
+                      onBackToTools={() => {
+                        setActiveSubTab('tools-overview');
+                        setActiveTab('verktoy');
+                      }}
+                    />
+                  );
                 case 'presentations':
                   return (
                     <PresentationGenerator 
                       key="presentations"
+                      pricingTier={pricingTier}
+                      onUpgrade={() => setActiveTab('pricing')}
                       documentText={activeDocument?.content ? Object.values(activeDocument.content).filter(Boolean).join('\n\n') : ''}
                       documentTitle={activeDocument?.title}
+                      onBackToTools={() => {
+                        setActiveSubTab('tools-overview');
+                        setActiveTab('verktoy');
+                      }}
                     />
                   );
                 case 'document-analysis':
-                  return <DocumentAnalysis key="document-analysis" />;
+                  return (
+                    <DocumentAnalysis 
+                      key={`document-analysis-${docAnalysisInitialTool}`}
+                      pricingTier={pricingTier}
+                      userEmail={user?.email || profile.email}
+                      onUpgrade={() => setActiveTab('pricing')}
+                      initialTool={docAnalysisInitialTool}
+                      onBackToTools={() => {
+                        setActiveSubTab('tools-overview');
+                        setActiveTab('verktoy');
+                      }}
+                    />
+                  );
                 case 'dictionary':
-                  return <Encyclopedia key="dictionary" />;
+                  return (
+                    <Encyclopedia 
+                      key="dictionary" 
+                      onBackToTools={() => {
+                        setActiveSubTab('tools-overview');
+                        setActiveTab('verktoy');
+                      }}
+                    />
+                  );
                 default:
-                  return <RoleplaySimulator key="simulator-default" />;
+                  return (
+                    <ToolsDashboard 
+                      key="tools-default"
+                      pricingTier={pricingTier}
+                      userEmail={user?.email || profile.email}
+                      onSelectTool={(toolId) => {
+                        if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
+                          setDocAnalysisInitialTool('humanizer');
+                          setActiveSubTab('document-analysis');
+                          setActiveTab('verktoy');
+                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                          if (toolId === 'document-analysis') {
+                            setDocAnalysisInitialTool('sensor');
+                          }
+                          setActiveSubTab(toolId as any);
+                          setActiveTab('verktoy');
+                        } else {
+                          setActiveTab(toolId as any);
+                        }
+                      }}
+                      onUpgrade={() => setActiveTab('pricing')}
+                    />
+                  );
               }
             })()
+          )}
+
+          {(activeTab === 'tools-overview' || activeTab === 'tools') && (
+            <motion.div 
+              key="tools-overview-direct"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full"
+            >
+              <ToolsDashboard 
+                pricingTier={pricingTier}
+                onSelectTool={(toolId) => {
+                  if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
+                    setDocAnalysisInitialTool('humanizer');
+                    setActiveSubTab('document-analysis');
+                    setActiveTab('verktoy');
+                  } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                    if (toolId === 'document-analysis') {
+                      setDocAnalysisInitialTool('sensor');
+                    }
+                    setActiveSubTab(toolId as any);
+                    setActiveTab('verktoy');
+                  } else {
+                    setActiveTab(toolId as any);
+                  }
+                }}
+                onUpgrade={() => setActiveTab('pricing')}
+              />
+            </motion.div>
           )}
 
           {(activeTab === 'presentation-generator' || activeTab === 'presentations') && (
@@ -5350,8 +5502,14 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               className="w-full"
             >
               <PresentationGenerator 
+                pricingTier={pricingTier}
+                onUpgrade={() => setActiveTab('pricing')}
                 documentText={activeDocument?.content ? Object.values(activeDocument.content).filter(Boolean).join('\n\n') : ''}
                 documentTitle={activeDocument?.title}
+                onBackToTools={() => {
+                  setActiveSubTab('tools-overview');
+                  setActiveTab('verktoy');
+                }}
               />
             </motion.div>
           )}
@@ -5364,7 +5522,12 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               exit={{ opacity: 0, y: -10 }}
               className="w-full"
             >
-              <RoleplaySimulator />
+              <RoleplaySimulator 
+                onBackToTools={() => {
+                  setActiveSubTab('tools-overview');
+                  setActiveTab('verktoy');
+                }}
+              />
             </motion.div>
           )}
 
@@ -5376,7 +5539,12 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               exit={{ opacity: 0, y: -10 }}
               className="w-full"
             >
-              <Encyclopedia />
+              <Encyclopedia 
+                onBackToTools={() => {
+                  setActiveSubTab('tools-overview');
+                  setActiveTab('verktoy');
+                }}
+              />
             </motion.div>
           )}
 
@@ -5391,7 +5559,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               exit={{ opacity: 0, scale: 0.98 }}
               className="space-y-6"
             >
-              <DocumentAnalysis />
+              <DocumentAnalysis 
+                pricingTier={pricingTier}
+                userEmail={user?.email || profile.email}
+                onUpgrade={() => setActiveTab('pricing')}
+                initialTool={docAnalysisInitialTool}
+                onBackToTools={() => {
+                  setActiveSubTab('tools-overview');
+                  setActiveTab('verktoy');
+                }}
+              />
             </motion.div>
           )}
 

@@ -37,7 +37,10 @@ import {
   Moon,
   Loader2,
   FileText,
-  FileCode
+  FileCode,
+  Gift,
+  Copy,
+  Users
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -114,6 +117,9 @@ export function Profile({
   onNavigate
 }: ProfileProps) {
   const [activeMenu, setActiveMenu] = useState<string>(initialMenu || 'profile');
+  const [copiedReferral, setCopiedReferral] = useState(false);
+  const referralCode = profile?.referralCode || (user?.uid ? user.uid.substring(0, 7).toUpperCase() : 'BLU-2026');
+  const referralUrl = typeof window !== 'undefined' ? `${window.location.origin}?ref=${referralCode}` : `https://bluhjelperen.no?ref=${referralCode}`;
 
   useEffect(() => {
     if (initialMenu && ['profile', 'settings', 'about'].includes(initialMenu)) {
@@ -575,6 +581,65 @@ export function Profile({
                       </button>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {/* Verveprogram (50 kr rabatt på Semester-pakka) */}
+              <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-amber-100 p-2.5 rounded-2xl text-amber-700 shrink-0">
+                      <Gift className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-slate-900">Verv en medstudent</h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-xs">
+                          50,- bonus
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium">Både du og medstudenten får 50 kr i bonus som rabatt på Semester-pakka</p>
+                    </div>
+                  </div>
+                  <div className="bg-primary/5 px-4 py-2 rounded-2xl border border-primary/15 text-left sm:text-right shrink-0">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Din vervebonus</span>
+                    <span className="text-sm font-black text-primary">50,- kr opptjent</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+                  Del din unike vervelenke med kollokviegruppen eller venner på kullet. Når de registrerer seg, aktiveres en 50 kr velkomstbonus for dem, og du mottar 50 kr i kreditt som kan trekkes fra ved kjøp av <strong>Semester-pakka</strong>.
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                  <div className="flex-1 px-3 py-2 text-xs font-mono text-slate-700 select-all truncate">
+                    {referralUrl}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(referralUrl);
+                      setCopiedReferral(true);
+                      setTimeout(() => setCopiedReferral(false), 2000);
+                    }}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-xs"
+                  >
+                    {copiedReferral ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span>Kopiert!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Kopier vervelenke</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-400">
+                  <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span>Vervebonusen kan utelukkende innløses som prisavslag på Semester-pakka (opptil 100 kr totalrabatt).</span>
                 </div>
               </div>
 

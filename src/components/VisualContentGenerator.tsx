@@ -20,7 +20,14 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { generateParentUpdate, ParentUpdateResult, playAudio, stopAudio } from '../services/geminiService';
 
-export function VisualContentGenerator() {
+export function VisualContentGenerator({ 
+  pricingTier = 'free',
+  onUpgrade
+}: {
+  pricingTier?: string;
+  onUpgrade?: () => void;
+}) {
+  const isSemester = pricingTier === 'semester' || pricingTier === 'yearly' || pricingTier === 'preview';
   const [activity, setActivity] = useState('Skogstur til Trolldalen med kongledyr, undring over meitemark og klatring på steiner');
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<ParentUpdateResult | null>(null);
@@ -56,6 +63,10 @@ export function VisualContentGenerator() {
   ];
 
   const handleGenerate = async (customText?: string) => {
+    if (!isSemester) {
+      if (onUpgrade) onUpgrade();
+      return;
+    }
     const targetActivity = customText || activity;
     if (!targetActivity.trim() || isGenerating) return;
 
@@ -108,7 +119,10 @@ export function VisualContentGenerator() {
               <span className="px-3 py-0.5 text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 rounded-full">
                 Visuell Innholdsgenerator & Imagen 3
               </span>
-              <span className="text-xs text-slate-400 font-bold">• MyKid, Vigilo & Månedsbrev</span>
+              <span className="px-2.5 py-0.5 text-xs font-black uppercase tracking-wider bg-amber-400 text-slate-950 rounded-full shadow-xs">
+                Semester-pakka
+              </span>
+              <span className="text-xs text-slate-400 font-bold hidden sm:inline">• MyKid, Vigilo & Månedsbrev</span>
             </div>
             <h2 className="text-2xl font-black text-slate-900 mt-1">Dagens Bilde & Foreldreoppdatering</h2>
             <p className="text-sm text-slate-600 mt-1">
@@ -117,6 +131,28 @@ export function VisualContentGenerator() {
           </div>
         </div>
       </div>
+
+      {!isSemester && (
+        <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-6 h-6 text-amber-600 shrink-0" />
+            <div>
+              <h4 className="font-bold text-amber-950 text-sm">Eksklusivt for Semester-pakka</h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Imagen 3 bildegenerering og pedagogiske foreldreoppdateringer krever Semester-pakka på grunn av avansert KI-bildebehandling.
+              </p>
+            </div>
+          </div>
+          {onUpgrade && (
+            <button
+              onClick={onUpgrade}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+            >
+              Lås opp nå
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Preset Activity Chips */}
       <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
@@ -162,10 +198,15 @@ export function VisualContentGenerator() {
           />
           <button
             onClick={() => handleGenerate()}
-            disabled={!activity.trim() || isGenerating}
-            className="px-6 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-emerald-700/20 shrink-0"
+            disabled={!isSemester ? false : (!activity.trim() || isGenerating)}
+            className="px-6 py-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-emerald-700/20 shrink-0 cursor-pointer"
           >
-            {isGenerating ? (
+            {!isSemester ? (
+              <>
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Lås opp med Semester-pakka</span>
+              </>
+            ) : isGenerating ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Skaper innhold...</span>

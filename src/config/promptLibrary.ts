@@ -11,7 +11,7 @@ export interface BotModelConfig {
   name: string;
   roleTitle: string;
   tagline: string;
-  model: 'gemini-2.5-flash' | 'gemini-3.8-flash' | string;
+  model: 'gemini-3.8-flash' | 'gemini-3.8-flash' | string;
   recommendedAlternativeModel: string;
   temperature: number;
   maxOutputTokens: number;
@@ -70,7 +70,7 @@ export const SKRIVEBOTEN_CONFIG: BotModelConfig = {
   name: 'Skriveboten',
   roleTitle: 'Akademisk skrivecoach & formkravsveileder',
   tagline: 'Presis akademisk veiledning uten å ta fra studenten læringen.',
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3.8-flash',
   recommendedAlternativeModel: 'gemini-3.8-flash',
   temperature: 0.25,
   maxOutputTokens: 800,
@@ -131,7 +131,7 @@ export const SUPER_VEILEDEREN_CONFIG: BotModelConfig = {
   name: 'Super-Veilederen',
   roleTitle: 'Faglig veileder & Sokratisk sparringspartner',
   tagline: 'Fremmer profesjonsfaglig skjønn og dyp refleksjon uten ferdige fasitsvar.',
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3.8-flash',
   recommendedAlternativeModel: 'gemini-3.8-flash',
   temperature: 0.65,
   maxOutputTokens: 1500,
@@ -189,8 +189,8 @@ export const LYTTEBOTEN_CONFIG: BotModelConfig = {
   name: 'Lytteboten',
   roleTitle: 'Emosjonell støttespiller & Dekompresjonsveileder',
   tagline: 'Et trygt og uformelt rom for å lufte praksisstress og sortere tanker.',
-  model: 'gemini-2.5-flash',
-  recommendedAlternativeModel: 'gemini-1.5-flash',
+  model: 'gemini-3.8-flash',
+  recommendedAlternativeModel: 'gemini-3.8-flash',
   temperature: 0.75,
   maxOutputTokens: 500,
   targetResponseLength: 'Korte, varme og nærværende replikker (50-150 ord)',
@@ -243,7 +243,7 @@ export const RAG_BOT_CONFIG: BotModelConfig = {
   name: 'RAG-boten (Rammeplan & Lovverk)',
   roleTitle: 'Dokument- og lovverksspesialist',
   tagline: 'Lynrask og presis forankring i Rammeplan for barnehagen og Barnehageloven.',
-  model: 'gemini-2.5-flash',
+  model: 'gemini-3.8-flash',
   recommendedAlternativeModel: 'gemini-3.8-flash',
   temperature: 0.2,
   maxOutputTokens: 1200,

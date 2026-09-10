@@ -346,7 +346,7 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({
                 )}
 
                 <div className="prose prose-sm max-w-none prose-slate">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  <ReactMarkdown>{typeof m.content === 'string' ? m.content : JSON.stringify(m.content, null, 2)}</ReactMarkdown>
                 </div>
               </div>
             </div>

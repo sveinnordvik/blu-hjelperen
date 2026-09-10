@@ -176,7 +176,7 @@ export function TeamChat({
               }`}>
                 {isAgent ? (
                   <div className="prose prose-sm prose-slate max-w-none text-slate-800">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}</ReactMarkdown>
                     <div className="mt-2.5 pt-2.5 border-t border-primary/15 flex items-center justify-between text-xs">
                       <span className="text-[10px] font-bold text-primary flex items-center gap-1">
                         <Sparkles className="w-3 h-3" /> Koblet mot gruppens notater

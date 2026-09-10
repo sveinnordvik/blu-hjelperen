@@ -129,10 +129,10 @@ export const Home: React.FC<HomeProps> = ({
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
             <button 
-              onClick={() => setActiveTab('chat')} 
-              className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all w-full sm:w-auto"
+              onClick={() => setActiveTab('blu-hjelper')} 
+              className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <MessageSquare className="w-5 h-5" /> BLU-hjelperen Chat
+              <GraduationCap className="w-5 h-5 text-blue-400" /> BLU-hjelperen Chat
             </button>
             <button 
               onClick={() => createNewDocument()} 
@@ -164,8 +164,8 @@ export const Home: React.FC<HomeProps> = ({
                 </div>
               </div>
               <button 
-                onClick={() => setActiveTab('super-chat')} 
-                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold whitespace-nowrap hover:bg-indigo-700 transition-all shadow-md w-full sm:w-auto flex items-center justify-center gap-2 shrink-0"
+                onClick={() => setActiveTab('assistant')} 
+                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold whitespace-nowrap hover:bg-indigo-700 transition-all shadow-md w-full sm:w-auto flex items-center justify-center gap-2 shrink-0 cursor-pointer"
               >
                 Åpne Superveilederen <ChevronRight className="w-4 h-4" />
               </button>

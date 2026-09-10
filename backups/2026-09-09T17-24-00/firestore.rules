@@ -1,0 +1,203 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // DEFAULT DENY
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email == "svein.nordvik@gmail.com");
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "svein.nordvik@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ===============================================================
+    // Entity Validations
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 255;
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['userId', 'title']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 255 &&
+             (!('content' in data) || data.content is map);
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['userId']) &&
+             data.userId == request.auth.uid &&
+             (!('milestones' in data) || (data.milestones is list && data.milestones.size() <= 100)) &&
+             (!('progress' in data) || (data.progress is list && data.progress.size() <= 50));
+    }
+
+    function isValidChatHistory(data) {
+      return data.keys().hasAll(['messages']) &&
+             data.messages is list && data.messages.size() <= 500;
+    }
+
+    function isValidContextFile(data) {
+      return data.keys().hasAll(['userId', 'name', 'type']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 255 &&
+             data.type in ['file', 'folder'] &&
+             (!('content' in data) || data.content is string) &&
+             (!('folderId' in data) || data.folderId is string || data.folderId == null);
+    }
+
+    function isValidPedagogicalDocumentation(data) {
+      return data.keys().hasAll(['content', 'type', 'timestamp']) &&
+             data.content is string && data.content.size() > 0 &&
+             data.type in ['daily', 'monthly'] &&
+             (!('monthFolder' in data) || data.monthFolder is string) &&
+             (!('adminId' in data) || data.adminId is string) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidGroup(data) {
+      return (('name' in data && data.name is string) || ('groupName' in data && data.groupName is string)) &&
+             (!('sharedRagContext' in data) || data.sharedRagContext is string) &&
+             (!('flashcards' in data) || data.flashcards is list) &&
+             (!('messages' in data) || data.messages is list) &&
+             (!('notes' in data) || data.notes is string) &&
+             (!('todos' in data) || data.todos is list) &&
+             (!('files' in data) || data.files is list) &&
+             (!('events' in data) || data.events is list) &&
+             (!('members' in data) || data.members is list) &&
+             (!('userProgress' in data) || data.userProgress is map);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isVerified() && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        isAdmin() || 
+        // Action: standard profile and app state sync
+        (incoming().diff(existing()).affectedKeys().hasOnly(['profile', 'pedagogicalProfile', 'hasCompletedOnboarding', 'notificationSettings', 'theme', 'settings', 'notificationsEnabled', 'onboardingComplete', 'lowStressMode', 'activeTab', 'writingStep', 'selectedReferenceStyle', 'aiTerms', 'searchCounts', 'updatedAt', 'pricingTier', 'documents', 'folders', 'fcmToken', 'name', 'uid', 'email']))
+      );
+      allow delete: if isOwner(userId) || isAdmin();
+      
+      // We don't allow listing users at top level for PII privacy
+      allow list: if false;
+
+      // Subcollection for chats / chat messages (GDPR & Chat History)
+      match /chats/{chatId} {
+        allow read, write: if isOwner(userId);
+        match /{document=**} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /superveileder_chats/{chatId} {
+        allow read, write: if isOwner(userId);
+        match /{document=**} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /documents/{docId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDocument(incoming());
+        allow update: if isOwner(userId) && isValidDocument(incoming()) && 
+                      incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /projects/{projectId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidProject(incoming());
+        allow update: if isOwner(userId) && isValidProject(incoming()) &&
+                      incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /chatHistory/{chatId} {
+        allow get: if isOwner(userId) || isAdmin();
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidChatHistory(incoming());
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /process_logs/{logId} {
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /context_files/{fileId} {
+      // Secure List Queries Pattern
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow get: if isVerified() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isVerified() && isValidContextFile(incoming());
+      allow update: if isVerified() && isValidContextFile(incoming()) &&
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /pedagogical_documentation/{docId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidPedagogicalDocumentation(incoming());
+    }
+
+    match /admins/{adminId} {
+      // Only admins can see who else is an admin
+      allow read: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isVerified();
+      allow create: if isVerified() && isValidGroup(incoming());
+      allow update: if isVerified() && isValidGroup(incoming());
+      allow delete: if isVerified() || isAdmin();
+    }
+  }
+}

@@ -14,10 +14,21 @@ import {
   HelpCircle,
   Lightbulb,
   Eye,
-  Edit3
+  Edit3,
+  FolderPlus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { askSocraticAgent } from '../services/geminiService';
+import { db } from '../firebase';
+import { getAuth } from 'firebase/auth';
+import { collection, doc, setDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
+
+export interface FolderItem {
+  id: string;
+  name: string;
+  isExpanded?: boolean;
+  createdAt?: string;
+}
 
 export interface ProcessLogItem extends HistoryItem {
   id: string;
@@ -30,9 +41,16 @@ export interface ProcessLogItem extends HistoryItem {
   theoryLinks: string;
   createdAt: string;
   updatedAt: string;
+  folderId?: string;
 }
 
 const STORAGE_KEY = 'blu_process_logs_v2';
+const FOLDERS_STORAGE_KEY = 'blu_process_log_folders_v1';
+
+const INITIAL_FOLDERS: FolderItem[] = [
+  { id: 'f1', name: 'Praksis H26', isExpanded: true, createdAt: new Date().toISOString() },
+  { id: 'f2', name: 'Pedagogikk', isExpanded: false, createdAt: new Date().toISOString() }
+];
 
 const INITIAL_LOGS: ProcessLogItem[] = [
   {
@@ -82,6 +100,21 @@ export function ProcessLog(_props?: { [key: string]: any }) {
     return logs.length > 0 ? logs[0].id : '1';
   });
 
+  // State for mapper
+  const [folders, setFolders] = useState<FolderItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(FOLDERS_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to parse folders from localStorage', e);
+    }
+    return INITIAL_FOLDERS;
+  });
+
+  // State for Ny Mappe modal
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
   const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSuggestingTheory, setIsSuggestingTheory] = useState(false);
@@ -99,6 +132,120 @@ export function ProcessLog(_props?: { [key: string]: any }) {
       console.error('Failed to save logs to localStorage', e);
     }
   }, [logs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
+    } catch (e) {
+      console.error('Failed to save folders to localStorage', e);
+    }
+  }, [folders]);
+
+  // Henter logger og mapper fra Firestore ved innlasting
+  useEffect(() => {
+    const fetchData = async () => {
+      const auth = getAuth();
+      const user = auth.currentUser;
+
+      if (!user) {
+        setLogs(INITIAL_LOGS);
+        setFolders(INITIAL_FOLDERS);
+        return;
+      }
+
+      try {
+        // Hent logger fra Firebase
+        const logQ = query(collection(db, 'processLogs'), where('userId', '==', user.uid));
+        const logSnapshot = await getDocs(logQ);
+        if (!logSnapshot.empty) {
+          const fetchedLogs = logSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcessLogItem));
+          fetchedLogs.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+          setLogs(fetchedLogs);
+          setActiveLogId(fetchedLogs[0].id);
+        }
+
+        // Hent mapper fra Firebase
+        const folderQ = query(collection(db, 'folders'), where('userId', '==', user.uid));
+        const folderSnapshot = await getDocs(folderQ);
+        if (!folderSnapshot.empty) {
+          const fetchedFolders = folderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FolderItem));
+          setFolders(fetchedFolders);
+        } else {
+          setFolders([]); // Tom hvis brukeren ikke har laget mapper enda
+        }
+      } catch (error) {
+        console.error("Feil ved henting av data fra skyen:", error);
+      }
+    };
+
+    fetchData();
+
+    const auth = getAuth();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        fetchData();
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Hjelpefunksjon for å lagre et spesifikt loggelement til skyen
+  const saveLogToFirebase = async (logToSave: ProcessLogItem) => {
+    try {
+      const user = getAuth().currentUser;
+      if (!user) return;
+      const logRef = doc(db, 'processLogs', logToSave.id);
+      await setDoc(logRef, { ...logToSave, userId: user.uid }, { merge: true });
+    } catch (error) {
+      console.error("Feil ved lagring av logg:", error);
+    }
+  };
+
+  // Hjelpefunksjon for å lagre mapper til skyen
+  const saveFolderToFirebase = async (folder: FolderItem) => {
+    try {
+      const user = getAuth().currentUser;
+      if (!user) return;
+      const folderRef = doc(db, 'folders', folder.id);
+      await setDoc(folderRef, { ...folder, userId: user.uid }, { merge: true });
+    } catch (error) {
+      console.error("Feil ved lagring av mappe:", error);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+
+    const newFolder: FolderItem = {
+      id: 'folder_' + Date.now(),
+      name: newFolderName.trim(),
+      isExpanded: true,
+      createdAt: new Date().toISOString()
+    };
+
+    setFolders(prev => [...prev, newFolder]);
+    setNewFolderName('');
+    setIsCreatingFolder(false);
+
+    // Lagre til skyen
+    await saveFolderToFirebase(newFolder);
+  };
+
+  const handleMoveDoc = (docId: string, folderId: string | undefined) => {
+    setLogs(prev => {
+      const updatedLogs = prev.map(l => {
+        if (l.id === docId) {
+          const updated = { ...l, folderId, updatedAt: new Date().toISOString() };
+          // Lagrer umiddelbart til skyen når en logg flyttes
+          saveLogToFirebase(updated);
+          return updated;
+        }
+        return l;
+      });
+      return updatedLogs;
+    });
+  };
 
   const handleNewLog = () => {
     const newId = Date.now().toString();
@@ -119,6 +266,7 @@ export function ProcessLog(_props?: { [key: string]: any }) {
     setActiveLogId(newId);
     setPreviewMode('edit');
     setTheorySuggestions(null);
+    saveLogToFirebase(newLogItem);
   };
 
   const handleUpdateActiveLog = (fields: Partial<ProcessLogItem>) => {
@@ -137,9 +285,13 @@ export function ProcessLog(_props?: { [key: string]: any }) {
   const handleSaveLog = () => {
     setSaveStatus('Logg lagret!');
     const dateStr = new Date().toLocaleDateString('no-NO', { day: 'numeric', month: 'short' });
-    handleUpdateActiveLog({
-      subtitle: `${activeLog?.category || 'Logg'} • ${dateStr}`
-    });
+    const updated = {
+      ...activeLog,
+      subtitle: `${activeLog?.category || 'Logg'} • ${dateStr}`,
+      updatedAt: new Date().toISOString()
+    };
+    handleUpdateActiveLog(updated);
+    saveLogToFirebase(updated);
     setTimeout(() => setSaveStatus(null), 2500);
   };
 
@@ -213,16 +365,35 @@ Foreslå:
 
   // Pin / Unpin
   const handlePinItem = (id: string, isPinned: boolean) => {
-    setLogs(prev => prev.map(l => l.id === id ? { ...l, isPinned } : l));
+    setLogs(prev => prev.map(l => {
+      if (l.id === id) {
+        const updated = { ...l, isPinned, updatedAt: new Date().toISOString() };
+        saveLogToFirebase(updated);
+        return updated;
+      }
+      return l;
+    }));
   };
 
   // Rename
   const handleRenameItem = (id: string, newTitle: string) => {
-    setLogs(prev => prev.map(l => l.id === id ? { ...l, title: newTitle } : l));
+    setLogs(prev => prev.map(l => {
+      if (l.id === id) {
+        const updated = { ...l, title: newTitle, updatedAt: new Date().toISOString() };
+        saveLogToFirebase(updated);
+        return updated;
+      }
+      return l;
+    }));
   };
 
   // Delete
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'processLogs', id));
+    } catch (err) {
+      console.error('Feil ved sletting av logg fra Firebase:', err);
+    }
     setLogs(prev => {
       const filtered = prev.filter(l => l.id !== id);
       if (activeLogId === id) {
@@ -243,6 +414,7 @@ Foreslå:
             updatedAt: new Date().toISOString()
           };
           setActiveLogId(freshId);
+          saveLogToFirebase(freshLog);
           return [freshLog];
         }
       }
@@ -263,8 +435,12 @@ Foreslå:
       onPinItem={handlePinItem}
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
+      folders={folders}
+      onAddFolder={() => setIsCreatingFolder(true)}
+      onMoveToFolder={handleMoveDoc}
     >
       {({ isCollapsed }) => (
+        <>
         <div className={`flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-slate-50/50 custom-scrollbar transition-all duration-300 ${
           isCollapsed ? 'pt-16 md:pt-8' : ''
         }`}>
@@ -408,7 +584,7 @@ Foreslå:
 
                 {theorySuggestions && (
                   <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl text-xs prose prose-sm max-w-none text-slate-800 animate-in fade-in">
-                    <ReactMarkdown>{theorySuggestions}</ReactMarkdown>
+                    <ReactMarkdown>{typeof theorySuggestions === 'string' ? theorySuggestions : JSON.stringify(theorySuggestions, null, 2)}</ReactMarkdown>
                   </div>
                 )}
 
@@ -462,7 +638,7 @@ Foreslå:
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Situasjon</h4>
                     <div className="prose prose-sm max-w-none text-slate-800">
-                      <ReactMarkdown>{activeLog.situation || '*Ingen situasjonsbeskrivelse skrevet.*'}</ReactMarkdown>
+                      <ReactMarkdown>{typeof activeLog.situation === 'string' ? (activeLog.situation || '*Ingen situasjonsbeskrivelse skrevet.*') : '*Ingen situasjonsbeskrivelse skrevet.*'}</ReactMarkdown>
                     </div>
                   </div>
 
@@ -470,7 +646,7 @@ Foreslå:
                     <div className="pt-3 border-t border-slate-200">
                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Didaktisk refleksjon</h4>
                       <div className="prose prose-sm max-w-none text-slate-800">
-                        <ReactMarkdown>{activeLog.reflection}</ReactMarkdown>
+                        <ReactMarkdown>{typeof activeLog.reflection === 'string' ? activeLog.reflection : JSON.stringify(activeLog.reflection, null, 2)}</ReactMarkdown>
                       </div>
                     </div>
                   )}
@@ -500,6 +676,53 @@ Foreslå:
           
         </div>
         </div>
+
+        {/* OPPRETT NY MAPPE MODAL */}
+        {isCreatingFolder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
+                <FolderPlus className="w-6 h-6" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-base font-black text-slate-800">Opprett ny mappe</h3>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Hold orden i fagtekster, praksisfortellinger og logger.
+                </p>
+              </div>
+              <div className="pt-2">
+                <input 
+                  type="text" 
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+                  placeholder="F.eks. Praksis H26"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+                />
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setIsCreatingFolder(false);
+                      setNewFolderName('');
+                    }} 
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    Avbryt
+                  </button>
+                  <button 
+                    onClick={handleCreateFolder} 
+                    disabled={!newFolderName.trim()}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-md shadow-indigo-500/20 cursor-pointer"
+                  >
+                    Opprett mappe
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </WorkspaceLayout>
   );
