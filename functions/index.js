@@ -331,7 +331,8 @@ exports.api = onRequest(
         const candidates = [
           requestedModel,
           "gemini-3.1-flash-lite",
-          "gemini-flash-latest"
+          "gemini-flash-latest",
+          "gemini-2.5-flash"
         ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
         let lastErr = null;

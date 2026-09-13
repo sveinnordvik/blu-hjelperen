@@ -19,6 +19,7 @@ jobs:
 
       - name: Installer og bygg frontend (React)
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           npm install

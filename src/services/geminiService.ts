@@ -155,46 +155,85 @@ export async function callGoogleAIProxy(params: {
 }
 
 /**
- * Klient-fallback som kaller Google Generative Language API direkte dersom statisk hosting returnerer HTML
+ * Klient-fallback som kaller Google Generative Language API direkte dersom statisk hosting mangler backend eller returnerer 404/HTML
  */
 async function callDirectGeminiApi(model: string, contents: any, config?: any): Promise<{ text: string }> {
   const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
   if (!apiKey) {
-    throw new Error("Mangler GEMINI_API_KEY for direkte kall.");
+    throw new Error("Mangler GEMINI_API_KEY for direkte kall. Vennligst legg inn GEMINI_API_KEY under Settings -> Secrets i AI Studio, eller i GitHub Secrets.");
   }
 
-  const cleanModel = model.includes("2.5") || model.includes("1.5") || model.includes("2.0") ? "gemini-3.8-flash" : model;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+  let preferred = (typeof model === 'string' && model.trim()) ? model.trim() : "gemini-3.8-flash";
+  if (preferred.includes("2.5") || preferred.includes("1.5") || preferred.includes("2.0")) {
+    preferred = "gemini-3.8-flash";
+  }
 
-  const body: any = { contents };
-  if (config?.systemInstruction) {
-    const sysText = typeof config.systemInstruction === 'string'
-      ? config.systemInstruction
-      : (config.systemInstruction.parts?.[0]?.text || config.systemInstruction.text || '');
-    if (sysText) {
-      body.systemInstruction = { parts: [{ text: sysText }] };
+  const modelCandidates = [
+    preferred,
+    "gemini-3.8-flash",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite"
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  let lastError: any = null;
+
+  for (let i = 0; i < modelCandidates.length; i++) {
+    const candidate = modelCandidates[i];
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${apiKey}`;
+
+      const body: any = { contents };
+      if (config?.systemInstruction) {
+        const sysText = typeof config.systemInstruction === 'string'
+          ? config.systemInstruction
+          : (config.systemInstruction.parts?.[0]?.text || config.systemInstruction.text || '');
+        if (sysText) {
+          body.systemInstruction = { parts: [{ text: sysText }] };
+        }
+      }
+      if (config?.temperature !== undefined || config?.maxOutputTokens !== undefined) {
+        body.generationConfig = {};
+        if (config?.temperature !== undefined) body.generationConfig.temperature = config.temperature;
+        if (config?.maxOutputTokens !== undefined) body.generationConfig.maxOutputTokens = config.maxOutputTokens;
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errObj = await res.json().catch(() => ({}));
+        const errMsg = errObj?.error?.message || `Google API feil: ${res.status}`;
+        
+        // Kritiske feil som ikke løses ved å bytte modell (ugyldig nøkkel)
+        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid")) {
+          throw new Error("Ugyldig Gemini API-nøkkel satt opp. Sjekk at GEMINI_API_KEY i AI Studio / GitHub Secrets er gyldig og aktiv.");
+        }
+        
+        // Hvis kvote er brukt opp på denne nøkkelen
+        if (errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429") || errMsg.includes("prepayment credits")) {
+          throw new Error("Kapasitetsgrensen eller saldoen for denne API-nøkkelen er oppbrukt (429/Prepayment credits depleted). Opprett en ny gratis API-nøkkel på aistudio.google.com/apikey og legg den inn under Settings -> Secrets.");
+        }
+
+        lastError = new Error(errMsg);
+        continue;
+      }
+
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      return { text };
+    } catch (callErr: any) {
+      lastError = callErr;
+      if (callErr?.message?.includes("Ugyldig Gemini API-nøkkel") || callErr?.message?.includes("Kapasitetsgrensen")) {
+        throw callErr;
+      }
     }
   }
-  if (config?.temperature !== undefined || config?.maxOutputTokens !== undefined) {
-    body.generationConfig = {};
-    if (config?.temperature !== undefined) body.generationConfig.temperature = config.temperature;
-    if (config?.maxOutputTokens !== undefined) body.generationConfig.maxOutputTokens = config.maxOutputTokens;
-  }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    const errObj = await res.json().catch(() => ({}));
-    throw new Error(errObj?.error?.message || `Google API feil: ${res.status}`);
-  }
-
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-  return { text };
+  throw lastError || new Error("Kunne ikke hente svar fra Google Gemini API. Prøv igjen om et lite øyeblikk.");
 }
 
 export const SYSTEM_INSTRUCTION = `${GLOBAL_SAFETY_SYSTEM_INSTRUCTION}
