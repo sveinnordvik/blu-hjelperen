@@ -70,11 +70,12 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
     initial = "gemini-3.8-flash";
   }
 
-  // Modellrekke for robusthet mot 429 (kvote) og 503 (stor pågang)
+  // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
   const modelCandidates = [
     initial,
     "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
+    "gemini-flash-latest",
+    "gemini-2.5-flash"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;

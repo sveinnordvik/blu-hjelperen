@@ -80,8 +80,11 @@ export async function callGoogleAIProxy(params: {
         if (typeof statusMsg === 'string' && (statusMsg.includes("API key not valid") || statusMsg.includes("API_KEY_INVALID"))) {
            throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
         }
-        if (resp.status === 404 || (typeof statusMsg === 'string' && statusMsg.includes("is not found for API version"))) {
-           throw new Error("Feil: Modellen '" + targetModel + "' er ikke tilgjengelig for din API-nøkkel. Prøv en annen modell, f.eks gemini-3.8-flash.");
+        if (typeof statusMsg === 'string' && statusMsg.includes("is not found for API version")) {
+           throw new Error(`Feil: Modellen '${targetModel}' er ikke tilgjengelig for denne API-nøkkelen i Google AI Studio. Sjekk nøkkeltilgang under Settings -> Secrets, eller velg en annen modell.`);
+        }
+        if (resp.status === 404) {
+           throw new Error(`Feil (404): Klarte ikke å nå server-endepunktet (${targetUrl}). Sjekk at server-backenden kjører normalt.`);
         }
         
         // Serverfeil, 429 og 503 sendes til catch-blokken for retry med backoff
