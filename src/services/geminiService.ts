@@ -84,7 +84,13 @@ export async function callGoogleAIProxy(params: {
            throw new Error(`Feil: Modellen '${targetModel}' er ikke tilgjengelig for denne API-nøkkelen i Google AI Studio. Sjekk nøkkeltilgang under Settings -> Secrets, eller velg en annen modell.`);
         }
         if (resp.status === 404) {
-           throw new Error(`Feil (404): Klarte ikke å nå server-endepunktet (${targetUrl}). Sjekk at server-backenden kjører normalt.`);
+           // Hvis /api/gemini/generate gir 404 (f.eks. på statisk Firebase Hosting)
+           const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+           if (clientApiKey && clientApiKey.length > 10) {
+             console.warn("Backend 404 - forsøker direkte Gemini-kall med VITE_GEMINI_API_KEY.");
+             return await callDirectGeminiApi(targetModel, validatedContents, params.config);
+           }
+           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). På Firebase Hosting må 'api' Cloud Function være konfigurert, eller GEMINI_API_KEY settes i GitHub Secrets.`);
         }
         
         // Serverfeil, 429 og 503 sendes til catch-blokken for retry med backoff
@@ -99,10 +105,15 @@ export async function callGoogleAIProxy(params: {
         if (resp.url && resp.url.includes("cookie_check")) {
            throw new Error("Feil: Forespørselen ble blokkert av sikkerhetsinnstillingene til AI Studio fordi nettleseren din mangler en informasjonskapsel (cookie). Prøv et vanlig vindu i Chrome uten Inkognito.");
         }
-        if (textResponse.substring(0, 300).toLowerCase().includes("<html")) {
-           throw new Error("Kritisk feil: Appen fikk HTML ('" + textResponse.substring(0, 40).replace(/\n/g, "") + "') tilbake fra serveren i stedet for data. Forespørsel sendt til: " + targetUrl + ". Hvis du ser dette på din egen Google Cloud-lenke betyr det at 'server.ts'-backend ikke kjører, og serveren bare returnerer startsiden for alle API-kall. Sjekk at Cloud Run-tjenesten din kjører 'npm run start' og at porten er riktig.");
+        if (textResponse.substring(0, 300).toLowerCase().includes("<html") || textResponse.substring(0, 300).toLowerCase().includes("<!doctype")) {
+           const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+           if (clientApiKey && clientApiKey.length > 10) {
+             console.warn("Fikk HTML fra /api/gemini/generate - faller tilbake til direkte Gemini API-kall.");
+             return await callDirectGeminiApi(targetModel, validatedContents, params.config);
+           }
+           throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting (som Firebase Hosting) uten en aktiv API-backend. Legg inn 'api'-funksjonen i Cloud Functions eller legg til GEMINI_API_KEY i GitHub Secrets.`);
         }
-        throw new Error("Feil ved tolking av svar: " + parseError.message);
+        throw new Error("Feil ved tolking av svar fra API: " + parseError.message);
       }
 
       return {
@@ -114,7 +125,9 @@ export async function callGoogleAIProxy(params: {
            error.message.includes("Mangler GEMINI_API_KEY") || 
            error.message.includes("Ugyldig Gemini API-nøkkel") || 
            error.message.includes("API key not valid") ||
-           error.message.includes("er ikke tilgjengelig for din API")
+           error.message.includes("er ikke tilgjengelig for din API") ||
+           error.message.includes("Kritisk feil:") ||
+           error.message.includes("Feil (404)")
           )) {
         throw error;
       }
@@ -139,6 +152,49 @@ export async function callGoogleAIProxy(params: {
   }
   
   throw new Error(UIfriendlyError);
+}
+
+/**
+ * Klient-fallback som kaller Google Generative Language API direkte dersom statisk hosting returnerer HTML
+ */
+async function callDirectGeminiApi(model: string, contents: any, config?: any): Promise<{ text: string }> {
+  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+  if (!apiKey) {
+    throw new Error("Mangler GEMINI_API_KEY for direkte kall.");
+  }
+
+  const cleanModel = model.includes("2.5") || model.includes("1.5") || model.includes("2.0") ? "gemini-3.8-flash" : model;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
+
+  const body: any = { contents };
+  if (config?.systemInstruction) {
+    const sysText = typeof config.systemInstruction === 'string'
+      ? config.systemInstruction
+      : (config.systemInstruction.parts?.[0]?.text || config.systemInstruction.text || '');
+    if (sysText) {
+      body.systemInstruction = { parts: [{ text: sysText }] };
+    }
+  }
+  if (config?.temperature !== undefined || config?.maxOutputTokens !== undefined) {
+    body.generationConfig = {};
+    if (config?.temperature !== undefined) body.generationConfig.temperature = config.temperature;
+    if (config?.maxOutputTokens !== undefined) body.generationConfig.maxOutputTokens = config.maxOutputTokens;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errObj = await res.json().catch(() => ({}));
+    throw new Error(errObj?.error?.message || `Google API feil: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return { text };
 }
 
 export const SYSTEM_INSTRUCTION = `${GLOBAL_SAFETY_SYSTEM_INSTRUCTION}
@@ -1070,9 +1126,9 @@ STUDENTENS SPESIFIKKE PROFIL:
     });
 
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i askSocraticAgent:", error);
-    throw new Error("Klarte ikke å få kontakt med den sokratiske partneren akkurat nå.");
+    throw new Error(error?.message || "Klarte ikke å få kontakt med den sokratiske partneren akkurat nå.");
   }
 }
 
@@ -1098,9 +1154,9 @@ export async function askLyttebot(
     });
 
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i askLyttebot:", error);
-    throw new Error("Lytteboten er for øyeblikket utilgjengelig. Prøv igjen om et lite øyeblikk.");
+    throw new Error(error?.message || "Lytteboten er for øyeblikket utilgjengelig. Prøv igjen om et lite øyeblikk.");
   }
 }
 
@@ -1119,9 +1175,9 @@ Returner KUN den ferdige referansen, absolutt ingen annen tekst, formatering ell
       },
     });
     return response.text.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i Auto-APA:", error);
-    throw new Error("Klarte ikke å formatere kilden. Sjekk at teksten inneholder nok informasjon.");
+    throw new Error(error?.message || "Klarte ikke å formatere kilden. Sjekk at teksten inneholder nok informasjon.");
   }
 }
 
@@ -1145,9 +1201,9 @@ REGLER FOR DETTE KALLTET:
       },
     });
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i språkstøtte (Skriveboten):", error);
-    throw new Error("Kunne ikke forbedre teksten akkurat nå. Prøv igjen.");
+    throw new Error(error?.message || "Kunne ikke forbedre teksten akkurat nå. Prøv igjen.");
   }
 }
 
@@ -1222,9 +1278,9 @@ export async function askRagAgent(
     });
 
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i askRagAgent:", error);
-    throw new Error("Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
+    throw new Error(error?.message || "Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
   }
 }
 
@@ -1354,9 +1410,9 @@ ${sharedRagContext.trim() ? sharedRagContext : "Ingen fellesnotater registrert e
     });
 
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Feil i askPraksisTeamAgent:", error);
-    throw new Error("Praksis-agenten kunne ikke svare akkurat nå. Sjekk internettforbindelsen eller prøv igjen.");
+    throw new Error(error?.message || "Praksis-agenten kunne ikke svare akkurat nå. Sjekk internettforbindelsen eller prøv igjen.");
   }
 }
 

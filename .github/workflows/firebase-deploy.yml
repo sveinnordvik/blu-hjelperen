@@ -18,6 +18,8 @@ jobs:
           node-version: '20'
 
       - name: Installer og bygg frontend (React)
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           npm install
           npm run build
@@ -32,6 +34,7 @@ jobs:
           cd functions
           echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
           echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
 
       - name: Rull ut Hosting til Firebase
         env:

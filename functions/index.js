@@ -274,3 +274,148 @@ exports.handleNewUserReferral = onDocumentCreated(
     }
   }
 );
+
+/**
+ * =================================================================================
+ * FUNKSJON 3: api (HTTP Cloud Function / Firebase Hosting API-proxy)
+ * =================================================================================
+ * Håndterer /api/gemini/generate, /api/chat/message og /api/health for
+ * frontend-klienter på Firebase Hosting (f.eks. bluhjelperen.no).
+ */
+const { onRequest } = require("firebase-functions/v2/https");
+const { GoogleGenAI } = require("@google/genai");
+
+exports.api = onRequest(
+  {
+    region: "europe-west1",
+    cors: true,
+    maxInstances: 10,
+  },
+  async (req, res) => {
+    const rawPath = req.path || req.url || "";
+
+    // Helsesjekk
+    if (rawPath.includes("/health")) {
+      return res.status(200).json({ status: "ok", message: "BLU-Hjelperen Cloud Function API er operativ!" });
+    }
+
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST, GET");
+      return res.status(405).json({ error: "Method Not Allowed" });
+    }
+
+    let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    if (!apiKey) {
+      try {
+        apiKey = functions.config().gemini?.key;
+      } catch (e) {}
+    }
+
+    if (!apiKey) {
+      return res.status(500).json({
+        error: "Mangler GEMINI_API_KEY på serveren. Vennligst legg inn GEMINI_API_KEY i GitHub Secrets eller Firebase Functions miljøvariabler.",
+      });
+    }
+
+    // Endepunkt: /api/gemini/generate (brukt av Superveileder, Sokratisk, RAG, APA osv.)
+    if (rawPath.includes("/gemini/generate")) {
+      try {
+        const { model, contents, config } = req.body || {};
+        const ai = new GoogleGenAI({ apiKey });
+
+        let requestedModel = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
+        if (requestedModel.includes("2.5") || requestedModel.includes("1.5") || requestedModel.includes("2.0")) {
+          requestedModel = "gemini-3.8-flash";
+        }
+
+        const candidates = [
+          requestedModel,
+          "gemini-3.1-flash-lite",
+          "gemini-flash-latest"
+        ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+        let lastErr = null;
+        for (const m of candidates) {
+          try {
+            const response = await ai.models.generateContent({
+              model: m,
+              contents,
+              config,
+            });
+            return res.status(200).json({ text: response.text || "" });
+          } catch (mErr) {
+            lastErr = mErr;
+            const msg = mErr?.message || String(mErr);
+            if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
+              throw mErr;
+            }
+          }
+        }
+
+        throw lastErr;
+      } catch (error) {
+        console.error("Feil i Cloud Function /api/gemini/generate:", error);
+        return res.status(500).json({ error: error?.message || "Feil ved generering av svar fra Gemini." });
+      }
+    }
+
+    // Endepunkt: /api/chat/message (brukt av generell chat)
+    if (rawPath.includes("/chat/message")) {
+      try {
+        const { history = [], newMessage, fileContext = '', fileName = '' } = req.body || {};
+        if (!newMessage || typeof newMessage !== "string") {
+          return res.status(400).json({ error: "Mangler 'newMessage' i forespørselen." });
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+
+        const systemInstruction = `Du er BLU-hjelperen, en støttende, anerkjennende og faglig dyktig pedagogisk veileder for norske barnehagelærerstudenter (BLU). Ditt hovedmål er å hjelpe studentene med å koble teori og praksis.`;
+
+        const contents = [];
+        if (Array.isArray(history)) {
+          for (const item of history) {
+            if (item.parts && Array.isArray(item.parts)) {
+              contents.push({
+                role: item.role === 'model' || item.role === 'assistant' ? 'model' : 'user',
+                parts: item.parts.map((p) => typeof p === 'string' ? { text: p } : p)
+              });
+            } else if (item.text || item.content) {
+              contents.push({
+                role: item.role === 'model' || item.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: item.text || item.content }]
+              });
+            }
+          }
+        }
+
+        let promptText = newMessage;
+        if (fileContext && typeof fileContext === 'string' && fileContext.trim().length > 0) {
+          promptText = `[VEDLAGT DOKUMENT: ${fileName || 'Dokument'}]:\n"""\n${fileContext.trim().slice(0, 30000)}\n"""\n\nStudentens melding / spørsmål:\n${newMessage}`;
+        }
+
+        contents.push({
+          role: "user",
+          parts: [{ text: promptText }]
+        });
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
+        });
+
+        return res.status(200).json({ text: response.text || "" });
+      } catch (error) {
+        console.error("Feil i Cloud Function /api/chat/message:", error);
+        return res.status(500).json({ error: error?.message || "Feil under chat-melding." });
+      }
+    }
+
+    return res.status(404).json({ error: `Endepunktet '${rawPath}' ble ikke funnet på API-funksjonen.` });
+  }
+);
+
