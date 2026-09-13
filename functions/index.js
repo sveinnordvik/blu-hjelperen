@@ -8,6 +8,7 @@
  */
 
 const functions = require("firebase-functions");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
@@ -181,11 +182,19 @@ exports.stripeWebhook = functions
  * Lytter på opprettelse av dokumenter i 'users'-kolleksjonen.
  * Sjekker om brukeren har feltet referredBy, og belønner verver (+10 vask) og ny bruker (+5 vask).
  */
-exports.handleNewUserReferral = functions
-  .region("europe-west1")
-  .firestore.document("users/{userId}")
-  .onCreate(async (snap, context) => {
-    const userId = context.params.userId;
+exports.handleNewUserReferral = onDocumentCreated(
+  {
+    document: "users/{userId}",
+    region: "europe-west1",
+    database: process.env.FIRESTORE_DATABASE_ID || "ai-studio-6d584f24-0d3b-4358-ba43-396b2f0a6101",
+  },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      return null;
+    }
+
+    const userId = event.params.userId;
     const userData = snap.data();
 
     if (!userData) {
@@ -261,9 +270,7 @@ exports.handleNewUserReferral = functions
       return { success: true, referrerId: cleanReferrerId, referredUserId: userId };
     } catch (err) {
       console.error(`[Vervesystem] Feil under utbetaling av vervebonus:`, err);
-      throw new functions.https.HttpsError("internal", "Vervebonus-feil", err);
+      return null;
     }
-  });
-
-// Alias for bakoverkompatibilitet
-exports.onUserCreatedRewardReferral = exports.handleNewUserReferral;
+  }
+);
