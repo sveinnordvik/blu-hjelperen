@@ -15,7 +15,7 @@ import ChatBubble from '../features/chat/components/ChatBubble';
 import ChatInput from '../features/chat/components/ChatInput';
 import Sidebar, { ChatSessionItem } from '../features/chat/components/Sidebar';
 import { useChat } from '../features/chat/hooks/useChat';
-import { getUserChats } from '../features/chat/services/chatService';
+import { getUserChats, deleteChat } from '../features/chat/services/chatService';
 import { exportChatToPdf, copyFullChat } from '../lib/chatExportUtils';
 
 interface DesktopDashboardPageProps {
@@ -133,9 +133,16 @@ export default function DesktopDashboardPage({
     setCurrentChatId(chatId);
   };
 
-  const handleDeleteChat = (chatId: string, e: React.MouseEvent) => {
+  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setChatList(prev => prev.filter(c => c.id !== chatId));
+    if (userId && userId !== 'gjestebruker') {
+      try {
+        await deleteChat(userId, chatId);
+      } catch (err) {
+        console.warn('Kunne ikke slette chat fra Firestore:', err);
+      }
+    }
     if (currentChatId === chatId) {
       handleStartNewChat();
     }

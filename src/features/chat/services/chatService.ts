@@ -1,4 +1,4 @@
-import { getFirestore, collection, doc, setDoc, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
 
 export interface ChatMessageData {
   id: string;
@@ -72,3 +72,24 @@ export const getUserChats = async (userId: string) => {
     return [];
   }
 };
+
+/**
+ * Sletter en hel chat-sesjon og alle dens underliggende meldinger fra Firestore.
+ */
+export const deleteChat = async (userId: string, chatId: string) => {
+  try {
+    const db = getFirestore();
+    // 1. Slett meldinger i underkolleksjonen
+    const messagesRef = collection(db, `users/${userId}/chats/${chatId}/messages`);
+    const snapshot = await getDocs(messagesRef);
+    const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, `users/${userId}/chats/${chatId}/messages`, docSnap.id)));
+    await Promise.all(deletePromises);
+
+    // 2. Slett selve chat-dokumentet
+    const chatDocRef = doc(db, `users/${userId}/chats`, chatId);
+    await deleteDoc(chatDocRef);
+  } catch (error) {
+    console.error("Feil ved sletting av chat fra Firestore:", error);
+  }
+};
+

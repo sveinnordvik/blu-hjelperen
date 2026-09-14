@@ -38,7 +38,7 @@ export default function DeleteDataButton({
       // 1. Slett undermapper/dokumenter (chats, chatHistory, documents, projects, process_logs) i Firestore ved hjelp av batch
       const batch = writeBatch(db);
       
-      const subcollections = ['chats', 'chatHistory', 'documents', 'projects', 'process_logs'];
+      const subcollections = ['chats', 'chatHistory', 'documents', 'projects', 'process_logs', 'superveileder_chats'];
       for (const subcol of subcollections) {
         try {
           const subRef = collection(db, `users/${userId}/${subcol}`);
@@ -59,6 +59,9 @@ export default function DeleteDataButton({
 
       // 2. Slett selve Firebase Auth-brukeren (fullstendig sletting av konto)
       await deleteUser(user);
+
+      // Slett all lokal lagring (som feks Superveilederen chats)
+      localStorage.clear();
 
       setSuccess(true);
       if (onSuccess) {
