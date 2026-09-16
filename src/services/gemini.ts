@@ -27,8 +27,19 @@ export const sendChatMessage = async (
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(errData?.error || `Serverfeil: ${response.statusText}`);
+      let errMessage = '';
+      try {
+        const errData = await response.json();
+        errMessage = errData?.error || errData?.message || '';
+      } catch {
+        try {
+          errMessage = await response.text();
+        } catch {}
+      }
+      if (!errMessage) {
+        errMessage = `Serverfeil (${response.status}: ${response.statusText || 'Kunne ikke fullføre forespørselen'}). Prøv igjen om noen sekunder.`;
+      }
+      throw new Error(errMessage);
     }
 
     const data = await response.json();

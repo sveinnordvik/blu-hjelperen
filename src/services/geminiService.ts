@@ -126,6 +126,8 @@ export async function callGoogleAIProxy(params: {
            error.message.includes("Ugyldig Gemini API-nøkkel") || 
            error.message.includes("API key not valid") ||
            error.message.includes("er ikke tilgjengelig for din API") ||
+           error.message.includes("prepayment credits are depleted") ||
+           error.message.includes("credits are depleted") ||
            error.message.includes("Kritisk feil:") ||
            error.message.includes("Feil (404)")
           )) {
@@ -134,9 +136,13 @@ export async function callGoogleAIProxy(params: {
 
       const msg = error && typeof error === 'object' && error.message ? String(error.message) : (error instanceof Error ? error.message : "");
 
+      if (msg.includes("prepayment credits are depleted") || msg.includes("credits are depleted")) {
+        throw new Error("API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å administrere prosjekt og kvoter, eller oppdater nøkkelen i Settings -> Secrets.");
+      }
+
       if (attempt >= maxRetries) {
         if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
-          throw new Error("Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent 15-20 sekunder og prøv igjen, eller legg inn en API-nøkkel med høyere kvote under Settings -> Secrets.");
+          throw new Error("Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota). Vent 15-20 sekunder og prøv igjen, eller sjekk kvoten i Google AI Studio.");
         }
         if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE")) {
           throw new Error("KI-modellen opplever stor pågang akkurat nå (503). Prøv igjen om et lite øyeblikk.");
@@ -1319,7 +1325,8 @@ export async function askRagAgent(
     return response.text;
   } catch (error: any) {
     console.error("Feil i askRagAgent:", error);
-    throw new Error(error?.message || "Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
+    const msg = error instanceof Error ? error.message : (error?.message || (typeof error === 'string' ? error : ''));
+    throw new Error(msg || "Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
   }
 }
 
