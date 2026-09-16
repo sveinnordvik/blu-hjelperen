@@ -1059,7 +1059,7 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.1.0 (September 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.1.1 (September 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
                         <span className="text-slate-600">Oppgradert Gemini-modellfallback, forbedret feilhåndtering og feilrensing i Superveileder, samt optimalisert ytelse.</span>

@@ -430,10 +430,11 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
-    version: 'v3.1.0',
+    version: 'v3.1.1',
     date: '2026-09-16',
-    title: 'Oppgradering til versjon 3.1.0',
+    title: 'Oppgradering til versjon 3.1.1',
     changes: [
+      'Tvunget oppdatering av cache for å sikre at alle brukere får nyeste versjon av applikasjonen.',
       'Oppdatert modellfallback og tilkoblingshåndtering mot Gemini-motorene',
       'Lagt til hurtigopprydding av feilmeldinger og mulighet for sletting i Superveileder',
       'Stabilitetsforbedringer og optimalisert responsflyt'

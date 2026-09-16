@@ -807,7 +807,7 @@ Mål: Teksten skal gi foreldre et levende innblikk i barnas hverdag og skape gje
                   >
                     <RefreshCw className="w-3 h-3" /> Tøm cache
                   </button>
-                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-tight bg-emerald-50 px-2 py-1 rounded-md">v3.1.0</span>
+                  <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-tight bg-emerald-50 px-2 py-1 rounded-md">v3.1.1</span>
                 </div>
               </div>
               
