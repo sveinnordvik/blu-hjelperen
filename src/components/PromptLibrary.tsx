@@ -19,7 +19,10 @@ import {
   ExternalLink,
   Lock,
   Layers,
-  HeartHandshake
+  HeartHandshake,
+  FolderArchive,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { 
   ALL_BOT_CONFIGS, 
@@ -36,6 +39,7 @@ export function PromptLibrary() {
   const [activeTab, setActiveTab] = useState<'bots' | 'safety' | 'progress' | 'stresstest' | 'rag' | 'changelog'>('bots');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [testResultFilter, setTestResultFilter] = useState<string>('all');
+  const [showOlderChangelogs, setShowOlderChangelogs] = useState(false);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -50,7 +54,7 @@ export function PromptLibrary() {
         <div className="absolute right-0 top-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
         <div className="relative z-10 space-y-3 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold border border-indigo-400/30">
-            <Cpu className="w-3.5 h-3.5" /> BLU-Hjelperen Prompt Library & Model Specs v3.0.0
+            <Cpu className="w-3.5 h-3.5" /> BLU-Hjelperen Prompt Library & Model Specs v3.1.0
           </div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">
             Prompt-bibliotek & Modell-innstillinger
@@ -485,24 +489,77 @@ export function PromptLibrary() {
           </div>
 
           <div className="space-y-4">
-            {PROMPT_CHANGELOG.map((entry) => (
-              <div key={entry.version} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-slate-900">{entry.title}</span>
+            {/* Siste gjeldende versjon */}
+            {PROMPT_CHANGELOG.length > 0 && (
+              <div className="p-5 rounded-2xl border-2 border-primary/20 bg-primary/5 space-y-3 relative overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full">
-                      {entry.version}
+                    <span className="font-bold text-base text-slate-900">{PROMPT_CHANGELOG[0].title}</span>
+                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Gjeldende versjon
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">{entry.date}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold bg-primary text-white px-2.5 py-0.5 rounded-full">
+                      {PROMPT_CHANGELOG[0].version}
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">{PROMPT_CHANGELOG[0].date}</span>
                   </div>
                 </div>
-                <ul className="space-y-1.5 text-xs text-slate-600 pl-4 list-disc">
-                  {entry.changes.map((change, idx) => (
-                    <li key={idx}>{change}</li>
+                <ul className="space-y-1.5 text-xs text-slate-700 pl-4 list-disc">
+                  {PROMPT_CHANGELOG[0].changes.map((change, idx) => (
+                    <li key={idx} className="leading-relaxed">{change}</li>
                   ))}
                 </ul>
               </div>
-            ))}
+            )}
+
+            {/* Mappe for eldre versjoner */}
+            {PROMPT_CHANGELOG.length > 1 && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOlderChangelogs(!showOlderChangelogs)}
+                  className="w-full p-3.5 bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 rounded-2xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer border border-slate-200"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FolderArchive className="w-4 h-4 text-slate-500" />
+                    <span className="font-bold text-slate-800">Tidligere versjoner ({PROMPT_CHANGELOG.slice(1).length})</span>
+                    <span className="text-slate-400 font-normal hidden sm:inline">
+                      ({PROMPT_CHANGELOG.slice(1).map(l => l.version).join(', ')})
+                    </span>
+                  </span>
+                  {showOlderChangelogs ? (
+                    <ChevronUp className="w-4 h-4 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  )}
+                </button>
+
+                {showOlderChangelogs && (
+                  <div className="space-y-3 mt-3 pt-2 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                    {PROMPT_CHANGELOG.slice(1).map((entry) => (
+                      <div key={entry.version} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-slate-800">{entry.title}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold bg-slate-200/80 text-slate-700 px-2.5 py-0.5 rounded-full">
+                              {entry.version}
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">{entry.date}</span>
+                          </div>
+                        </div>
+                        <ul className="space-y-1 text-xs text-slate-600 pl-4 list-disc">
+                          {entry.changes.map((change, idx) => (
+                            <li key={idx}>{change}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

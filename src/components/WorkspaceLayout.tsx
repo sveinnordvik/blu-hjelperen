@@ -67,6 +67,7 @@ export interface WorkspaceLayoutProps {
   onDeleteItem?: (id: string) => void;
   onAddFolder?: () => void; // Ny funksjon for å lage mappe
   onMoveToFolder?: (documentId: string, folderId: string | undefined) => void;
+  onDeleteFolder?: (folderId: string) => void; // Mulighet for å slette mappe
   onBackToTools?: () => void; // Retur til verktøykasse
   backToToolsLabel?: string;
   children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void }) => React.ReactNode);
@@ -88,6 +89,7 @@ export function WorkspaceLayout({
   onDeleteItem,
   onAddFolder,
   onMoveToFolder,
+  onDeleteFolder,
   onBackToTools,
   backToToolsLabel,
   children 
@@ -162,9 +164,12 @@ export function WorkspaceLayout({
     setOpenMenuId(null);
   };
 
-  const handleConfirmDelete = (id: string, e: React.MouseEvent) => {
+  const handleConfirmDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onDeleteItem) onDeleteItem(id);
+    const targetId = itemToDelete;
+    if (targetId && onDeleteItem) {
+      onDeleteItem(targetId);
+    }
     setItemToDelete(null);
     setOpenMenuId(null);
   };
@@ -320,21 +325,37 @@ export function WorkspaceLayout({
                       return (
                         <div key={folder.id} className="mb-1">
                           {/* Mappe-header */}
-                          <button 
-                            onClick={() => toggleFolder(folder.id)}
-                            className="w-full text-left px-3 py-2 rounded-xl transition-all flex items-center gap-2.5 cursor-pointer text-slate-300 hover:bg-slate-800/80 hover:text-white group"
-                          >
-                            <span className="shrink-0 text-slate-400 group-hover:text-primary-light transition-colors">
-                              {isOpen ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
-                            </span>
-                            <span className="text-xs font-bold truncate flex-1">{folder.name}</span>
-                            <span 
-                              className="text-slate-500 transition-transform duration-200" 
-                              style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                          <div className="flex items-center w-full group rounded-xl hover:bg-slate-800/80 transition-all">
+                            <button 
+                              onClick={() => toggleFolder(folder.id)}
+                              className="flex-1 text-left px-3 py-2 transition-all flex items-center gap-2.5 cursor-pointer text-slate-300 hover:text-white min-w-0"
                             >
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </span>
-                          </button>
+                              <span className="shrink-0 text-slate-400 group-hover:text-primary-light transition-colors">
+                                {isOpen ? <FolderOpen className="w-4 h-4" /> : <Folder className="w-4 h-4" />}
+                              </span>
+                              <span className="text-xs font-bold truncate flex-1">{folder.name}</span>
+                              <span 
+                                className="text-slate-500 transition-transform duration-200 shrink-0" 
+                                style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </span>
+                            </button>
+
+                            {onDeleteFolder && (
+                              <button 
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteFolder(folder.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-1.5 mr-1 text-slate-400 hover:text-red-400 hover:bg-slate-700/60 rounded-lg transition-all shrink-0 cursor-pointer"
+                                title={`Slett mappen "${folder.name}"`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                           
                           {/* Dokumenter inne i mappen */}
                           {isOpen && (
@@ -418,8 +439,8 @@ export function WorkspaceLayout({
               </p>
             </div>
             <div className="flex gap-2 pt-2">
-              <button onClick={() => setItemToDelete(null)} className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all">Avbryt</button>
-              <button onClick={(e) => handleConfirmDelete(itemToDelete, e)} className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all shadow-md shadow-red-500/20">Slett</button>
+              <button onClick={() => setItemToDelete(null)} className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer">Avbryt</button>
+              <button onClick={handleConfirmDelete} className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all shadow-md shadow-red-500/20 cursor-pointer">Slett</button>
             </div>
           </div>
         </div>

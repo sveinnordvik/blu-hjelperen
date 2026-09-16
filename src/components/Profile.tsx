@@ -40,7 +40,10 @@ import {
   FileCode,
   Gift,
   Copy,
-  Users
+  Users,
+  ChevronDown,
+  ChevronUp,
+  FolderArchive
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -118,6 +121,7 @@ export function Profile({
 }: ProfileProps) {
   const [activeMenu, setActiveMenu] = useState<string>(initialMenu || 'profile');
   const [copiedReferral, setCopiedReferral] = useState(false);
+  const [showOlderVersions, setShowOlderVersions] = useState(false);
   const referralCode = profile?.referralCode || (user?.uid ? user.uid.substring(0, 7).toUpperCase() : 'BLU-2026');
   const referralUrl = typeof window !== 'undefined' ? `${window.location.origin}?ref=${referralCode}` : `https://bluhjelperen.no?ref=${referralCode}`;
 
@@ -1051,20 +1055,52 @@ export function Profile({
                     <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm">
                       <FileCode className="w-4 h-4 text-primary" /> Versjonshistorikk
                     </h4>
-                    <ul className="space-y-3 text-xs">
-                      <li className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <strong className="text-slate-900 block">v3.0.0 (September 2026)</strong>
-                        <span className="text-slate-600">Ny WorkspaceLayout-sidemeny, samlet Konto-hub, automatisk deployment og optimalisert ytelse.</span>
-                      </li>
-                      <li className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <strong className="text-slate-900 block">v2.0.0 (April 2026)</strong>
-                        <span className="text-slate-600">Lansering av Basen, didaktisk planlegger og oppgraderte AI-motorer.</span>
-                      </li>
-                      <li className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <strong className="text-slate-900 block">v1.0.0 (Februar 2026)</strong>
-                        <span className="text-slate-600">Første versjon lansert for barnehagelærerstudenter.</span>
-                      </li>
-                    </ul>
+                    <div className="space-y-2 text-xs">
+                      {/* Siste / Gjeldende versjon */}
+                      <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <strong className="text-slate-900 block font-bold">v3.1.0 (September 2026)</strong>
+                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
+                        </div>
+                        <span className="text-slate-600">Oppgradert Gemini-modellfallback, forbedret feilhåndtering og feilrensing i Superveileder, samt optimalisert ytelse.</span>
+                      </div>
+
+                      {/* Mappe/nedtrekk for eldre versjoner */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowOlderVersions(!showOlderVersions)}
+                          className="w-full py-2 px-3 bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer border border-slate-200/60"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Tidligere versjoner (v3.0.0, v2.0.0, v1.0.0)</span>
+                          </span>
+                          {showOlderVersions ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                          )}
+                        </button>
+
+                        {showOlderVersions && (
+                          <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.0.0 (September 2026)</strong>
+                              <span className="text-slate-500">Ny WorkspaceLayout-sidemeny, samlet Konto-hub, automatisk deployment og optimalisert ytelse.</span>
+                            </li>
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v2.0.0 (April 2026)</strong>
+                              <span className="text-slate-500">Lansering av Basen, didaktisk planlegger og oppgraderte AI-motorer.</span>
+                            </li>
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v1.0.0 (Februar 2026)</strong>
+                              <span className="text-slate-500">Første versjon lansert for barnehagelærerstudenter.</span>
+                            </li>
+                          </ul>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div>

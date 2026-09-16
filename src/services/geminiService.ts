@@ -50,7 +50,8 @@ export async function callGoogleAIProxy(params: {
 
   // Modellnavn type validation fallback
   let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : "gemini-3.8-flash";
-  if (requestedModel.includes("2.5") || requestedModel.includes("1.5") || requestedModel.includes("2.0")) {
+  // Oppgrader kun utgåtte modeller, bevar gemini-2.5-flash og gemini-3.8-flash
+  if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel === "gemini-pro") {
     requestedModel = "gemini-3.8-flash";
   }
   const targetModel = requestedModel;
@@ -63,7 +64,7 @@ export async function callGoogleAIProxy(params: {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: targetModel,
+          model: attempt > 0 ? "gemini-2.5-flash" : targetModel,
           contents: validatedContents,
           config: params.config,
         })
@@ -80,17 +81,18 @@ export async function callGoogleAIProxy(params: {
         if (typeof statusMsg === 'string' && (statusMsg.includes("API key not valid") || statusMsg.includes("API_KEY_INVALID"))) {
            throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
         }
-        if (typeof statusMsg === 'string' && statusMsg.includes("is not found for API version")) {
-           throw new Error(`Feil: Modellen '${targetModel}' er ikke tilgjengelig for denne API-nøkkelen i Google AI Studio. Sjekk nøkkeltilgang under Settings -> Secrets, eller velg en annen modell.`);
+        if (resp.status === 404 && typeof statusMsg === 'string' && statusMsg.includes("is not found for API version")) {
+           console.warn(`Modell ${targetModel} ikke tilgjengelig, prøver fallback-modell...`);
+           throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
-           // Hvis /api/gemini/generate gir 404 (f.eks. på statisk Firebase Hosting)
+           // Hvis /api/gemini/generate gir 404 (f.eks. på statisk hosting)
            const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
            if (clientApiKey && clientApiKey.length > 10) {
              console.warn("Backend 404 - forsøker direkte Gemini-kall med VITE_GEMINI_API_KEY.");
              return await callDirectGeminiApi(targetModel, validatedContents, params.config);
            }
-           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). På Firebase Hosting må 'api' Cloud Function være konfigurert, eller GEMINI_API_KEY settes i GitHub Secrets.`);
+           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller API-innstillinger.`);
         }
         
         // Serverfeil, 429 og 503 sendes til catch-blokken for retry med backoff
@@ -170,7 +172,7 @@ async function callDirectGeminiApi(model: string, contents: any, config?: any): 
   }
 
   let preferred = (typeof model === 'string' && model.trim()) ? model.trim() : "gemini-3.8-flash";
-  if (preferred.includes("2.5") || preferred.includes("1.5") || preferred.includes("2.0")) {
+  if (preferred.includes("1.5") || preferred.includes("2.0") || preferred === "gemini-pro") {
     preferred = "gemini-3.8-flash";
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { WorkspaceLayout, HistoryItem } from './WorkspaceLayout';
+import { WorkspaceLayout, HistoryItem, FolderType } from './WorkspaceLayout';
 import { 
   Sparkles, 
   Send, 
@@ -16,7 +16,13 @@ import {
   Brain,
   GraduationCap,
   Coins,
-  X
+  X,
+  FolderPlus,
+  Folder,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
+  Plus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -29,7 +35,7 @@ import {
   playAudio as playAudioService,
   stopAudio as stopAudioService
 } from '../services/geminiService';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore';
 import AIWarning from './AIWarning';
 
 export interface ChatMessage {
@@ -46,6 +52,7 @@ export interface ChatSession extends HistoryItem {
   title: string;
   subtitle?: string;
   isPinned?: boolean;
+  folderId?: string;
   messages: ChatMessage[];
   activeMode: string;
   updatedAt: string;
@@ -59,6 +66,13 @@ export interface SuperveilederProps {
 }
 
 const STORAGE_KEY = 'blu_superveileder_chats_v2';
+const FOLDERS_STORAGE_KEY = 'blu_superveileder_folders_v1';
+
+const INITIAL_FOLDERS: FolderType[] = [
+  { id: 'f-praksis', name: 'Praksis & Observasjon', isExpanded: true },
+  { id: 'f-fagskriving', name: 'Fagskriving & Teori', isExpanded: true },
+  { id: 'f-rammeplan', name: 'Rammeplan & Didaktikk', isExpanded: false }
+];
 
 const INITIAL_CHATS: ChatSession[] = [
   {
@@ -67,6 +81,7 @@ const INITIAL_CHATS: ChatSession[] = [
     subtitle: 'Sokratisk • Nettopp opprettet',
     isPinned: true,
     activeMode: 'Sokratisk',
+    folderId: 'f-praksis',
     updatedAt: new Date().toISOString(),
     messages: [
       {
@@ -117,10 +132,28 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     return chats.length > 0 ? chats[0].id : 'sok-1';
   });
 
+  // Mappestruktur for samtaler
+  const [folders, setFolders] = useState<FolderType[]>(() => {
+    try {
+      const saved = localStorage.getItem(FOLDERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Kunne ikke hente lagrede mapper for Superveileder:', e);
+    }
+    return INITIAL_FOLDERS;
+  });
+
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+  const [confirmDeleteActiveChat, setConfirmDeleteActiveChat] = useState(false);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
@@ -129,46 +162,74 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
   const activeChat = chats.find(c => c.id === activeChatId) || chats[0] || INITIAL_CHATS[0];
   const activeMode = activeChat?.activeMode || initialMode || 'Auto';
 
-  // Last chats fra Firestore når bruker er logget inn
+  // Last chats og mapper fra Firestore når bruker er logget inn
   useEffect(() => {
     if (!user?.uid) return;
 
-    const loadFirestoreChats = async () => {
+    const loadFirestoreData = async () => {
       try {
         const db = getFirestore();
+        
+        // 1. Hent samtaler
         const chatsRef = collection(db, 'users', user.uid, 'superveileder_chats');
         const q = query(chatsRef, orderBy('updatedAt', 'desc'));
         const snapshot = await getDocs(q);
 
         if (!snapshot.empty) {
-          const loadedChats: ChatSession[] = snapshot.docs.map(d => d.data() as ChatSession);
-          setChats(prev => {
-            // Slå sammen Firestore og lokal state med dedup
-            const merged = [...loadedChats];
-            prev.forEach(p => {
-              if (!merged.some(m => m.id === p.id)) {
-                merged.push(p);
-              }
-            });
-            return merged;
-          });
+          const loadedChats: ChatSession[] = snapshot.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as any)
+          } as ChatSession));
+          
+          setChats(loadedChats);
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedChats));
+          } catch (e) {
+            console.error('Kunne ikke lagre til localStorage:', e);
+          }
+        }
+
+        // 2. Hent mapper fra Firestore
+        const folderQ = query(collection(db, 'folders'), where('userId', '==', user.uid));
+        const folderSnapshot = await getDocs(folderQ);
+        if (!folderSnapshot.empty) {
+          const fetchedFolders = folderSnapshot.docs.map(d => ({
+            id: d.id,
+            ...(d.data() as any)
+          } as FolderType));
+
+          setFolders(fetchedFolders);
+          try {
+            localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(fetchedFolders));
+          } catch (e) {
+            console.error('Kunne ikke lagre mapper til localStorage:', e);
+          }
         }
       } catch (err) {
-        console.warn('Kunne ikke hente Firestore superveileder_chats:', err);
+        console.warn('Kunne ikke hente Firestore-data for Superveileder:', err);
       }
     };
 
-    loadFirestoreChats();
+    loadFirestoreData();
   }, [user?.uid]);
 
-  // Lagre lokalt ved endring
+  // Lagre chats lokalt ved endring
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
     } catch (e) {
-      console.error('Kunne ikke lagre til localStorage:', e);
+      console.error('Kunne ikke lagre chats til localStorage:', e);
     }
   }, [chats]);
+
+  // Lagre mapper lokalt ved endring
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
+    } catch (e) {
+      console.error('Kunne ikke lagre mapper til localStorage:', e);
+    }
+  }, [folders]);
 
   // Lagre aktiv chat til Firestore når den endres
   const saveChatToFirestore = async (chatToSave: ChatSession) => {
@@ -176,9 +237,31 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     try {
       const db = getFirestore();
       const chatRef = doc(db, 'users', user.uid, 'superveileder_chats', chatToSave.id);
-      await setDoc(chatRef, chatToSave, { merge: true });
+      const cleanData: any = { ...chatToSave };
+      if (!cleanData.folderId) {
+        delete cleanData.folderId;
+      }
+      await setDoc(chatRef, cleanData, { merge: true });
     } catch (err) {
       console.warn('Firestore autosave feilet for Superveileder:', err);
+    }
+  };
+
+  // Lagre mappe til Firestore
+  const saveFolderToFirebase = async (folder: FolderType) => {
+    if (!user?.uid) return;
+    try {
+      const db = getFirestore();
+      const folderRef = doc(db, 'folders', folder.id);
+      await setDoc(folderRef, {
+        id: folder.id,
+        name: folder.name,
+        userId: user.uid,
+        isExpanded: folder.isExpanded ?? true,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Kunne ikke lagre mappe til Firestore:', err);
     }
   };
 
@@ -476,17 +559,63 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     }));
   };
 
-  // Delete
-  const handleDeleteItem = async (id: string) => {
+  // Flytt samtale til mappe
+  const handleMoveChat = (chatId: string, folderId: string | undefined) => {
+    setChats(prev => prev.map(c => {
+      if (c.id === chatId) {
+        const updated = { ...c, folderId: folderId || undefined, updatedAt: new Date().toISOString() };
+        saveChatToFirestore(updated);
+        return updated;
+      }
+      return c;
+    }));
+  };
+
+  // Opprett ny mappe
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+
+    const newFolder: FolderType = {
+      id: 'folder_' + Date.now(),
+      name: newFolderName.trim(),
+      isExpanded: true
+    };
+
+    setFolders(prev => [...prev, newFolder]);
+    setNewFolderName('');
+    setIsCreatingFolder(false);
+
+    await saveFolderToFirebase(newFolder);
+  };
+
+  // Slett mappe
+  const handleDeleteFolder = async (folderId: string) => {
+    setFolders(prev => prev.filter(f => f.id !== folderId));
+    // Fristill samtaler fra mappen slik at de ligger i rotlisten
+    setChats(prev => prev.map(c => {
+      if (c.folderId === folderId) {
+        const updated = { ...c, folderId: undefined, updatedAt: new Date().toISOString() };
+        saveChatToFirestore(updated);
+        return updated;
+      }
+      return c;
+    }));
+
     if (user?.uid) {
       try {
         const db = getFirestore();
-        await deleteDoc(doc(db, 'users', user.uid, 'superveileder_chats', id));
+        await deleteDoc(doc(db, 'folders', folderId));
       } catch (err) {
-        console.warn('Kunne ikke slette chat fra Firestore:', err);
+        console.warn('Kunne ikke slette mappe fra Firestore:', err);
       }
     }
+  };
 
+  // Slett samtale (umiddelbar responsiv fjerning)
+  const handleDeleteItem = (id: string) => {
+    if (!id) return;
+
+    // 1. Optimistisk umiddelbar fjerning fra UI
     setChats(prev => {
       const filtered = prev.filter(c => c.id !== id);
       if (activeChatId === id) {
@@ -519,10 +648,101 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
       }
       return filtered;
     });
+
+    // 2. Failsafe rens i localStorage
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((c: any) => c.id !== id);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {
+      console.warn('Feil ved sletting i localStorage:', e);
+    }
+
+    // 3. Slett fra Firestore i bakgrunnen
+    if (user?.uid) {
+      try {
+        const db = getFirestore();
+        deleteDoc(doc(db, 'users', user.uid, 'superveileder_chats', id)).catch(err => {
+          console.warn('Kunne ikke slette chat fra Firestore:', err);
+        });
+      } catch (err) {
+        console.warn('Firestore feil ved sletting:', err);
+      }
+    }
+  };
+
+  // Slett en enkeltmelding fra aktiv samtale
+  const handleDeleteMessage = (msgId: string) => {
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        const updatedMessages = c.messages.filter(m => m.id !== msgId);
+        const updatedSession = {
+          ...c,
+          messages: updatedMessages.length > 0 ? updatedMessages : [
+            {
+              id: 'welcome-' + c.id,
+              role: 'assistant' as const,
+              content: 'Hei! Hva vil du utforske eller få veiledning på i dag?',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              mode: c.activeMode || 'Auto',
+              agent: (c.activeMode || 'Auto').toUpperCase()
+            }
+          ],
+          updatedAt: new Date().toISOString()
+        };
+        saveChatToFirestore(updatedSession);
+        return updatedSession;
+      }
+      return c;
+    }));
+  };
+
+  // Tøm alle feilmeldinger fra aktiv samtale
+  const handleClearErrorsInActiveChat = () => {
+    setChats(prev => prev.map(c => {
+      if (c.id === activeChatId) {
+        const updatedMessages = c.messages.filter(m => {
+          if (m.role === 'assistant') {
+            const text = m.content || '';
+            const isErr = text.startsWith('Feil:') || text.includes('ikke tilgjengelig') || text.includes('Klarte ikke') || text.includes('Serverfeil') || m.agent === 'FEIL';
+            return !isErr;
+          }
+          return true;
+        });
+        const updatedSession = {
+          ...c,
+          messages: updatedMessages.length > 0 ? updatedMessages : [
+            {
+              id: 'welcome-' + c.id,
+              role: 'assistant' as const,
+              content: 'Feilmeldinger er fjernet. Hva vil du utforske videre?',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              mode: c.activeMode || 'Auto',
+              agent: (c.activeMode || 'Auto').toUpperCase()
+            }
+          ],
+          updatedAt: new Date().toISOString()
+        };
+        saveChatToFirestore(updatedSession);
+        return updatedSession;
+      }
+      return c;
+    }));
   };
 
   const getAgentStyling = (agent?: string) => {
     switch (agent) {
+      case 'FEIL':
+        return {
+          label: 'Systemvarsel',
+          color: 'bg-rose-50 text-rose-700 border-rose-200',
+          icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+        };
       case 'SOKRATISK':
         return {
           label: 'Sokratisk Partner',
@@ -577,7 +797,12 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
       subtitle="Sokratisk sparring, Rammeplan, APA & fagskriving"
       icon={<Sparkles className="w-6 h-6 text-indigo-600" />}
       actionButtonLabel="Ny samtale"
+      historySectionTitle="Samtaler"
       onActionClick={handleNewChat}
+      folders={folders}
+      onAddFolder={() => setIsCreatingFolder(true)}
+      onMoveToFolder={handleMoveChat}
+      onDeleteFolder={handleDeleteFolder}
       historyItems={chats}
       activeItemId={activeChatId}
       onItemClick={setActiveChatId}
@@ -638,20 +863,65 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               ))}
             </div>
 
-            {/* Pensum på øret aktiv-indikator */}
-            {playingIndex !== null && (
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl text-blue-700 text-xs font-bold animate-pulse">
-                <Volume2 className="w-4 h-4" />
-                <span>Spiller av pensum på øret...</span>
-                <button 
-                  onClick={() => { stopAudioService(); setPlayingIndex(null); }}
-                  className="ml-1 p-0.5 hover:bg-blue-200 rounded cursor-pointer"
-                  title="Stopp lyd"
+            {/* Handlinger på høyre side: Pensum på øret, Ny samtale og Slett samtale */}
+            <div className="flex items-center gap-2">
+              {playingIndex !== null && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl text-blue-700 text-xs font-bold animate-pulse">
+                  <Volume2 className="w-4 h-4" />
+                  <span>Spiller av pensum på øret...</span>
+                  <button 
+                    onClick={() => { stopAudioService(); setPlayingIndex(null); }}
+                    className="ml-1 p-0.5 hover:bg-blue-200 rounded cursor-pointer"
+                    title="Stopp lyd"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                </div>
+              )}
+
+              {/* Hurtigknapp: Ny samtale */}
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Start en helt ny veiledningssamtale"
+              >
+                <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">Ny samtale</span>
+              </button>
+
+              {/* Slett denne samtalen med hurtigbekreftelse */}
+              {confirmDeleteActiveChat ? (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-xl animate-in fade-in">
+                  <span className="text-[11px] text-rose-800 font-bold">Slette samtalen?</span>
+                  <button
+                    onClick={() => {
+                      if (activeChat) handleDeleteItem(activeChat.id);
+                      setConfirmDeleteActiveChat(false);
+                    }}
+                    className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    Ja
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteActiveChat(false)}
+                    className="px-2 py-0.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                  >
+                    Avbryt
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteActiveChat(true)}
+                  className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Slett denne samtalen permanent"
                 >
-                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span className="hidden sm:inline">Slett samtale</span>
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Sokratisk Modus Banner */}
@@ -711,6 +981,40 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               
               {/* AI Warning */}
               <AIWarning dismissible={true} />
+
+              {/* Varsel og hurtig-opprydding dersom samtalen inneholder tidligere feilmeldinger */}
+              {activeChat?.messages?.some(m => 
+                m.role === 'assistant' && (
+                  m.agent === 'FEIL' ||
+                  m.content?.startsWith('Feil:') || 
+                  m.content?.includes('ikke tilgjengelig') || 
+                  m.content?.includes('Klarte ikke') ||
+                  m.content?.includes('Serverfeil')
+                )
+              ) && (
+                <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Denne samtalen inneholder feilmeldinger fra et tidligere forsøk.</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleClearErrorsInActiveChat}
+                      className="px-2.5 py-1 bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-bold rounded-lg transition-colors cursor-pointer"
+                    >
+                      Tøm feilmeldinger
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(activeChat.id)}
+                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg transition-colors cursor-pointer"
+                    >
+                      Slett hele samtalen
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Velkomst og Hurtigforslag */}
               {(!activeChat?.messages || activeChat.messages.filter(m => m.role === 'user').length === 0) && (
@@ -811,6 +1115,15 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               {/* Chat-bobler */}
               {activeChat.messages.map((msg, idx) => {
                 const isUser = msg.role === 'user';
+                const isErrorMsg = !isUser && (
+                  msg.agent === 'FEIL' || 
+                  (typeof msg.content === 'string' && (
+                    msg.content.startsWith('Feil:') || 
+                    msg.content.includes('ikke tilgjengelig') || 
+                    msg.content.includes('Klarte ikke') ||
+                    msg.content.includes('Serverfeil')
+                  ))
+                );
                 const agentStyle = !isUser ? getAgentStyling(msg.agent || msg.mode) : null;
                 const isPlaying = playingIndex === idx;
 
@@ -840,49 +1153,113 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                         <span>{msg.timestamp}</span>
                       </div>
 
-                      <div 
-                        className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
-                          isUser
-                            ? 'bg-blue-600 text-white rounded-br-xs shadow-sm shadow-blue-600/10'
-                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
-                        }`}
-                      >
-                        <div className="prose prose-sm max-w-none prose-slate">
-                          <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}</ReactMarkdown>
-                        </div>
-
-                        {/* Handlingsknapper for assistentmeldinger */}
-                        {!isUser && (
-                          <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-100">
-                            {/* Pensum på øret (TTS Lydavspilling) */}
+                      {isErrorMsg ? (
+                        <div className="p-4 rounded-2xl text-sm leading-relaxed relative bg-rose-50/95 border border-rose-200 text-rose-950 rounded-bl-xs shadow-xs w-full">
+                          <div className="flex items-start gap-2 mb-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <div className="font-bold text-rose-900 text-xs">Forespørselen ble avbrutt eller svar feilet</div>
+                          </div>
+                          <div className="text-rose-900/90 text-xs mb-3 whitespace-pre-wrap leading-normal font-sans">
+                            {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
+                          </div>
+                          <div className="flex items-center gap-2 pt-2 border-t border-rose-200/80">
                             <button
-                              onClick={() => playAudio(msg.content, idx)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                isPlaying
-                                  ? 'bg-blue-600 text-white animate-pulse'
-                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                              }`}
-                              title={isPlaying ? "Stopp opplesing" : "Pensum på øret (Les opp tekst)"}
+                              type="button"
+                              onClick={() => {
+                                const currentIdx = activeChat.messages.findIndex(m => m.id === msg.id);
+                                const prevUserMsg = activeChat.messages.slice(0, currentIdx).reverse().find(m => m.role === 'user');
+                                handleDeleteMessage(msg.id);
+                                if (prevUserMsg) {
+                                  handleSendMessage(prevUserMsg.content);
+                                }
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                              title="Prøv på nytt med oppdatert modell og nøkkel"
                             >
-                              {isPlaying ? <Square className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
-                              <span className="text-[11px]">{isPlaying ? 'Stopp' : 'Pensum på øret'}</span>
+                              <RotateCcw className="w-3 h-3 text-rose-600" />
+                              <span>Prøv igjen</span>
                             </button>
-
-                            {/* Kopi-knapp */}
                             <button
-                              onClick={() => handleCopy(msg.id, msg.content)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs transition-all cursor-pointer"
-                              title="Kopier svar"
+                              type="button"
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="Fjern denne feilmeldingen fra samtalen"
                             >
-                              {copiedId === msg.id ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
+                              <Trash2 className="w-3 h-3 text-rose-600" />
+                              <span>Slett melding</span>
                             </button>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div 
+                          className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
+                            isUser
+                              ? 'bg-blue-600 text-white rounded-br-xs shadow-sm shadow-blue-600/10'
+                              : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
+                          }`}
+                        >
+                          <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : 'prose-slate'}`}>
+                            <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}</ReactMarkdown>
+                          </div>
+
+                          {/* Handlingsknapper for assistentmeldinger */}
+                          {!isUser && (
+                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                              {/* Pensum på øret (TTS Lydavspilling) */}
+                              <button
+                                onClick={() => playAudio(msg.content, idx)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                  isPlaying
+                                    ? 'bg-blue-600 text-white animate-pulse'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                }`}
+                                title={isPlaying ? "Stopp opplesing" : "Pensum på øret (Les opp tekst)"}
+                              >
+                                {isPlaying ? <Square className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
+                                <span className="text-[11px]">{isPlaying ? 'Stopp' : 'Pensum på øret'}</span>
+                              </button>
+
+                              {/* Kopi-knapp */}
+                              <button
+                                onClick={() => handleCopy(msg.id, msg.content)}
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs transition-all cursor-pointer"
+                                title="Kopier svar"
+                              >
+                                {copiedId === msg.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+
+                              {/* Slett enkeltmelding */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="p-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-400 rounded-lg text-xs transition-all cursor-pointer"
+                                title="Slett denne meldingen"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Slett-knapp for brukermeldinger på hover */}
+                          {isUser && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end mt-1 pt-1 border-t border-blue-500/40">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="p-1 text-blue-200 hover:text-white hover:bg-blue-700/60 rounded text-[11px] transition-all cursor-pointer flex items-center gap-1"
+                                title="Slett denne meldingen"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Slett</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                     </div>
 
@@ -948,6 +1325,52 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               </button>
             </form>
           </div>
+
+          {/* OPPRETT NY MAPPE MODAL */}
+          {isCreatingFolder && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
+                  <FolderPlus className="w-6 h-6" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-base font-black text-slate-800">Opprett ny mappe</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Hold orden i veiledningssamtaler, drøftinger og faglige tråder.
+                  </p>
+                </div>
+                <input 
+                  type="text" 
+                  autoFocus
+                  placeholder="F.eks. Praksis H24, Bachelor, Ledelse..." 
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateFolder();
+                    if (e.key === 'Escape') setIsCreatingFolder(false);
+                  }}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }} 
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                  >
+                    Avbryt
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleCreateFolder} 
+                    disabled={!newFolderName.trim()}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20 cursor-pointer"
+                  >
+                    Opprett mappe
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       )}

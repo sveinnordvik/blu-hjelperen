@@ -66,15 +66,18 @@ const _dirname = getDirname();
 // Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
 async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
   let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
-  if (initial.includes("2.5") || initial.includes("1.5") || initial.includes("2.0")) {
+  // Oppgrader kun utgåtte modeller (1.5 og 2.0) til 3.8-flash. Bevar 2.5-flash da den er universelt tilgjengelig.
+  if (initial.includes("1.5") || initial.includes("2.0") || initial === "gemini-pro") {
     initial = "gemini-3.8-flash";
   }
 
   // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
   const modelCandidates = [
     initial,
-    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-2.5-flash",
     "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
     "gemini-3.1-pro-preview"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
@@ -96,16 +99,16 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
       const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || err?.status === 503 || errMsg.includes("high demand");
       const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
 
-      // Kritiske konfigurasjonsfeil eller tom saldo som ikke vil løses med å bytte modell
-      if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid") || isDepleted || err?.status === 400) {
+      // Kritiske feil med selve API-nøkkelen kan ikke løses med å bytte modell
+      if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid") || isDepleted) {
         throw err;
       }
 
-      console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}).`);
+      console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}). Forsøker neste kandidat...`);
 
       // Hvis flere modeller gjenstår, vent et lite øyeblikk og prøv neste
       if (i < modelCandidates.length - 1) {
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(r => setTimeout(r, 600));
       }
     }
   }
@@ -194,11 +197,24 @@ Når du svarer, følg disse retningslinjene:
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Serverfeil ved kontakt med Gemini for /api/chat/message:", error);
-      const errMsg = error?.message || String(error);
+      let errMsg = error?.message || String(error);
+      try {
+        const parsed = JSON.parse(errMsg);
+        if (parsed?.error?.message) {
+          errMsg = parsed.error.message;
+        }
+      } catch {}
+
       const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
       const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
       const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
+      const isInvalidKey = errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid");
 
+      if (isInvalidKey) {
+        return res.status(401).json({
+          error: "Ugyldig Gemini API-nøkkel. Vennligst sjekk at nøkkelen er lagt inn under Settings -> Secrets som GEMINI_API_KEY."
+        });
+      }
       if (isDepleted) {
         return res.status(429).json({
           error: "API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på kreditt, eller oppdater nøkkelen i Settings -> Secrets."
@@ -206,7 +222,7 @@ Når du svarer, følg disse retningslinjene:
       }
       if (isRateLimit) {
         return res.status(429).json({ 
-          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota exceeded). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio." 
+          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio." 
         });
       }
       if (isUnavailable) {
@@ -241,11 +257,24 @@ Når du svarer, følg disse retningslinjene:
       res.json({ text: response.text || "" });
     } catch (error: any) {
       console.error("Gemini API error:", error);
-      const errMsg = error?.message || String(error);
+      let errMsg = error?.message || String(error);
+      try {
+        const parsed = JSON.parse(errMsg);
+        if (parsed?.error?.message) {
+          errMsg = parsed.error.message;
+        }
+      } catch {}
+
       const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
       const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
       const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
+      const isInvalidKey = errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid");
 
+      if (isInvalidKey) {
+        return res.status(401).json({
+          error: "Ugyldig Gemini API-nøkkel. Vennligst sjekk at nøkkelen er lagt inn under Settings -> Secrets som GEMINI_API_KEY."
+        });
+      }
       if (isDepleted) {
         return res.status(429).json({
           error: "API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å administrere prosjekt og fakturering, eller oppdater nøkkelen i Settings -> Secrets."
@@ -253,7 +282,7 @@ Når du svarer, følg disse retningslinjene:
       }
       if (isRateLimit) {
         return res.status(429).json({
-          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota exceeded). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio."
+          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio."
         });
       }
       if (isUnavailable) {
@@ -262,7 +291,7 @@ Når du svarer, følg disse retningslinjene:
         });
       }
 
-      res.status(error?.status || 500).json({ error: errMsg });
+      res.status(error?.status || 500).json({ error: errMsg || "Klarte ikke å generere innhold." });
     }
   });
 
