@@ -348,6 +348,75 @@ Når du svarer, følg disse retningslinjene:
     }
   });
 
+  // Superveilederen Chat Endpoint med dynamisk system-prompt
+  app.post(["/api/superveilederen", "/api/superveilederenChat"], async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+      }
+
+      const { message, documentContext, history = [] } = req.body || {};
+
+      const baseSocraticPrompt = "Du er Superveilederen for barnehagelærerstudenter. Bruk sokratisk metode for å utforske deres refleksjoner. Ikke gi svaret direkte.";
+      
+      const documentAnalysisPrompt = `Du er BLU-hjelperen. Analyser det vedlagte dokumentet. Fokuser på akademisk språk, struktur og forankring i Rammeplanen. 
+      
+Dokumentinnhold: 
+"""${documentContext}"""`;
+
+      // Dynamisk valg av system-prompt
+      const systemPrompt = documentContext ? documentAnalysisPrompt : baseSocraticPrompt;
+
+      // Bygg meldings-arrayen for AI-modellen
+      const aiMessages = [
+        { role: "system", content: systemPrompt },
+        ...(Array.isArray(history) ? history : []),
+        { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
+      ];
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+
+      const contents: any[] = [];
+      if (Array.isArray(history)) {
+        for (const item of history) {
+          if (!item || item.role === "system") continue;
+          const role = (item.role === "assistant" || item.role === "model") ? "model" : "user";
+          const text = item.content || item.text || (Array.isArray(item.parts) ? item.parts.map((p: any) => typeof p === "string" ? p : p.text).join(" ") : "");
+          if (text) {
+            contents.push({ role, parts: [{ text }] });
+          }
+        }
+      }
+
+      contents.push({
+        role: "user",
+        parts: [{ text: message || "Vennligst analyser det vedlagte dokumentet." }]
+      });
+
+      const response = await callGenAIWithFallback(
+        ai,
+        "gemini-3.8-flash",
+        contents,
+        {
+          systemInstruction: systemPrompt,
+          temperature: 0.7,
+          maxOutputTokens: 4096,
+        }
+      );
+
+      res.json({
+        text: response.text || "",
+        mode: documentContext ? "documentAnalysis" : "socratic",
+        aiMessages
+      });
+    } catch (error: any) {
+      console.error("Superveilederen endpoint error:", error);
+      res.status(500).json({ error: String(error?.message || error) });
+    }
+  });
+
   // FCM Sending Endpoint
   app.post("/api/send-notification", async (req, res) => {
     if (!admin.apps.length) {

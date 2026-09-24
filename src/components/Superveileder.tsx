@@ -10,20 +10,26 @@ import {
   Copy, 
   Check, 
   Loader2,
-  Search,
-  Volume2,
-  Square,
-  Brain,
-  GraduationCap,
-  Coins,
-  X,
-  FolderPlus,
-  Folder,
-  Trash2,
-  RotateCcw,
-  AlertTriangle,
-  Plus,
-  HeartHandshake
+  Search, 
+  Volume2, 
+  Square, 
+  Brain, 
+  GraduationCap, 
+  Coins, 
+  X, 
+  FolderPlus, 
+  Folder, 
+  FolderOpen,
+  Trash2, 
+  RotateCcw, 
+  AlertTriangle, 
+  Plus, 
+  HeartHandshake,
+  BookmarkPlus,
+  FileText,
+  Pin,
+  CheckCircle2,
+  Paperclip
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -35,11 +41,16 @@ import {
   askRagAgent,
   askLyttebot,
   askMethodAgent,
+  callGoogleAIProxy,
   playAudio as playAudioService,
-  stopAudio as stopAudioService
+  stopAudio as stopAudioService 
 } from '../services/geminiService';
+import { saveFieldNote } from '../services/fieldNotesService';
+import { extractTextFromPdf } from '../lib/pdfUtils';
+import { extractTextFromDocx } from '../lib/docxUtils';
 import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore';
 import AIWarning from './AIWarning';
+import { cn } from '../lib/utils';
 
 export interface ChatMessage {
   id: string;
@@ -65,19 +76,34 @@ export interface SuperveilederProps {
   user?: any;
   didacticProfile?: any;
   initialMode?: string;
-  onSwitchToBlu?: () => void;
+  initialAssistant?: 'superveileder' | 'feltveileder';
+  onAssistantChange?: (assistant: 'superveileder' | 'feltveileder') => void;
 }
 
-const STORAGE_KEY = 'blu_superveileder_chats_v2';
-const FOLDERS_STORAGE_KEY = 'blu_superveileder_folders_v1';
+// Storage keys for Superveileder
+const STORAGE_KEY_SUPER = 'blu_superveileder_chats_v2';
+const FOLDERS_STORAGE_KEY_SUPER = 'blu_superveileder_folders_v1';
 
-const INITIAL_FOLDERS: FolderType[] = [
+// Storage keys for Feltveileder
+const STORAGE_KEY_FELT = 'blu_feltveileder_chats_v2';
+const FOLDERS_STORAGE_KEY_FELT = 'blu_feltveileder_folders_v1';
+
+// System prompt for Feltveileder (praksis- og feltveileder)
+const FIELD_SYSTEM_INSTRUCTION = `Du er BLU-Feltveilederen – en lynrask, pedagogisk skarp og praksisnær veileder for barnehagelærerstudenter ute i praksis.
+Målgruppen din er studenter som står i eller forbereder seg til barnehagehverdagen. 
+Dine svar skal være:
+- Konsise, strukturerte og rett på sak (bruk korte avsnitt og kulepunkter).
+- Tydelig forankret i Rammeplan for barnehagen (spesifikke fagområder, formål og arbeidsmåter).
+- Koblet til sentral barnehagepedagogisk teori (f.eks. Berit Bae om anerkjennelse og relasjoner, Lev Vygotskij om stillasbygging og proksimal sone, Gunvor Løkken om kroppslig væren, William Corsaro om jevnalderkultur, Bjørndal & Løw om didaktisk relasjonsmodell).
+- Alltid gi 1-3 konkrete grep eller spørsmål studenten kan reflektere over eller teste ut i dag.`;
+
+const INITIAL_FOLDERS_SUPER: FolderType[] = [
   { id: 'f-praksis', name: 'Praksis & Observasjon', isExpanded: true },
   { id: 'f-fagskriving', name: 'Fagskriving & Teori', isExpanded: true },
   { id: 'f-rammeplan', name: 'Rammeplan & Didaktikk', isExpanded: false }
 ];
 
-const INITIAL_CHATS: ChatSession[] = [
+const INITIAL_CHATS_SUPER: ChatSession[] = [
   {
     id: 'sok-1',
     title: 'Sokratisk sparring om barns medvirkning',
@@ -117,10 +143,76 @@ const INITIAL_CHATS: ChatSession[] = [
   }
 ];
 
-export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBlu }: SuperveilederProps) {
+const INITIAL_FOLDERS_FELT: FolderType[] = [
+  { id: 'ff-observasjon', name: 'Observasjon & Frilek', isExpanded: true },
+  { id: 'ff-rammeplan', name: 'Rammeplan & Didaktikk', isExpanded: true },
+  { id: 'ff-relasjoner', name: 'Relasjoner & Konflikter', isExpanded: false }
+];
+
+const INITIAL_CHATS_FELT: ChatSession[] = [
+  {
+    id: 'felt-1',
+    title: 'Observasjon av frilek i sandkassa',
+    subtitle: 'Rammeplan-kobling • Nettopp opprettet',
+    isPinned: true,
+    activeMode: 'Rammeplan-kobling',
+    folderId: 'ff-observasjon',
+    updatedAt: new Date().toISOString(),
+    messages: [
+      {
+        id: 'fm1',
+        role: 'assistant',
+        content: 'Hei! 👋 Jeg er din **Feltveileder**. Står du i en spesiell situasjon i barnehagen nå, eller planlegger du en aktivitet? Spør meg om Rammeplanen, didaktiske opplegg eller pedagogisk teori!',
+        timestamp: '09:30',
+        mode: 'Rammeplan-kobling',
+        agent: 'FELT'
+      }
+    ]
+  },
+  {
+    id: 'felt-2',
+    title: 'Anerkjennende væremåte i konflikt',
+    subtitle: 'Konflikt & lek • Lagret økt',
+    isPinned: false,
+    activeMode: 'Konflikt & lek',
+    folderId: 'ff-relasjoner',
+    updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    messages: [
+      {
+        id: 'fm2',
+        role: 'assistant',
+        content: 'I konfliktsituasjoner mellom barn er Berit Baes perspektiver på anerkjennelse uvurderlige: Se barnets opplevelse innenfra før du korrigerer handlingen. Hva oppstod i barnegruppa di?',
+        timestamp: '13:45',
+        mode: 'Konflikt & lek',
+        agent: 'FELT'
+      }
+    ]
+  }
+];
+
+export function Superveileder({ 
+  user, 
+  didacticProfile, 
+  initialMode, 
+  initialAssistant = 'superveileder',
+  onAssistantChange
+}: SuperveilederProps) {
+  // Aktiv veileder-type: 'superveileder' eller 'feltveileder'
+  const [activeAssistant, setActiveAssistant] = useState<'superveileder' | 'feltveileder'>(() => initialAssistant);
+
+  // Synkroniser hvis initialAssistant endres eksternt
+  useEffect(() => {
+    if (initialAssistant) {
+      setActiveAssistant(initialAssistant);
+    }
+  }, [initialAssistant]);
+
+  // =========================================================================
+  // 1. SUPERVEILEDEREN STATE (Akademisk skriving & veiledning)
+  // =========================================================================
   const [chats, setChats] = useState<ChatSession[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY_SUPER);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -128,17 +220,16 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     } catch (e) {
       console.error('Kunne ikke hente lagrede veiledninger:', e);
     }
-    return INITIAL_CHATS;
+    return INITIAL_CHATS_SUPER;
   });
 
   const [activeChatId, setActiveChatId] = useState<string>(() => {
     return chats.length > 0 ? chats[0].id : 'sok-1';
   });
 
-  // Mappestruktur for samtaler
   const [folders, setFolders] = useState<FolderType[]>(() => {
     try {
-      const saved = localStorage.getItem(FOLDERS_STORAGE_KEY);
+      const saved = localStorage.getItem(FOLDERS_STORAGE_KEY_SUPER);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -146,15 +237,51 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     } catch (e) {
       console.error('Kunne ikke hente lagrede mapper for Superveileder:', e);
     }
-    return INITIAL_FOLDERS;
+    return INITIAL_FOLDERS_SUPER;
   });
 
+  // =========================================================================
+  // 2. FELTVEILEDEREN STATE (Praksis & Didaktikk - Eget arkiv!)
+  // =========================================================================
+  const [feltChats, setFeltChats] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_FELT);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Kunne ikke hente lagrede feltveiledninger:', e);
+    }
+    return INITIAL_CHATS_FELT;
+  });
+
+  const [activeFeltChatId, setActiveFeltChatId] = useState<string>(() => {
+    return feltChats.length > 0 ? feltChats[0].id : 'felt-1';
+  });
+
+  const [feltFolders, setFeltFolders] = useState<FolderType[]>(() => {
+    try {
+      const saved = localStorage.getItem(FOLDERS_STORAGE_KEY_FELT);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Kunne ikke hente lagrede feltmapper:', e);
+    }
+    return INITIAL_FOLDERS_FELT;
+  });
+
+  // Felles dialog- og skrive-state
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-
   const [input, setInput] = useState('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [savedToNotesId, setSavedToNotesId] = useState<string | null>(null);
+  const [savedToLogId, setSavedToLogId] = useState<string | null>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [confirmDeleteActiveChat, setConfirmDeleteActiveChat] = useState(false);
 
@@ -162,10 +289,50 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
   const isInitialMount = useRef(true);
   const prevMsgCountRef = useRef(0);
 
-  const activeChat = chats.find(c => c.id === activeChatId) || chats[0] || INITIAL_CHATS[0];
-  const activeMode = activeChat?.activeMode || initialMode || 'Auto';
+  // Bestem aktiv liste og aktiv samtale basert på valgt veileder
+  const isFelt = activeAssistant === 'feltveileder';
+  const currentChats = isFelt ? feltChats : chats;
+  const currentActiveId = isFelt ? activeFeltChatId : activeChatId;
+  const activeChat = currentChats.find(c => c.id === currentActiveId) || currentChats[0] || (isFelt ? INITIAL_CHATS_FELT[0] : INITIAL_CHATS_SUPER[0]);
+  const activeMode = activeChat?.activeMode || initialMode || (isFelt ? 'Rammeplan-kobling' : 'Auto');
+  const currentFolders = isFelt ? feltFolders : folders;
 
-  // Last chats og mapper fra Firestore når bruker er logget inn
+  // =========================================================================
+  // SYNKRONISERING OG LAGRING
+  // =========================================================================
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_SUPER, JSON.stringify(chats));
+    } catch (e) {
+      console.error('Kunne ikke lagre Superveileder-chats til localStorage:', e);
+    }
+  }, [chats]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_FELT, JSON.stringify(feltChats));
+    } catch (e) {
+      console.error('Kunne ikke lagre Feltveileder-chats til localStorage:', e);
+    }
+  }, [feltChats]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLDERS_STORAGE_KEY_SUPER, JSON.stringify(folders));
+    } catch (e) {
+      console.error('Kunne ikke lagre Superveileder-mapper til localStorage:', e);
+    }
+  }, [folders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLDERS_STORAGE_KEY_FELT, JSON.stringify(feltFolders));
+    } catch (e) {
+      console.error('Kunne ikke lagre Feltveileder-mapper til localStorage:', e);
+    }
+  }, [feltFolders]);
+
+  // Last chats og mapper fra Firestore for begge arkiver
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -173,98 +340,63 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
       try {
         const db = getFirestore();
         
-        // 1. Hent samtaler
-        const chatsRef = collection(db, 'users', user.uid, 'superveileder_chats');
-        const q = query(chatsRef, orderBy('updatedAt', 'desc'));
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-          const loadedChats: ChatSession[] = snapshot.docs.map(d => ({
-            id: d.id,
-            ...(d.data() as any)
-          } as ChatSession));
-          
-          setChats(loadedChats);
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(loadedChats));
-          } catch (e) {
-            console.error('Kunne ikke lagre til localStorage:', e);
-          }
+        // 1. Superveilederen samtaler
+        const superChatsRef = collection(db, 'users', user.uid, 'superveileder_chats');
+        const superSnapshot = await getDocs(query(superChatsRef, orderBy('updatedAt', 'desc')));
+        if (!superSnapshot.empty) {
+          const loaded: ChatSession[] = superSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          setChats(loaded);
+          localStorage.setItem(STORAGE_KEY_SUPER, JSON.stringify(loaded));
         }
 
-        // 2. Hent mapper fra Firestore
+        // 2. Feltveilederen samtaler (Eget separat arkiv)
+        const feltChatsRef = collection(db, 'users', user.uid, 'feltveileder_chats');
+        const feltSnapshot = await getDocs(query(feltChatsRef, orderBy('updatedAt', 'desc')));
+        if (!feltSnapshot.empty) {
+          const loadedFelt: ChatSession[] = feltSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          setFeltChats(loadedFelt);
+          localStorage.setItem(STORAGE_KEY_FELT, JSON.stringify(loadedFelt));
+        }
+
+        // 3. Superveileder mapper
         const folderQ = query(collection(db, 'folders'), where('userId', '==', user.uid));
         const folderSnapshot = await getDocs(folderQ);
         if (!folderSnapshot.empty) {
-          const fetchedFolders = folderSnapshot.docs.map(d => ({
-            id: d.id,
-            ...(d.data() as any)
-          } as FolderType));
-
+          const fetchedFolders: FolderType[] = folderSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
           setFolders(fetchedFolders);
-          try {
-            localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(fetchedFolders));
-          } catch (e) {
-            console.error('Kunne ikke lagre mapper til localStorage:', e);
-          }
+          localStorage.setItem(FOLDERS_STORAGE_KEY_SUPER, JSON.stringify(fetchedFolders));
+        }
+
+        // 4. Feltveileder mapper
+        const feltFolderQ = query(collection(db, 'feltveileder_folders'), where('userId', '==', user.uid));
+        const feltFolderSnapshot = await getDocs(feltFolderQ);
+        if (!feltFolderSnapshot.empty) {
+          const fetchedFeltFolders: FolderType[] = feltFolderSnapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          setFeltFolders(fetchedFeltFolders);
+          localStorage.setItem(FOLDERS_STORAGE_KEY_FELT, JSON.stringify(fetchedFeltFolders));
         }
       } catch (err) {
-        console.warn('Kunne ikke hente Firestore-data for Superveileder:', err);
+        console.warn('Kunne ikke hente Firestore-data for veiledere:', err);
       }
     };
 
     loadFirestoreData();
   }, [user?.uid]);
 
-  // Lagre chats lokalt ved endring
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
-    } catch (e) {
-      console.error('Kunne ikke lagre chats til localStorage:', e);
-    }
-  }, [chats]);
-
-  // Lagre mapper lokalt ved endring
-  useEffect(() => {
-    try {
-      localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
-    } catch (e) {
-      console.error('Kunne ikke lagre mapper til localStorage:', e);
-    }
-  }, [folders]);
-
-  // Lagre aktiv chat til Firestore når den endres
-  const saveChatToFirestore = async (chatToSave: ChatSession) => {
+  // Lagre aktiv samtale til Firestore
+  const saveChatToFirestore = async (chatToSave: ChatSession, isFeltMode: boolean) => {
     if (!user?.uid) return;
     try {
       const db = getFirestore();
-      const chatRef = doc(db, 'users', user.uid, 'superveileder_chats', chatToSave.id);
+      const colName = isFeltMode ? 'feltveileder_chats' : 'superveileder_chats';
+      const chatRef = doc(db, 'users', user.uid, colName, chatToSave.id);
       const cleanData: any = { ...chatToSave };
       if (!cleanData.folderId) {
         delete cleanData.folderId;
       }
       await setDoc(chatRef, cleanData, { merge: true });
     } catch (err) {
-      console.warn('Firestore autosave feilet for Superveileder:', err);
-    }
-  };
-
-  // Lagre mappe til Firestore
-  const saveFolderToFirebase = async (folder: FolderType) => {
-    if (!user?.uid) return;
-    try {
-      const db = getFirestore();
-      const folderRef = doc(db, 'folders', folder.id);
-      await setDoc(folderRef, {
-        id: folder.id,
-        name: folder.name,
-        userId: user.uid,
-        isExpanded: folder.isExpanded ?? true,
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (err) {
-      console.warn('Kunne ikke lagre mappe til Firestore:', err);
+      console.warn('Firestore autosave feilet:', err);
     }
   };
 
@@ -279,7 +411,6 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     if (isInitialMount.current) {
       isInitialMount.current = false;
       prevMsgCountRef.current = activeChat?.messages?.length || 0;
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       return;
     }
 
@@ -295,113 +426,165 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     }
   }, [activeChat?.messages?.length, isLoading]);
 
-  useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = 0;
-    }
-    // Stopp eventuell lydavspilling ved samtalebytte
-    stopAudioService();
-    setPlayingIndex(null);
-  }, [activeChatId]);
-
-  // Rydd opp lydavspilling ved unmount
-  useEffect(() => {
-    return () => {
-      stopAudioService();
-    };
-  }, []);
-
+  // Opprett ny samtale i aktivt arkiv
   const handleNewChat = () => {
-    stopAudioService();
-    setPlayingIndex(null);
-
-    const newId = `sv_${Date.now()}`;
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const newId = (isFeltMode ? 'felt_' : 'sv_') + Date.now();
+    const defaultMode = isFeltMode ? 'Rammeplan-kobling' : activeMode;
+    
     const newSession: ChatSession = {
       id: newId,
-      title: 'Ny veiledningssamtale',
-      subtitle: `${activeMode} • Nettopp opprettet`,
+      title: isFeltMode ? 'Ny feltsamtale' : 'Ny veiledningssamtale',
+      subtitle: `${defaultMode} • Nettopp opprettet`,
       isPinned: false,
-      activeMode: activeMode,
+      activeMode: defaultMode,
       updatedAt: new Date().toISOString(),
       messages: [
         {
           id: 'welcome-' + newId,
           role: 'assistant',
-          content: `Hei! Jeg er **Superveilederen** din for barnehagelærerutdanningen. Hva vil du utforske eller få veiledning på i dag? (${activeMode}-modus er aktiv)`,
+          content: isFeltMode
+            ? 'Hei! 👋 Jeg er **Feltveilederen**. Hva slags situasjon, observasjon eller aktivitet i barnehagen vil du reflektere over eller planlegge nå?'
+            : `Hei! Jeg er **Superveilederen** din for barnehagelærerutdanningen. Hva vil du utforske eller få veiledning på i dag? (${defaultMode}-modus er aktiv)`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          mode: activeMode,
-          agent: activeMode.toUpperCase()
+          mode: defaultMode,
+          agent: isFeltMode ? 'FELT' : defaultMode.toUpperCase()
         }
       ]
     };
-    setChats(prev => [newSession, ...prev]);
-    setActiveChatId(newId);
-    saveChatToFirestore(newSession);
+
+    if (isFeltMode) {
+      setFeltChats(prev => [newSession, ...prev]);
+      setActiveFeltChatId(newId);
+    } else {
+      setChats(prev => [newSession, ...prev]);
+      setActiveChatId(newId);
+    }
+
+    saveChatToFirestore(newSession, isFeltMode);
   };
 
   const handleSetMode = (mode: string) => {
-    setChats(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        const updated = {
-          ...c,
-          activeMode: mode,
-          subtitle: `${mode} • Sist endret nå`,
-          updatedAt: new Date().toISOString()
-        };
-        saveChatToFirestore(updated);
-        return updated;
-      }
-      return c;
-    }));
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const updateFn = (list: ChatSession[], currentId: string) => 
+      list.map(c => {
+        if (c.id === currentId) {
+          const updated = {
+            ...c,
+            activeMode: mode,
+            subtitle: `${mode} • Sist endret nå`,
+            updatedAt: new Date().toISOString()
+          };
+          saveChatToFirestore(updated, isFeltMode);
+          return updated;
+        }
+        return c;
+      });
+
+    if (isFeltMode) {
+      setFeltChats(prev => updateFn(prev, activeFeltChatId));
+    } else {
+      setChats(prev => updateFn(prev, activeChatId));
+    }
   };
 
+  // Submit-funksjon med fil- og teksthåndtering
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await handleSendMessage();
+  };
+
+  // Send melding eller dokument i samtalen
   const handleSendMessage = async (textToSend?: string, isRetry: boolean = false) => {
-    const userText = (textToSend || input).trim();
-    if (!userText || isLoading || !activeChat) return;
+    const rawInput = (textToSend || input).trim();
+    if ((!rawInput && !attachedFile) || isLoading || !activeChat) return;
+
+    let fileContent: string | null = null;
+    let fileName: string | null = null;
+
+    // Hvis attachedFile inneholder en fil, skal filens innhold leses:
+    if (attachedFile && !textToSend) {
+      fileName = attachedFile.name;
+      try {
+        const ext = attachedFile.name.split('.').pop()?.toLowerCase();
+        if (ext === 'pdf') {
+          fileContent = await extractTextFromPdf(attachedFile);
+        } else if (ext === 'docx') {
+          fileContent = await extractTextFromDocx(attachedFile);
+        } else {
+          fileContent = await attachedFile.text();
+        }
+      } catch (err: any) {
+        console.warn('Kunne ikke hente ut tekst fra filen:', err);
+        fileContent = `[Filvedlegg: ${attachedFile.name} (kunne ikke hente all råtekst automatisk: ${err?.message || 'Ukjent feil'})]`;
+      }
+      setAttachedFile(null);
+      const fileInput = document.getElementById('document-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    }
 
     if (!textToSend) setInput('');
 
+    // Melding som lagres og vises i brukerboblen
+    const displayUserText = fileName
+      ? (rawInput 
+          ? `📎 [Vedlagt fil: ${fileName}]\n\n${rawInput}`
+          : `📎 [Vedlagt fil: ${fileName}]\n\nVennligst gi meg faglig tilbakemelding på dette dokumentet med forankring i Rammeplanen for barnehagen, didaktisk refleksjon og faglitteratur.`)
+      : rawInput;
+
+    // Fullt payload-innhold med documentContext sendt til API-et / modellene
+    const promptWithDocumentContext = fileContent
+      ? `${rawInput ? rawInput + '\n\n' : ''}--- VEDLAGT DOKUMENT (${fileName}) ---\n${fileContent.slice(0, 45000)}\n--- SLUTT PÅ DOKUMENT ---`
+      : displayUserText;
+
+    const isFeltMode = activeAssistant === 'feltveileder';
     let updatedSession: ChatSession | null = null;
 
     if (!isRetry) {
       const userMsg: ChatMessage = {
         id: 'usr-' + Date.now(),
         role: 'user',
-        content: userText,
+        content: displayUserText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         mode: activeMode
       };
 
       const isFirstUserMessage = activeChat.messages.filter(m => m.role === 'user').length === 0;
       const newTitle = isFirstUserMessage 
-        ? (userText.length > 32 ? userText.substring(0, 32) + '...' : userText) 
+        ? (rawInput ? (rawInput.length > 32 ? rawInput.substring(0, 32) + '...' : rawInput) : (fileName ? `Dokument: ${fileName}` : 'Ny samtale'))
         : activeChat.title;
 
-      setChats(prev => prev.map(c => {
-        if (c.id === activeChatId) {
-          updatedSession = {
-            ...c,
-            title: newTitle,
-            subtitle: `${activeMode} • Sist endret nå`,
-            updatedAt: new Date().toISOString(),
-            messages: [...c.messages, userMsg]
-          };
-          return updatedSession;
-        }
-        return c;
-      }));
+      const updateList = (prevList: ChatSession[], currentId: string) => 
+        prevList.map(c => {
+          if (c.id === currentId) {
+            updatedSession = {
+              ...c,
+              title: newTitle,
+              subtitle: `${activeMode} • Sist endret nå`,
+              updatedAt: new Date().toISOString(),
+              messages: [...c.messages, userMsg]
+            };
+            return updatedSession;
+          }
+          return c;
+        });
+
+      if (isFeltMode) {
+        setFeltChats(prev => updateList(prev, activeFeltChatId));
+      } else {
+        setChats(prev => updateList(prev, activeChatId));
+      }
     } else {
       updatedSession = activeChat;
     }
 
     if (updatedSession) {
-      saveChatToFirestore(updatedSession);
+      saveChatToFirestore(updatedSession, isFeltMode);
     }
 
     setIsLoading(true);
 
     try {
-      // Filtrer ut feilmeldinger og tomme meldinger fra historikken som sendes til Gemini
       const cleanHistory = activeChat.messages
         .filter(m => m.agent !== 'FEIL' && !String(m.content).startsWith('Feil:') && !String(m.content).includes('Kapasitetsgrensen'))
         .map(m => ({
@@ -410,68 +593,82 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         }));
 
       let aiResponseText = '';
-      let agentTag = 'AUTO';
+      let agentTag = isFeltMode ? 'FELT' : 'AUTO';
 
-      if (activeMode === 'Sokratisk') {
-        agentTag = 'SOKRATISK';
-        aiResponseText = await askSocraticAgent(
-          [
-            ...cleanHistory,
-            { role: 'user', content: userText }
-          ],
-          didacticProfile || { frameworkFocus: 'Sokratisk refleksjonsveiledning for barnehagelærer' }
-        );
-      } else if (activeMode === 'Rammeplan') {
-        agentTag = 'RAG';
-        aiResponseText = await askRagAgent(
-          userText,
-          cleanHistory
-        );
-      } else if (activeMode === 'APA') {
-        agentTag = 'APA';
-        aiResponseText = await askApaAgent(userText);
-      } else if (activeMode === 'Språkvask') {
-        agentTag = 'SPRAK';
-        aiResponseText = await askLanguageAgent(userText);
-      } else if (activeMode === 'Metode') {
-        agentTag = 'METODE';
-        aiResponseText = await askMethodAgent(
-          userText,
-          cleanHistory
-        );
-      } else if (activeMode === 'Lytte') {
-        agentTag = 'LYTTE';
-        aiResponseText = await askLyttebot([
-          ...cleanHistory,
-          { role: 'user', content: userText }
-        ]);
+      if (isFeltMode) {
+        // Feltveilederen: Praksisnær, Rammeplan, didaktikk og situasjoner
+        const chatHistoryForGemini = cleanHistory.slice(-8).map(m => ({
+          role: m.role === 'model' ? 'model' : 'user',
+          parts: [{ text: m.content }]
+        }));
+        chatHistoryForGemini.push({
+          role: 'user',
+          parts: [{ text: `[Modus: ${activeMode}] ${promptWithDocumentContext}` }]
+        });
+
+        const rawResponse = await callGoogleAIProxy({
+          model: 'gemini-2.5-flash',
+          contents: chatHistoryForGemini,
+          config: {
+            systemInstruction: FIELD_SYSTEM_INSTRUCTION,
+            temperature: 0.7,
+          }
+        });
+
+        aiResponseText = typeof rawResponse === 'string' 
+          ? rawResponse 
+          : (rawResponse && typeof rawResponse === 'object' && 'text' in rawResponse ? String(rawResponse.text) : '');
       } else {
-        // AUTO Modus: Ruter intelligent og lokalt med superAgentRouter (0 ekstra API-nettverkskall!)
-        const routeDecision = await superAgentRouter(userText);
-        agentTag = routeDecision;
-
-        if (agentTag === 'SOKRATISK') {
+        // Superveilederen: Akademisk skriving, Sokratisk, APA, Metode, RAG
+        if (activeMode === 'Sokratisk') {
+          agentTag = 'SOKRATISK';
           aiResponseText = await askSocraticAgent(
-            [...cleanHistory, { role: 'user', content: userText }],
-            didacticProfile || {}
+            [...cleanHistory, { role: 'user', content: promptWithDocumentContext }],
+            didacticProfile || { frameworkFocus: 'Sokratisk refleksjonsveiledning for barnehagelærer' }
           );
-        } else if (agentTag === 'RAG') {
-          aiResponseText = await askRagAgent(userText, cleanHistory);
-        } else if (agentTag === 'APA') {
-          aiResponseText = await askApaAgent(userText);
-        } else if (agentTag === 'SPRAK') {
-          aiResponseText = await askLanguageAgent(userText);
-        } else if (agentTag === 'METODE') {
-          aiResponseText = await askMethodAgent(userText, cleanHistory);
-        } else if (agentTag === 'LYTTE') {
-          aiResponseText = await askLyttebot([...cleanHistory, { role: 'user', content: userText }]);
+        } else if (activeMode === 'Rammeplan') {
+          agentTag = 'RAG';
+          aiResponseText = await askRagAgent(promptWithDocumentContext, cleanHistory);
+        } else if (activeMode === 'APA') {
+          agentTag = 'APA';
+          aiResponseText = await askApaAgent(promptWithDocumentContext);
+        } else if (activeMode === 'Språkvask') {
+          agentTag = 'SPRAK';
+          aiResponseText = await askLanguageAgent(promptWithDocumentContext);
+        } else if (activeMode === 'Metode') {
+          agentTag = 'METODE';
+          aiResponseText = await askMethodAgent(promptWithDocumentContext, cleanHistory);
+        } else if (activeMode === 'Lytte') {
+          agentTag = 'LYTTE';
+          aiResponseText = await askLyttebot([...cleanHistory, { role: 'user', content: promptWithDocumentContext }]);
         } else {
-          aiResponseText = await generateAcademicResponse(
-            userText,
-            cleanHistory,
-            'balanced',
-            didacticProfile || { frameworkFocus: 'Rammeplan for barnehagen og barnehageloven.' }
-          );
+          // AUTO Modus
+          const routeDecision = await superAgentRouter(rawInput || promptWithDocumentContext.slice(0, 300));
+          agentTag = routeDecision;
+
+          if (agentTag === 'SOKRATISK') {
+            aiResponseText = await askSocraticAgent(
+              [...cleanHistory, { role: 'user', content: promptWithDocumentContext }],
+              didacticProfile || {}
+            );
+          } else if (agentTag === 'RAG') {
+            aiResponseText = await askRagAgent(promptWithDocumentContext, cleanHistory);
+          } else if (agentTag === 'APA') {
+            aiResponseText = await askApaAgent(promptWithDocumentContext);
+          } else if (agentTag === 'SPRAK') {
+            aiResponseText = await askLanguageAgent(promptWithDocumentContext);
+          } else if (agentTag === 'METODE') {
+            aiResponseText = await askMethodAgent(promptWithDocumentContext, cleanHistory);
+          } else if (agentTag === 'LYTTE') {
+            aiResponseText = await askLyttebot([...cleanHistory, { role: 'user', content: promptWithDocumentContext }]);
+          } else {
+            aiResponseText = await generateAcademicResponse(
+              promptWithDocumentContext,
+              cleanHistory,
+              'balanced',
+              didacticProfile || { frameworkFocus: 'Rammeplan for barnehagen og barnehageloven.' }
+            );
+          }
         }
       }
 
@@ -484,18 +681,25 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         agent: agentTag
       };
 
-      setChats(prev => prev.map(c => {
-        if (c.id === activeChatId) {
-          const finalSession = {
-            ...c,
-            updatedAt: new Date().toISOString(),
-            messages: [...c.messages, aiMsg]
-          };
-          saveChatToFirestore(finalSession);
-          return finalSession;
-        }
-        return c;
-      }));
+      const appendMessage = (list: ChatSession[], currentId: string) =>
+        list.map(c => {
+          if (c.id === currentId) {
+            const finalSession = {
+              ...c,
+              updatedAt: new Date().toISOString(),
+              messages: [...c.messages, aiMsg]
+            };
+            saveChatToFirestore(finalSession, isFeltMode);
+            return finalSession;
+          }
+          return c;
+        });
+
+      if (isFeltMode) {
+        setFeltChats(prev => appendMessage(prev, activeFeltChatId));
+      } else {
+        setChats(prev => appendMessage(prev, activeChatId));
+      }
     } catch (err: any) {
       console.error('AI chat error', err);
       const errorMsg: ChatMessage = {
@@ -506,17 +710,22 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         mode: activeMode,
         agent: 'FEIL'
       };
-      setChats(prev => prev.map(c => {
-        if (c.id === activeChatId) {
-          const withErr = {
-            ...c,
-            messages: [...c.messages, errorMsg]
-          };
-          saveChatToFirestore(withErr);
-          return withErr;
-        }
-        return c;
-      }));
+
+      const appendError = (list: ChatSession[], currentId: string) =>
+        list.map(c => {
+          if (c.id === currentId) {
+            const withErr = { ...c, messages: [...c.messages, errorMsg] };
+            saveChatToFirestore(withErr, isFeltMode);
+            return withErr;
+          }
+          return c;
+        });
+
+      if (isFeltMode) {
+        setFeltChats(prev => appendError(prev, activeFeltChatId));
+      } else {
+        setChats(prev => appendError(prev, activeChatId));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -546,139 +755,246 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     });
   };
 
+  // Lagre råd fra Feltveileder direkte i Kladdebok i felt (offline first failsafe)
+  const handleSaveToKladdebok = async (msg: ChatMessage) => {
+    try {
+      const rawPreview = msg.content.replace(/[#*`_]/g, '').trim();
+      const title = `[Veilederråd] ${rawPreview.substring(0, 45)}...`;
+      const category = msg.content.toLowerCase().includes('rammeplan') ? 'Rammeplanen' : 'Didaktisk idé';
+
+      await saveFieldNote({
+        id: `fn-${Date.now()}`,
+        title,
+        content: msg.content,
+        category: category as any,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+
+      setSavedToNotesId(msg.id);
+      setTimeout(() => setSavedToNotesId(null), 3000);
+    } catch (e) {
+      console.error('Feil ved lagring til Kladdebok:', e);
+    }
+  };
+
+  // Send råd til Prosesslogg
+  const handleSaveToProsesslogg = (msg: ChatMessage) => {
+    try {
+      const rawPreview = msg.content.replace(/[#*`_]/g, '').trim();
+      const title = rawPreview.substring(0, 50) + '...';
+      const existing = localStorage.getItem('blu_process_log');
+      const list = existing ? JSON.parse(existing) : [];
+      const newEntry = {
+        id: `pl-${Date.now()}`,
+        title: `Veiledning: ${title}`,
+        reflection: msg.content,
+        category: 'Didaktisk sparring',
+        createdAt: new Date().toISOString()
+      };
+      localStorage.setItem('blu_process_log', JSON.stringify([newEntry, ...list]));
+
+      setSavedToLogId(msg.id);
+      setTimeout(() => setSavedToLogId(null), 3000);
+    } catch (e) {
+      console.error('Feil ved lagring til Prosesslogg:', e);
+    }
+  };
+
   // Pin / Unpin
   const handlePinItem = (id: string, isPinned: boolean) => {
-    setChats(prev => prev.map(c => {
-      if (c.id === id) {
-        const updated = { ...c, isPinned };
-        saveChatToFirestore(updated);
-        return updated;
-      }
-      return c;
-    }));
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const updatePin = (list: ChatSession[]) =>
+      list.map(c => {
+        if (c.id === id) {
+          const updated = { ...c, isPinned };
+          saveChatToFirestore(updated, isFeltMode);
+          return updated;
+        }
+        return c;
+      });
+
+    if (isFeltMode) {
+      setFeltChats(prev => updatePin(prev));
+    } else {
+      setChats(prev => updatePin(prev));
+    }
   };
 
   // Rename
   const handleRenameItem = (id: string, newTitle: string) => {
-    setChats(prev => prev.map(c => {
-      if (c.id === id) {
-        const updated = { ...c, title: newTitle };
-        saveChatToFirestore(updated);
-        return updated;
-      }
-      return c;
-    }));
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const updateTitle = (list: ChatSession[]) =>
+      list.map(c => {
+        if (c.id === id) {
+          const updated = { ...c, title: newTitle };
+          saveChatToFirestore(updated, isFeltMode);
+          return updated;
+        }
+        return c;
+      });
+
+    if (isFeltMode) {
+      setFeltChats(prev => updateTitle(prev));
+    } else {
+      setChats(prev => updateTitle(prev));
+    }
   };
 
   // Flytt samtale til mappe
   const handleMoveChat = (chatId: string, folderId: string | undefined) => {
-    setChats(prev => prev.map(c => {
-      if (c.id === chatId) {
-        const updated = { ...c, folderId: folderId || undefined, updatedAt: new Date().toISOString() };
-        saveChatToFirestore(updated);
-        return updated;
-      }
-      return c;
-    }));
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const updateFolder = (list: ChatSession[]) =>
+      list.map(c => {
+        if (c.id === chatId) {
+          const updated = { ...c, folderId: folderId || undefined, updatedAt: new Date().toISOString() };
+          saveChatToFirestore(updated, isFeltMode);
+          return updated;
+        }
+        return c;
+      });
+
+    if (isFeltMode) {
+      setFeltChats(prev => updateFolder(prev));
+    } else {
+      setChats(prev => updateFolder(prev));
+    }
   };
 
   // Opprett ny mappe
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-
+    const isFeltMode = activeAssistant === 'feltveileder';
     const newFolder: FolderType = {
-      id: 'folder_' + Date.now(),
+      id: (isFeltMode ? 'ff_' : 'folder_') + Date.now(),
       name: newFolderName.trim(),
       isExpanded: true
     };
 
-    setFolders(prev => [...prev, newFolder]);
+    if (isFeltMode) {
+      setFeltFolders(prev => [...prev, newFolder]);
+    } else {
+      setFolders(prev => [...prev, newFolder]);
+    }
+
     setNewFolderName('');
     setIsCreatingFolder(false);
-
-    await saveFolderToFirebase(newFolder);
-  };
-
-  // Slett mappe
-  const handleDeleteFolder = async (folderId: string) => {
-    setFolders(prev => prev.filter(f => f.id !== folderId));
-    // Fristill samtaler fra mappen slik at de ligger i rotlisten
-    setChats(prev => prev.map(c => {
-      if (c.folderId === folderId) {
-        const updated = { ...c, folderId: undefined, updatedAt: new Date().toISOString() };
-        saveChatToFirestore(updated);
-        return updated;
-      }
-      return c;
-    }));
 
     if (user?.uid) {
       try {
         const db = getFirestore();
-        await deleteDoc(doc(db, 'folders', folderId));
+        const col = isFeltMode ? 'feltveileder_folders' : 'folders';
+        await setDoc(doc(db, col, newFolder.id), {
+          id: newFolder.id,
+          name: newFolder.name,
+          userId: user.uid,
+          isExpanded: true,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Kunne ikke lagre mappe til Firestore:', err);
+      }
+    }
+  };
+
+  // Slett mappe
+  const handleDeleteFolder = async (folderId: string) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(prev => prev.filter(f => f.id !== folderId));
+      setFeltChats(prev => prev.map(c => c.folderId === folderId ? { ...c, folderId: undefined } : c));
+    } else {
+      setFolders(prev => prev.filter(f => f.id !== folderId));
+      setChats(prev => prev.map(c => c.folderId === folderId ? { ...c, folderId: undefined } : c));
+    }
+
+    if (user?.uid) {
+      try {
+        const db = getFirestore();
+        const col = isFeltMode ? 'feltveileder_folders' : 'folders';
+        await deleteDoc(doc(db, col, folderId));
       } catch (err) {
         console.warn('Kunne ikke slette mappe fra Firestore:', err);
       }
     }
   };
 
-  // Slett samtale (umiddelbar responsiv fjerning)
+  // Slett samtale
   const handleDeleteItem = (id: string) => {
     if (!id) return;
+    const isFeltMode = activeAssistant === 'feltveileder';
 
-    // 1. Optimistisk umiddelbar fjerning fra UI
-    setChats(prev => {
-      const filtered = prev.filter(c => c.id !== id);
-      if (activeChatId === id) {
-        if (filtered.length > 0) {
-          setActiveChatId(filtered[0].id);
-        } else {
-          const freshId = `sv_${Date.now()}`;
-          const freshSession: ChatSession = {
-            id: freshId,
-            title: 'Ny samtale',
-            subtitle: `${activeMode} • Nettopp opprettet`,
-            isPinned: false,
-            activeMode: activeMode,
-            updatedAt: new Date().toISOString(),
-            messages: [
-              {
-                id: 'welcome-' + freshId,
-                role: 'assistant',
-                content: 'Hei! Hva vil du utforske eller få veiledning på i dag?',
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                mode: activeMode,
-                agent: activeMode.toUpperCase()
-              }
-            ]
-          };
-          setActiveChatId(freshId);
-          saveChatToFirestore(freshSession);
-          return [freshSession];
+    if (isFeltMode) {
+      setFeltChats(prev => {
+        const filtered = prev.filter(c => c.id !== id);
+        if (activeFeltChatId === id) {
+          if (filtered.length > 0) {
+            setActiveFeltChatId(filtered[0].id);
+          } else {
+            const freshId = `felt_${Date.now()}`;
+            const freshSession: ChatSession = {
+              id: freshId,
+              title: 'Ny feltsamtale',
+              subtitle: 'Rammeplan-kobling • Nettopp opprettet',
+              isPinned: false,
+              activeMode: 'Rammeplan-kobling',
+              updatedAt: new Date().toISOString(),
+              messages: [
+                {
+                  id: 'welcome-' + freshId,
+                  role: 'assistant',
+                  content: 'Hei! Hva vil du utforske eller få praksisveiledning på nå?',
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  mode: 'Rammeplan-kobling',
+                  agent: 'FELT'
+                }
+              ]
+            };
+            setActiveFeltChatId(freshId);
+            return [freshSession];
+          }
         }
-      }
-      return filtered;
-    });
-
-    // 2. Failsafe rens i localStorage
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter((c: any) => c.id !== id);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+        return filtered;
+      });
+    } else {
+      setChats(prev => {
+        const filtered = prev.filter(c => c.id !== id);
+        if (activeChatId === id) {
+          if (filtered.length > 0) {
+            setActiveChatId(filtered[0].id);
+          } else {
+            const freshId = `sv_${Date.now()}`;
+            const freshSession: ChatSession = {
+              id: freshId,
+              title: 'Ny samtale',
+              subtitle: `${activeMode} • Nettopp opprettet`,
+              isPinned: false,
+              activeMode: activeMode,
+              updatedAt: new Date().toISOString(),
+              messages: [
+                {
+                  id: 'welcome-' + freshId,
+                  role: 'assistant',
+                  content: 'Hei! Hva vil du utforske eller få veiledning på i dag?',
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  mode: activeMode,
+                  agent: activeMode.toUpperCase()
+                }
+              ]
+            };
+            setActiveChatId(freshId);
+            return [freshSession];
+          }
         }
-      }
-    } catch (e) {
-      console.warn('Feil ved sletting i localStorage:', e);
+        return filtered;
+      });
     }
 
-    // 3. Slett fra Firestore i bakgrunnen
     if (user?.uid) {
       try {
         const db = getFirestore();
-        deleteDoc(doc(db, 'users', user.uid, 'superveileder_chats', id)).catch(err => {
+        const col = isFeltMode ? 'feltveileder_chats' : 'superveileder_chats';
+        deleteDoc(doc(db, 'users', user.uid, col, id)).catch(err => {
           console.warn('Kunne ikke slette chat fra Firestore:', err);
         });
       } catch (err) {
@@ -689,65 +1005,47 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
 
   // Slett en enkeltmelding fra aktiv samtale
   const handleDeleteMessage = (msgId: string) => {
-    setChats(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        const updatedMessages = c.messages.filter(m => m.id !== msgId);
-        const updatedSession = {
-          ...c,
-          messages: updatedMessages.length > 0 ? updatedMessages : [
-            {
-              id: 'welcome-' + c.id,
-              role: 'assistant' as const,
-              content: 'Hei! Hva vil du utforske eller få veiledning på i dag?',
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              mode: c.activeMode || 'Auto',
-              agent: (c.activeMode || 'Auto').toUpperCase()
-            }
-          ],
-          updatedAt: new Date().toISOString()
-        };
-        saveChatToFirestore(updatedSession);
-        return updatedSession;
-      }
-      return c;
-    }));
-  };
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const removeMsg = (list: ChatSession[], currentId: string) =>
+      list.map(c => {
+        if (c.id === currentId) {
+          const updatedMessages = c.messages.filter(m => m.id !== msgId);
+          const updatedSession = {
+            ...c,
+            messages: updatedMessages.length > 0 ? updatedMessages : [
+              {
+                id: 'welcome-' + c.id,
+                role: 'assistant' as const,
+                content: isFeltMode ? 'Hei! Hva lurer du på i praksishverdagen din nå?' : 'Hei! Hva vil du utforske eller få veiledning på i dag?',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                mode: c.activeMode || 'Auto',
+                agent: isFeltMode ? 'FELT' : (c.activeMode || 'Auto').toUpperCase()
+              }
+            ],
+            updatedAt: new Date().toISOString()
+          };
+          saveChatToFirestore(updatedSession, isFeltMode);
+          return updatedSession;
+        }
+        return c;
+      });
 
-  // Tøm alle feilmeldinger fra aktiv samtale
-  const handleClearErrorsInActiveChat = () => {
-    setChats(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        const updatedMessages = c.messages.filter(m => {
-          if (m.role === 'assistant') {
-            const text = m.content || '';
-            const isErr = text.startsWith('Feil:') || text.includes('ikke tilgjengelig') || text.includes('Klarte ikke') || text.includes('Serverfeil') || m.agent === 'FEIL';
-            return !isErr;
-          }
-          return true;
-        });
-        const updatedSession = {
-          ...c,
-          messages: updatedMessages.length > 0 ? updatedMessages : [
-            {
-              id: 'welcome-' + c.id,
-              role: 'assistant' as const,
-              content: 'Feilmeldinger er fjernet. Hva vil du utforske videre?',
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              mode: c.activeMode || 'Auto',
-              agent: (c.activeMode || 'Auto').toUpperCase()
-            }
-          ],
-          updatedAt: new Date().toISOString()
-        };
-        saveChatToFirestore(updatedSession);
-        return updatedSession;
-      }
-      return c;
-    }));
+    if (isFeltMode) {
+      setFeltChats(prev => removeMsg(prev, activeFeltChatId));
+    } else {
+      setChats(prev => removeMsg(prev, activeChatId));
+    }
   };
 
   const getAgentStyling = (agent?: string) => {
     switch (agent) {
+      case 'FELT':
+      case 'PRAKSIS':
+        return {
+          label: 'Feltveileder',
+          color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+          icon: <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+        };
       case 'FEIL':
         return {
           label: 'Systemvarsel',
@@ -782,8 +1080,8 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
       case 'METODE':
         return {
           label: 'Metode & Forskning',
-          color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-          icon: <Search className="w-3.5 h-3.5 text-emerald-600" />
+          color: 'bg-teal-50 text-teal-700 border-teal-200',
+          icon: <Search className="w-3.5 h-3.5 text-teal-600" />
         };
       case 'LYTTE':
         return {
@@ -800,60 +1098,117 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     }
   };
 
-  const modes = [
+  // Moduser for Superveilederen
+  const superModes = [
     { id: 'Auto', icon: <Sparkles className="w-4 h-4" />, desc: 'Intelligent didaktisk ruting' },
     { id: 'Sokratisk', icon: <Brain className="w-4 h-4 text-purple-500" />, desc: 'Stiller reflekterende spørsmål uten fasit' },
     { id: 'Rammeplan', icon: <BookOpen className="w-4 h-4 text-indigo-500" />, desc: 'Kobling til fagområder og lovverk' },
     { id: 'APA', icon: <Quote className="w-4 h-4 text-blue-500" />, desc: 'Korrekt kildereferanse og sitat etter APA 7' },
-    { id: 'Metode', icon: <Search className="w-4 h-4 text-emerald-500" />, desc: 'Forskningsdesign, metode og etikk' },
+    { id: 'Metode', icon: <Search className="w-4 h-4 text-teal-500" />, desc: 'Forskningsdesign, metode og etikk' },
     { id: 'Lytte', icon: <HeartHandshake className="w-4 h-4 text-rose-500" />, desc: 'Debrifing, stressmestring og omsorg etter praksis' }
   ];
 
+  // Moduser for Feltveilederen (Praksis & Felt)
+  const feltModes = [
+    { id: 'Rammeplan-kobling', icon: <BookOpen className="w-4 h-4 text-emerald-500" />, desc: 'Koble situasjoner til Rammeplanens fagområder og formål' },
+    { id: 'Didaktisk idé', icon: <Sparkles className="w-4 h-4 text-indigo-500" />, desc: 'Konkrete ideer for ute- og inneaktiviteter' },
+    { id: 'Barns medvirkning', icon: <User className="w-4 h-4 text-purple-500" />, desc: 'Berit Bae og William Corsaro i hverdagsrutiner' },
+    { id: 'Konflikt & lek', icon: <HeartHandshake className="w-4 h-4 text-rose-500" />, desc: 'Anerkjennende væremåte og lekende megling' },
+    { id: 'Samling', icon: <Bot className="w-4 h-4 text-amber-500" />, desc: 'Engasjerende samlingsstunder om sanser og natur' },
+    { id: 'Risiko & kropp', icon: <Search className="w-4 h-4 text-teal-500" />, desc: 'Kroppslig væren (Løkken) og risikofylt lek' }
+  ];
+
+  const currentModes = isFelt ? feltModes : superModes;
+
   return (
     <WorkspaceLayout
-      title="Superveilederen"
-      subtitle="Sokratisk sparring, Rammeplan, APA & fagskriving"
-      icon={<Sparkles className="w-6 h-6 text-indigo-600" />}
-      actionButtonLabel="Ny samtale"
-      historySectionTitle="Samtaler"
+      title={isFelt ? "Feltveilederen" : "Superveilederen"}
+      subtitle={isFelt ? "Praksis, Rammeplan & didaktiske situasjoner" : "Sokratisk sparring, Rammeplan, APA & fagskriving"}
+      icon={isFelt ? <BookOpen className="w-6 h-6 text-emerald-600" /> : <Sparkles className="w-6 h-6 text-indigo-600" />}
+      actionButtonLabel={isFelt ? "Ny feltsamtale" : "Ny veiledningssamtale"}
+      historySectionTitle={isFelt ? "Felt-samtaler" : "Samtaler"}
       onActionClick={handleNewChat}
-      folders={folders}
+      folders={currentFolders}
       onAddFolder={() => setIsCreatingFolder(true)}
       onMoveToFolder={handleMoveChat}
       onDeleteFolder={handleDeleteFolder}
-      historyItems={chats}
-      activeItemId={activeChatId}
-      onItemClick={setActiveChatId}
+      historyItems={currentChats}
+      activeItemId={currentActiveId}
+      onItemClick={(id) => {
+        if (isFelt) setActiveFeltChatId(id);
+        else setActiveChatId(id);
+      }}
       onPinItem={handlePinItem}
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
     >
-      {({ isCollapsed }) => (
+      {({ isCollapsed, openMobileArchive }) => (
         <div className="flex flex-col h-full bg-slate-50/50">
           
-          {/* Top Bar Switcher: Direktekoblet med BLU-hjelperen */}
-          <div className="bg-slate-900 text-white border-b border-slate-800 px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+          {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
+          <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-300">Skriving</span>
-              <span className="text-slate-600 text-xs">•</span>
-              <span className="text-xs text-indigo-400 font-bold">Superveilederen</span>
+              {/* Mobilknapp for å åpne samtale-arkivet for denne veilederen */}
+              <button
+                type="button"
+                onClick={openMobileArchive}
+                className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                title="Vis samtale-arkiv på mobil"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                <span>Arkiv ({currentChats.length})</span>
+              </button>
+
+              <span className="text-xs font-semibold text-slate-300 hidden sm:inline">Skriving</span>
+              <span className="text-slate-600 text-xs hidden sm:inline">•</span>
+              <span className={cn(
+                "text-xs font-bold hidden sm:inline",
+                isFelt ? "text-emerald-400" : "text-indigo-400"
+              )}>
+                {isFelt ? 'Feltveilederen' : 'Superveilederen'}
+              </span>
             </div>
 
-            {/* Hurtig-bytter mellom Superveilederen og BLU-hjelperen */}
-            <div className="flex items-center p-0.5 bg-slate-800 rounded-xl border border-slate-700 shadow-2xs">
-              <div className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-white" />
-                <span>Superveilederen</span>
-              </div>
+            {/* Hurtig-bytter mellom Superveilederen, Feltveilederen og BLU-hjelperen (synlig på mobil og desktop) */}
+            <div className="flex items-center p-0.5 bg-slate-800 rounded-xl border border-slate-700 shadow-2xs overflow-x-auto max-w-full">
+              {/* Pille 1: Superveilederen */}
               <button
-                onClick={onSwitchToBlu}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700/70 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Bytt til BLU-hjelperen (Fagforfatter med oppgavelasting og Rammeplan-veiledning)"
+                type="button"
+                onClick={() => {
+                  setActiveAssistant('superveileder');
+                  if (onAssistantChange) onAssistantChange('superveileder');
+                }}
+                className={cn(
+                  "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer",
+                  !isFelt
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-300 hover:text-white hover:bg-slate-700/70"
+                )}
+                title="Bytt til Superveilederen (Akademisk skriving, Sokratisk sparring, APA og metode)"
               >
-                <GraduationCap className="w-3.5 h-3.5 text-blue-400" />
-                <span>BLU-hjelperen</span>
-                <span className="text-[10px] bg-blue-900/60 text-blue-300 px-1.5 py-0.2 rounded-full border border-blue-700/60 hidden sm:inline">
-                  Dokumentanalyse
+                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Superveilederen</span>
+              </button>
+
+              {/* Pille 2: Feltveilederen (Dedikert pille tilgjengelig i mobilvisningen) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveAssistant('feltveileder');
+                  if (onAssistantChange) onAssistantChange('feltveileder');
+                }}
+                className={cn(
+                  "px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer",
+                  isFelt
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-300 hover:text-white hover:bg-slate-700/70"
+                )}
+                title="Bytt til Feltveilederen (Praksis, Rammeplan, didaktikk og egne observasjoner)"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Feltveilederen</span>
+                <span className="text-[10px] bg-emerald-950/80 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-700/60 hidden sm:inline">
+                  Praksis
                 </span>
               </button>
             </div>
@@ -864,13 +1219,13 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
             isCollapsed ? 'pl-16 sm:pl-36' : ''
           }`}>
             <div className="flex flex-wrap items-center gap-1.5">
-              {modes.map(m => (
+              {currentModes.map(m => (
                 <button
                   key={m.id}
                   onClick={() => handleSetMode(m.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     activeMode === m.id 
-                      ? 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900' 
+                      ? (isFelt ? 'bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-700' : 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900')
                       : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
                   }`}
                   title={m.desc}
@@ -901,11 +1256,16 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               <button
                 type="button"
                 onClick={handleNewChat}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Start en helt ny veiledningssamtale"
+                className={cn(
+                  "px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs",
+                  isFelt
+                    ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800"
+                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                )}
+                title={isFelt ? "Start en helt ny praksis-samtale" : "Start en helt ny veiledningssamtale"}
               >
-                <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">Ny samtale</span>
+                <Plus className={cn("w-3.5 h-3.5", isFelt ? "text-emerald-700" : "text-indigo-600")} />
+                <span className="hidden sm:inline">{isFelt ? "Ny feltsamtale" : "Ny samtale"}</span>
               </button>
 
               {/* Slett denne samtalen med hurtigbekreftelse */}
@@ -942,8 +1302,15 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
             </div>
           </div>
 
-          {/* Sokratisk Modus Banner */}
-          {activeMode === 'Sokratisk' && (
+          {/* Banner for Feltveilederen eller Sokratisk modus */}
+          {isFelt ? (
+            <div className="bg-emerald-50/90 border-b border-emerald-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-emerald-950 font-medium animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span><strong>Feltveileder aktiv:</strong> Forankret i Rammeplan for barnehagen og sentral didaktisk teori (Bae, Corsaro, Vygotskij, Løkken). Gir deg konkrete grep for praksishverdagen.</span>
+              </div>
+            </div>
+          ) : activeMode === 'Sokratisk' && (
             <div className="bg-purple-50/90 border-b border-purple-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-purple-900 font-medium animate-in fade-in">
               <div className="flex items-center gap-2">
                 <Brain className="w-4 h-4 text-purple-600 shrink-0" />
@@ -951,71 +1318,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               </div>
               <button 
                 onClick={() => handleSetMode('Auto')}
-                className="text-purple-600 hover:text-purple-800 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
-              >
-                Nullstill til Auto
-              </button>
-            </div>
-          )}
-
-          {/* Rammeplan Modus Banner */}
-          {activeMode === 'Rammeplan' && (
-            <div className="bg-indigo-50/90 border-b border-indigo-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-indigo-900 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span><strong>Rammeplan & Lovverk aktiv:</strong> Svarene forankres direkte i Rammeplanen for barnehagen (2017) og barnehageloven.</span>
-              </div>
-              <button 
-                onClick={() => handleSetMode('Auto')}
-                className="text-indigo-600 hover:text-indigo-800 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
-              >
-                Nullstill til Auto
-              </button>
-            </div>
-          )}
-
-          {/* APA Modus Banner */}
-          {activeMode === 'APA' && (
-            <div className="bg-blue-50/90 border-b border-blue-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-blue-900 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Quote className="w-4 h-4 text-blue-600 shrink-0" />
-                <span><strong>Auto-APA 7 aktiv:</strong> Send inn en kilde eller tekst for veiledning om referanseliste og kildehenvisning i løpende tekst.</span>
-              </div>
-              <button 
-                onClick={() => handleSetMode('Auto')}
-                className="text-blue-600 hover:text-blue-800 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
-              >
-                Nullstill til Auto
-              </button>
-            </div>
-          )}
-
-          {/* Metode Modus Banner */}
-          {activeMode === 'Metode' && (
-            <div className="bg-emerald-50/90 border-b border-emerald-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-emerald-950 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span><strong>Metode & Forskning aktiv:</strong> Få veiledning i problemstilling, observasjon, intervju, reliabilitet/validitet og NESH/SIKT-etikk.</span>
-              </div>
-              <button 
-                onClick={() => handleSetMode('Auto')}
-                className="text-emerald-700 hover:text-emerald-900 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
-              >
-                Nullstill til Auto
-              </button>
-            </div>
-          )}
-
-          {/* Lytte Modus Banner */}
-          {activeMode === 'Lytte' && (
-            <div className="bg-rose-50/90 border-b border-rose-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-rose-950 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
-                <span><strong>Lyttebot (Debrifing & Omsorg) aktiv:</strong> Et trygt rom for å lufte frustrasjon, sortere tanker eller hente pusten etter en krevende praksisdag.</span>
-              </div>
-              <button 
-                onClick={() => handleSetMode('Auto')}
-                className="text-rose-700 hover:text-rose-900 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
+                className="text-[11px] underline font-bold text-purple-700 hover:text-purple-900 ml-4 shrink-0 cursor-pointer"
               >
                 Nullstill til Auto
               </button>
@@ -1032,143 +1335,62 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
               {/* AI Warning */}
               <AIWarning dismissible={true} />
 
-              {/* Varsel og hurtig-opprydding dersom samtalen inneholder tidligere feilmeldinger */}
-              {activeChat?.messages?.some(m => 
-                m.role === 'assistant' && (
-                  m.agent === 'FEIL' ||
-                  m.content?.startsWith('Feil:') || 
-                  m.content?.includes('ikke tilgjengelig') || 
-                  m.content?.includes('Klarte ikke') ||
-                  m.content?.includes('Serverfeil')
-                )
-              ) && (
-                <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs animate-in fade-in">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Denne samtalen inneholder feilmeldinger fra et tidligere forsøk.</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleClearErrorsInActiveChat}
-                      className="px-2.5 py-1 bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-bold rounded-lg transition-colors cursor-pointer"
-                    >
-                      Tøm feilmeldinger
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteItem(activeChat.id)}
-                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold rounded-lg transition-colors cursor-pointer"
-                    >
-                      Slett hele samtalen
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Velkomst og Hurtigforslag */}
+              {/* Velkomst og Hurtigforslag dersom samtalen er fersk */}
               {(!activeChat?.messages || activeChat.messages.filter(m => m.role === 'user').length === 0) && (
                 <div className="space-y-4 animate-in fade-in">
                   <div className="flex flex-col items-start max-w-2xl mx-auto w-full">
                     <span className="text-[10px] font-bold text-slate-400 mb-1 ml-1 flex items-center gap-1">
-                      <Bot className="w-3.5 h-3.5 text-indigo-500" /> Superveilederen
+                      {isFelt ? <BookOpen className="w-3.5 h-3.5 text-emerald-600" /> : <Bot className="w-3.5 h-3.5 text-indigo-500" />} 
+                      {isFelt ? 'Feltveilederen' : 'Superveilederen'}
                     </span>
                     <div className="bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl rounded-bl-sm shadow-xs text-sm leading-relaxed">
-                      Hei! Jeg er <strong>Superveilederen</strong> for barnehagelærerutdanningen. Still meg et spørsmål, eller klikk på et av forslagene nedenfor for å komme i gang. Du kan også velge en spesifikk modus over.
+                      {isFelt ? (
+                        <>
+                          Hei! 👋 Jeg er <strong>Feltveilederen</strong> for barnehagelærerstudenter i praksis. Står du i en spesiell situasjon i barnehagen nå, eller planlegger du en aktivitet? Klikk på et av forslagene under eller skriv inn en situasjon!
+                        </>
+                      ) : (
+                        <>
+                          Hei! Jeg er <strong>Superveilederen</strong> for barnehagelærerutdanningen. Still meg et spørsmål, eller klikk på et av forslagene nedenfor for å komme i gang. Du kan også velge en spesifikk modus over.
+                        </>
+                      )}
                     </div>
                   </div>
 
                   {/* Modus-spesifikke hurtigspørsmål */}
                   <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-2.5 max-w-2xl mx-auto w-full">
                     <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Anbefalte veiledningsspørsmål ({activeMode}):</span>
+                      <Sparkles className={cn("w-3.5 h-3.5", isFelt ? "text-emerald-600" : "text-indigo-600")} />
+                      <span>{isFelt ? 'Anbefalte feltspørsmål:' : `Anbefalte veiledningsspørsmål (${activeMode}):`}</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {activeMode === 'Sokratisk' && [
+                      {(isFelt ? [
+                        "Hvordan koble en observasjon av frilek i sandkassa til Rammeplanens fagområder?",
+                        "Gi meg 3 konkrete didaktiske ideer for en gruppe 3-4-åringer i ulendt skogsterreng.",
+                        "Hva sier Berit Bae og William Corsaro om barns medvirkning i påkledningssituasjoner?",
+                        "Hvordan løse en leke-konflikt mellom to 4-åringer med anerkjennende kommunikasjon?",
+                        "Trenger et engasjerende opplegg for en 15-minutters samlingsstund om sanser.",
+                        "Hvordan begrunne barns risikofylte lek pedagogisk overfor engstelige kolleger?"
+                      ] : activeMode === 'Sokratisk' ? [
                         "Hvordan kan jeg ivareta barns medvirkning i en travel garderobesituasjon?",
                         "Et barn trekker seg unna i frileken. Hva bør jeg observere før jeg griper inn?",
                         "Hvordan skiller jeg mellom danning og oppdragelse i en konfliktsituasjon?",
                         "Hva betyr pedagogisk skjønn i praksis når Rammeplanen er åpen for tolkning?"
-                      ].map((prompt, pIdx) => (
+                      ] : [
+                        "Hvordan formulere en skarp problemstilling om barns medvirkning?",
+                        "Hvilke etiske vurderinger må jeg gjøre ved observasjon i barnehagen?",
+                        "Hvordan sitere Rammeplanen for barnehagen (2017) korrekt etter APA 7?"
+                      ]).map((prompt, pIdx) => (
                         <button
-                          key={pIdx}
+                          key={`prompt-${pIdx}`}
                           onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-
-                      {activeMode === 'Rammeplan' && [
-                        "Hvordan forankrer jeg barns medvirkning i Rammeplanen for barnehagen?",
-                        "Tolkning av fagområdet Antall, rom og form i min praksisfortelling",
-                        "Hva kreves av det pedagogiske skjønnet ifølge Rammeplanen?",
-                        "Foreldresamarbeid i overgangsfaser – pedagogiske og juridiske føringer"
-                      ].map((prompt, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-
-                      {activeMode === 'APA' && [
-                        "Hvordan refererer jeg til Rammeplanen (2017) i løpende tekst og kildeliste?",
-                        "Hvordan siterer jeg Barnehageloven etter APA 7?",
-                        "Hvordan henvise til en lærebok med flere forfattere eller et antologikapittel?"
-                      ].map((prompt, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-
-                      {activeMode === 'Metode' && [
-                        "Hjelp meg å formulere en presis og forskbar problemstilling for oppgaven",
-                        "Hva er forskjellene mellom deltakende observasjon og feltnotater?",
-                        "Hvilke forskningsetiske hensyn (NESH og samtykke) må jeg ta med barn?",
-                        "Hvordan sikre reliabilitet og validitet i et kvalitativt barnehageprosjekt?"
-                      ].map((prompt, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-
-                      {activeMode === 'Lytte' && [
-                        "Jeg hadde en veldig tøff dag i barnehagen i dag og føler meg mislykket...",
-                        "Hvordan håndterer jeg uenighet eller dårlig kjemi med praksislærer?",
-                        "Jeg er helt overveldet over oppgavekravene og praksishverdagen samtidig",
-                        "Hvordan nullstiller jeg hodet etter en vanskelig konfliktsituasjon på avdelingen?"
-                      ].map((prompt, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-
-                      {activeMode === 'Auto' && [
-                        "Hvordan forankre barns medvirkning i Rammeplanen for barnehagen?",
-                        "Hjelp meg å drøfte forskjellen på danning og oppdragelse i barnehagen",
-                        "Hvordan refererer jeg til Rammeplanen etter APA 7?",
-                        "Hva bør jeg tenke på når jeg observerer barns lek i et metodekapittel?"
-                      ].map((prompt, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => handleSendMessage(prompt)}
-                          className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
+                          className={cn(
+                            "px-3 py-1.5 border rounded-xl text-xs transition-all text-left font-medium cursor-pointer",
+                            isFelt
+                              ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-950"
+                              : activeMode === 'Sokratisk'
+                                ? "bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-950"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800"
+                          )}
                         >
                           {prompt}
                         </button>
@@ -1190,7 +1412,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                     msg.content.includes('Serverfeil')
                   ))
                 );
-                const agentStyle = !isUser ? getAgentStyling(msg.agent || msg.mode) : null;
+                const agentStyle = !isUser ? getAgentStyling(msg.agent || (isFelt ? 'FELT' : msg.mode)) : null;
                 const isPlaying = playingIndex === idx;
 
                 return (
@@ -1199,8 +1421,11 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                     className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
                   >
                     {!isUser && (
-                      <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 mt-1 border border-indigo-200/80 shadow-2xs">
-                        <Bot className="w-4 h-4" />
+                      <div className={cn(
+                        "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-1 border shadow-2xs",
+                        isFelt ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-600 border-indigo-200/80"
+                      )}>
+                        {isFelt ? <BookOpen className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                       </div>
                     )}
 
@@ -1240,7 +1465,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                                 }
                               }}
                               className="px-2.5 py-1 bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                              title="Prøv på nytt uten å duplisere meldingen"
+                              title="Prøv på nytt"
                             >
                               <RotateCcw className="w-3 h-3 text-rose-600" />
                               <span>Prøv igjen</span>
@@ -1249,10 +1474,10 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                               type="button"
                               onClick={() => handleDeleteMessage(msg.id)}
                               className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                              title="Fjern denne feilmeldingen fra samtalen"
+                              title="Fjern meldingen"
                             >
-                              <Trash2 className="w-3 h-3 text-rose-600" />
-                              <span>Slett melding</span>
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Slett</span>
                             </button>
                           </div>
                         </div>
@@ -1260,7 +1485,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                         <div 
                           className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
                             isUser
-                              ? 'bg-blue-600 text-white rounded-br-xs shadow-sm shadow-blue-600/10'
+                              ? (isFelt ? 'bg-emerald-700 text-white rounded-br-xs shadow-sm shadow-emerald-700/10' : 'bg-blue-600 text-white rounded-br-xs shadow-sm shadow-blue-600/10')
                               : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
                           }`}
                         >
@@ -1270,7 +1495,61 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
 
                           {/* Handlingsknapper for assistentmeldinger */}
                           {!isUser && (
-                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                            <div className="flex flex-wrap items-center justify-end gap-1.5 mt-3 pt-2 border-t border-slate-100">
+                              
+                              {/* Knapper spesifikke for Feltveileder: Lagre i Kladdebok og Prosesslogg */}
+                              {isFelt && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveToKladdebok(msg)}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                                      savedToNotesId === msg.id
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80"
+                                    )}
+                                    title="Lagre rådet direkte i Kladdebok i felt"
+                                  >
+                                    {savedToNotesId === msg.id ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>Lagret i feltbok!</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Kladdebok</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveToProsesslogg(msg)}
+                                    className={cn(
+                                      "px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
+                                      savedToLogId === msg.id
+                                        ? "bg-amber-600 text-white"
+                                        : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80"
+                                    )}
+                                    title="Send refleksjon til Prosesslogg"
+                                  >
+                                    {savedToLogId === msg.id ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>Sendt til logg!</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileText className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Prosesslogg</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </>
+                              )}
+
                               {/* Pensum på øret (TTS Lydavspilling) */}
                               <button
                                 onClick={() => playAudio(msg.content, idx)}
@@ -1326,124 +1605,92 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                           )}
                         </div>
                       )}
-
                     </div>
-
-                    {isUser && (
-                      <div className="w-8 h-8 rounded-xl bg-slate-800 text-slate-200 flex items-center justify-center shrink-0 mt-1 shadow-2xs">
-                        <User className="w-4 h-4" />
-                      </div>
-                    )}
                   </div>
                 );
               })}
 
               {/* Laster-indikator */}
               {isLoading && (
-                <div className="flex gap-3 items-start animate-in fade-in">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-200">
-                    <Bot className="w-4 h-4" />
+                <div className="flex gap-3 justify-start items-center">
+                  <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs animate-pulse",
+                    isFelt ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-indigo-50 text-indigo-600 border-indigo-200/80"
+                  )}>
+                    {isFelt ? <BookOpen className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                   </div>
-                  <div className="p-4 bg-white border border-slate-200 rounded-2xl rounded-bl-xs shadow-xs flex items-center gap-2 text-xs font-semibold text-slate-600">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                    <span>
-                      {activeMode === 'Sokratisk' 
-                        ? 'Utformer sokratiske refleksjonsspørsmål...' 
-                        : activeMode === 'Rammeplan'
-                        ? 'Slår opp i Rammeplanen og barnehageloven...'
-                        : activeMode === 'Metode'
-                        ? 'Analyserer forskningsdesign og metodekrav...'
-                        : activeMode === 'Lytte'
-                        ? 'Lytter og forbereder en støttende debrifing...'
-                        : 'Analyserer og utformer didaktisk veiledningsrespons...'}
-                    </span>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-xs flex items-center gap-2 text-xs font-semibold text-slate-600">
+                    <Loader2 className={cn("w-4 h-4 animate-spin", isFelt ? "text-emerald-600" : "text-indigo-600")} />
+                    <span>{isFelt ? 'Feltveilederen henter didaktiske perspektiver og Rammeplan-forankring...' : 'Superveilederen konsulterer fagkilder og veileder...'}</span>
                   </div>
                 </div>
               )}
-
-              <div className="h-2" />
             </div>
           </div>
 
-          {/* Input-felt */}
-          <div className="p-4 bg-white border-t border-slate-200">
-            <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="max-w-3xl mx-auto flex gap-2">
-              <input
+          {/* Skrivefelt i bunn */}
+          <div className="bg-white p-3 md:p-4 border-t border-slate-200 shadow-sm">
+            <form 
+              onSubmit={handleSubmit}
+              className="max-w-3xl mx-auto flex items-center gap-2 border p-2 rounded-2xl bg-white border-slate-200 shadow-2xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all"
+            >
+              <button 
+                type="button" 
+                onClick={() => document.getElementById('document-upload')?.click()}
+                className="p-2 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer rounded-xl hover:bg-slate-100 shrink-0"
+                title="Legg ved dokument (.pdf, .docx, .txt)"
+              >
+                <Paperclip className="w-5 h-5" /> 
+              </button>
+              <input 
+                id="document-upload" 
+                type="file" 
+                className="hidden" 
+                accept=".pdf,.docx,.txt"
+                onChange={(e) => setAttachedFile(e.target.files?.[0] || null)} 
+              />
+              {attachedFile && (
+                <div className="text-xs bg-gray-100 p-1 rounded-lg flex items-center gap-1.5 shrink-0 border border-slate-200 max-w-[200px] truncate">
+                  <span className="truncate text-slate-700 font-medium">{attachedFile.name}</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setAttachedFile(null);
+                      const fileInput = document.getElementById('document-upload') as HTMLInputElement;
+                      if (fileInput) fileInput.value = '';
+                    }} 
+                    className="text-red-500 font-bold hover:text-red-700 cursor-pointer ml-1 text-sm leading-none"
+                    title="Fjern vedlegg"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <input 
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={
-                  activeMode === 'Sokratisk'
-                    ? 'Beskriv en situasjon fra barnehagen for sokratisk sparring...'
-                    : activeMode === 'Metode' 
-                    ? 'Spør om problemstilling, observasjon, intervju eller NESH-etikk...'
-                    : activeMode === 'Rammeplan'
-                    ? 'Spør om forankring i Rammeplanen for barnehagen...'
-                    : activeMode === 'APA'
-                    ? 'Lim inn kilde eller still spørsmål om APA 7-referanser...'
-                    : activeMode === 'Lytte'
-                    ? 'Del hvordan praksisdagen har vært, eller hva du kjenner på...'
-                    : `Spør om fag, rammeplan, APA, metode eller praksis (${activeMode}-modus)...`
-                }
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
+                placeholder={isFelt ? "Beskriv en situasjon eller observasjon fra barnehagen for praksisveiledning..." : "Beskriv en situasjon fra barnehagen for sokratisk sparring..."}
                 disabled={isLoading}
+                className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-800 placeholder:text-slate-400 min-h-[40px] px-2"
               />
-              <button 
+              <button
                 type="submit"
-                disabled={!input.trim() || isLoading}
-                className="px-5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center cursor-pointer"
+                disabled={(!input.trim() && !attachedFile) || isLoading}
+                className={cn(
+                  "p-2.5 rounded-xl text-white font-bold transition-all shadow-md flex items-center justify-center shrink-0 cursor-pointer min-h-[42px] min-w-[42px]",
+                  (!input.trim() && !attachedFile) || isLoading 
+                    ? "bg-slate-200 text-slate-400 opacity-60 cursor-not-allowed shadow-none" 
+                    : isFelt 
+                      ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 active:scale-95" 
+                      : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20 active:scale-95"
+                )}
+                title="Send innspill"
               >
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </form>
           </div>
-
-          {/* OPPRETT NY MAPPE MODAL */}
-          {isCreatingFolder && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-              <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-2">
-                  <FolderPlus className="w-6 h-6" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-base font-black text-slate-800">Opprett ny mappe</h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Hold orden i veiledningssamtaler, drøftinger og faglige tråder.
-                  </p>
-                </div>
-                <input 
-                  type="text" 
-                  autoFocus
-                  placeholder="F.eks. Praksis H24, Bachelor, Ledelse..." 
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateFolder();
-                    if (e.key === 'Escape') setIsCreatingFolder(false);
-                  }}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-                <div className="flex gap-2 pt-2">
-                  <button 
-                    type="button"
-                    onClick={() => { setIsCreatingFolder(false); setNewFolderName(''); }} 
-                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
-                  >
-                    Avbryt
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={handleCreateFolder} 
-                    disabled={!newFolderName.trim()}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20 cursor-pointer"
-                  >
-                    Opprett mappe
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
         </div>
       )}
     </WorkspaceLayout>

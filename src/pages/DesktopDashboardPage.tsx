@@ -8,12 +8,12 @@ import {
   Sparkles, 
   GraduationCap, 
   Paperclip, 
-  Home
+  FolderOpen
 } from 'lucide-react';
 import AIWarning from '../components/AIWarning';
 import ChatBubble from '../features/chat/components/ChatBubble';
 import ChatInput from '../features/chat/components/ChatInput';
-import Sidebar, { ChatSessionItem } from '../features/chat/components/Sidebar';
+import { WorkspaceLayout, HistoryItem } from '../components/WorkspaceLayout';
 import { useChat } from '../features/chat/hooks/useChat';
 import { getUserChats, deleteChat } from '../features/chat/services/chatService';
 import { exportChatToPdf, copyFullChat } from '../lib/chatExportUtils';
@@ -23,6 +23,14 @@ interface DesktopDashboardPageProps {
   onOpenSettings?: () => void;
   onBackToHome?: () => void;
   onSwitchToSuperveileder?: () => void;
+  onSwitchToFeltveileder?: () => void;
+}
+
+export interface ChatSessionItem extends HistoryItem {
+  id: string;
+  title: string;
+  isPinned?: boolean;
+  updatedAt?: string;
 }
 
 const LOCAL_STORAGE_CHAT_LIST_KEY = 'blu_hjelper_desktop_chats_v1';
@@ -31,7 +39,8 @@ export default function DesktopDashboardPage({
   user,
   onOpenSettings,
   onBackToHome,
-  onSwitchToSuperveileder
+  onSwitchToSuperveileder,
+  onSwitchToFeltveileder
 }: DesktopDashboardPageProps) {
   const userId = user?.uid || (user?.email ? user.email.replace(/[^a-zA-Z0-9]/g, '_') : 'gjestebruker');
   const [currentChatId, setCurrentChatId] = useState<string>(() => `chat_${Date.now()}`);
@@ -47,9 +56,9 @@ export default function DesktopDashboardPage({
       console.warn('Kunne ikke hente lokale chat-lister:', e);
     }
     return [
-      { id: 'sample-1', title: 'Tolkning av medvirkning i Rammeplanen' },
-      { id: 'sample-2', title: 'Ideer til utedag for 3-åringer' },
-      { id: 'sample-3', title: 'Foreldresamarbeid i overgangsfaser' }
+      { id: 'sample-1', title: 'Tolkning av medvirkning i Rammeplanen', subtitle: 'Dokumentanalyse • Lagret' },
+      { id: 'sample-2', title: 'Ideer til utedag for 3-åringer', subtitle: 'Rammeplan • Lagret' },
+      { id: 'sample-3', title: 'Foreldresamarbeid i overgangsfaser', subtitle: 'Didaktikk • Lagret' }
     ];
   });
 
@@ -91,6 +100,7 @@ export default function DesktopDashboardPage({
           const formatted: ChatSessionItem[] = savedChats.map((c: any) => ({
             id: c.id,
             title: c.lastMessage ? (c.lastMessage.slice(0, 38) + '...') : `Veiledning ${c.id.slice(-4)}`,
+            subtitle: 'Dokumentanalyse',
             updatedAt: c.updatedAt
           }));
           setChatList(prev => {
@@ -116,7 +126,7 @@ export default function DesktopDashboardPage({
           if (exists) {
             return prev.map(c => c.id === currentChatId ? { ...c, title: generatedTitle } : c);
           } else {
-            return [{ id: currentChatId, title: generatedTitle }, ...prev];
+            return [{ id: currentChatId, title: generatedTitle, subtitle: 'Dokumentanalyse • Sist endret nå' }, ...prev];
           }
         });
       }
@@ -133,8 +143,7 @@ export default function DesktopDashboardPage({
     setCurrentChatId(chatId);
   };
 
-  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteChatById = async (chatId: string) => {
     setChatList(prev => prev.filter(c => c.id !== chatId));
     if (userId && userId !== 'gjestebruker') {
       try {
@@ -146,6 +155,14 @@ export default function DesktopDashboardPage({
     if (currentChatId === chatId) {
       handleStartNewChat();
     }
+  };
+
+  const handlePinChat = (id: string, isPinned: boolean) => {
+    setChatList(prev => prev.map(c => c.id === id ? { ...c, isPinned } : c));
+  };
+
+  const handleRenameChat = (id: string, newTitle: string) => {
+    setChatList(prev => prev.map(c => c.id === id ? { ...c, title: newTitle } : c));
   };
 
   const currentChatTitle = chatList.find(c => c.id === currentChatId)?.title || 
@@ -180,93 +197,94 @@ export default function DesktopDashboardPage({
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4.5rem)] bg-slate-50 overflow-hidden font-sans border border-slate-200 rounded-3xl shadow-sm">
-      {/* 
-        Top Bar Switcher: Direktekoblet med Superveilederen under Skriving
-      */}
-      <div className="bg-slate-900 text-white border-b border-slate-800 px-4 py-2 flex items-center justify-between flex-wrap gap-2 shrink-0 z-20">
-        <div className="flex items-center gap-2">
-          {onBackToHome && (
-            <button
-              onClick={onBackToHome}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-medium transition-colors cursor-pointer"
-            >
-              <Home className="w-3.5 h-3.5" /> Hjem
-            </button>
-          )}
-          {onBackToHome && <span className="text-slate-600 text-xs">•</span>}
-          <span className="text-xs font-semibold text-slate-300">Skriving</span>
-          <span className="text-slate-600 text-xs">•</span>
-          <span className="text-xs text-blue-400 font-bold">BLU-hjelperen</span>
-        </div>
+    <WorkspaceLayout
+      title="BLU-hjelperen"
+      subtitle="Dokumentanalyse & Rammeplan"
+      icon={<GraduationCap className="w-6 h-6 text-blue-400" />}
+      actionButtonLabel="Ny veiledning"
+      historySectionTitle="Tidligere veiledninger"
+      onActionClick={handleStartNewChat}
+      historyItems={chatList.map(c => ({
+        id: c.id,
+        title: c.title,
+        subtitle: c.subtitle || 'Dokumentanalyse',
+        isPinned: c.isPinned || false,
+        updatedAt: c.updatedAt
+      }))}
+      activeItemId={currentChatId}
+      onItemClick={handleSelectChat}
+      onPinItem={handlePinChat}
+      onRenameItem={handleRenameChat}
+      onDeleteItem={handleDeleteChatById}
+    >
+      {({ isCollapsed, openMobileArchive }) => (
+        <div className="flex flex-col h-full bg-slate-50/50">
+          {/* 
+            Top Bar Switcher: Identisk layout og plassering som i Superveilederen og Feltveilederen
+          */}
+          <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2 shrink-0 z-20">
+            <div className="flex items-center gap-2">
+              {/* Mobilknapp for å åpne samtale-arkivet for denne veilederen */}
+              <button
+                type="button"
+                onClick={openMobileArchive}
+                className="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                title="Vis samtale-arkiv på mobil"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                <span>Arkiv ({chatList.length})</span>
+              </button>
 
-        {/* Hurtig-bytter mellom Superveilederen og BLU-hjelperen */}
-        <div className="flex items-center p-0.5 bg-slate-800 rounded-xl border border-slate-700 shadow-2xs">
-          <button
-            onClick={onSwitchToSuperveileder}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-700/70 transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Gå til Superveilederen (Sokratisk sparring, APA og metode)"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Superveilederen</span>
-            <span className="text-[10px] bg-indigo-900/60 text-indigo-300 px-1.5 py-0.2 rounded-full border border-indigo-700/60 hidden sm:inline">
-              Sokratisk & APA
-            </span>
-          </button>
-          <div className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-xs flex items-center gap-1.5">
-            <GraduationCap className="w-3.5 h-3.5 text-white" />
-            <span>BLU-hjelperen</span>
+              <span className="text-xs font-semibold text-slate-300 hidden sm:inline">Skriving</span>
+              <span className="text-slate-600 text-xs hidden sm:inline">•</span>
+              <span className="text-xs font-bold text-blue-400 hidden sm:inline">BLU-hjelperen</span>
+            </div>
+
+            {/* Hurtig-bytter mellom Superveilederen, Feltveilederen og BLU-hjelperen (identisk med Superveileder) */}
+            <div className="flex items-center p-0.5 bg-slate-800 rounded-xl border border-slate-700 shadow-2xs overflow-x-auto max-w-full">
+              {/* Pille 1: Superveilederen */}
+              <button
+                type="button"
+                onClick={onSwitchToSuperveileder}
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer text-slate-300 hover:text-white hover:bg-slate-700/70"
+                title="Bytt til Superveilederen (Akademisk skriving, Sokratisk sparring, APA og metode)"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Superveilederen</span>
+              </button>
+
+              {/* Pille 2: Feltveilederen */}
+              <button
+                type="button"
+                onClick={onSwitchToFeltveileder}
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer text-slate-300 hover:text-white hover:bg-slate-700/70"
+                title="Bytt til Feltveilederen (Praksis, Rammeplan, didaktikk og egne observasjoner)"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-emerald-300" />
+                <span>Feltveilederen</span>
+                <span className="text-[10px] bg-emerald-950/80 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-700/60 hidden sm:inline">
+                  Praksis
+                </span>
+              </button>
+
+              {/* Pille 3: BLU-hjelperen (Aktiv) */}
+              <div
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white shadow-xs flex items-center gap-1.5 shrink-0"
+                title="BLU-hjelperen (Fagforfatter med oppgavelasting og Rammeplan-veiledning)"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-white" />
+                <span>BLU-hjelperen</span>
+                <span className="text-[10px] bg-blue-900/60 text-blue-200 px-1.5 py-0.2 rounded-full border border-blue-500/60 hidden sm:inline">
+                  Dokumentanalyse
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* 
-        Kjernefunksjonsbånd: Synliggjør veiledningens fremste verktøy
-      */}
-      <div className="bg-gradient-to-r from-blue-50/95 via-indigo-50/60 to-slate-50 border-b border-blue-100 px-4 md:px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 z-10">
-        <div className="flex items-center gap-2 font-bold text-blue-950">
-          <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-          <span className="text-xs uppercase tracking-wider font-extrabold text-blue-900">Veilederens kjernefunksjoner:</span>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-slate-700">
-          <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-blue-200/90 shadow-2xs text-[11px] font-semibold text-blue-900">
-            <Paperclip className="w-3.5 h-3.5 text-blue-600" />
-            <span>Dokumentanalyse (.docx / .pdf)</span>
-          </span>
-          <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-indigo-200/90 shadow-2xs text-[11px] font-semibold text-indigo-900">
-            <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Rammeplanen (2017) forkoblet</span>
-          </span>
-          <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-emerald-200/90 shadow-2xs text-[11px] font-semibold text-emerald-900">
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Eksporter til PDF</span>
-          </span>
-          <span className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs text-[11px] font-semibold text-slate-700">
-            <Check className="w-3.5 h-3.5 text-cyan-600" />
-            <span>Autolagret i databasen</span>
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* 
-          1. Sidebar og Chat-historikk (Navigasjon)
-        */}
-        <Sidebar
-          chats={chatList}
-          activeChatId={currentChatId}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleStartNewChat}
-          onOpenSettings={onOpenSettings}
-          onDeleteChat={handleDeleteChat}
-        />
-
-        {/* 
-          2. Hovedområde (Chat Flow & Eksport)
-        */}
-        <main className="flex-1 flex flex-col h-full bg-white relative overflow-hidden min-w-0">
-          {/* Header for aktiv chat med PDF-eksport og kopi-knapp */}
-          <header className="h-14 border-b border-slate-200/80 flex items-center justify-between px-6 md:px-8 bg-white/95 backdrop-blur-sm z-10 sticky top-0 shrink-0">
+          {/* 
+            Header for aktiv veiledning: PDF-eksport, kopi-knapp og status
+          */}
+          <header className="h-14 border-b border-slate-200/80 flex items-center justify-between px-4 sm:px-6 md:px-8 bg-white/95 backdrop-blur-sm z-10 shrink-0">
             <div className="flex items-center gap-3 truncate min-w-0 pr-4">
               <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
               <div className="truncate min-w-0">
@@ -370,7 +388,7 @@ export default function DesktopDashboardPage({
           </div>
 
           {/* 
-            3. Chat Input Område med Dokumentopplasting (.docx / .pdf)
+            Chat Input Område med Dokumentopplasting (.docx / .pdf)
           */}
           <div className="p-4 md:p-6 bg-white border-t border-slate-200 shadow-sm z-10 shrink-0">
             <div className="max-w-4xl mx-auto">
@@ -381,9 +399,9 @@ export default function DesktopDashboardPage({
               />
             </div>
           </div>
-        </main>
-      </div>
-    </div>
+        </div>
+      )}
+    </WorkspaceLayout>
   );
 }
 

@@ -41,12 +41,16 @@ export interface WorkspaceContextType {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   toggleCollapsed: () => void;
+  openMobileArchive: () => void;
+  closeMobileArchive: () => void;
 }
 
 export const WorkspaceContext = React.createContext<WorkspaceContextType>({
   isCollapsed: false,
   setIsCollapsed: () => {},
   toggleCollapsed: () => {},
+  openMobileArchive: () => {},
+  closeMobileArchive: () => {},
 });
 
 export const useWorkspace = () => React.useContext(WorkspaceContext);
@@ -70,7 +74,7 @@ export interface WorkspaceLayoutProps {
   onDeleteFolder?: (folderId: string) => void; // Mulighet for å slette mappe
   onBackToTools?: () => void; // Retur til verktøykasse
   backToToolsLabel?: string;
-  children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void }) => React.ReactNode);
+  children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void; openMobileArchive: () => void }) => React.ReactNode);
 }
 
 export function WorkspaceLayout({ 
@@ -95,6 +99,7 @@ export function WorkspaceLayout({
   children 
 }: WorkspaceLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showMobileArchive, setShowMobileArchive] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -186,8 +191,11 @@ export function WorkspaceLayout({
 
   const toggleCollapsed = () => setIsCollapsed(prev => !prev);
 
+  const openMobileArchive = () => setShowMobileArchive(true);
+  const closeMobileArchive = () => setShowMobileArchive(false);
+
   return (
-    <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed }}>
+    <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed, openMobileArchive, closeMobileArchive }}>
       <div className="flex w-full h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] min-h-[520px] md:min-h-[700px] bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
       
       {/* SIDEMENY (Skjult på mobil slik at innholdet får 100% bredde, synlig på md+) */}
@@ -422,8 +430,116 @@ export function WorkspaceLayout({
             </button>
           )
         )}
-        {typeof children === 'function' ? children({ isCollapsed, toggleCollapsed }) : children}
+        {typeof children === 'function' ? children({ isCollapsed, toggleCollapsed, openMobileArchive }) : children}
       </main>
+
+      {/* MOBIL SKUFF FOR SAMTALER / ARKIV */}
+      {showMobileArchive && (
+        <div className="md:hidden fixed inset-0 z-[120] flex">
+          <div 
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity" 
+            onClick={() => setShowMobileArchive(false)}
+          />
+          <div className="relative w-[85%] max-w-xs bg-slate-900 text-slate-200 h-full flex flex-col shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="bg-primary/20 p-2 rounded-xl text-primary-light">{icon}</div>
+                <div className="overflow-hidden">
+                  <h3 className="font-bold text-sm text-white truncate max-w-[170px]">{title}</h3>
+                  <p className="text-[10px] text-slate-400">Samtale-arkiv</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowMobileArchive(false)}
+                className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-slate-800">
+              <button
+                onClick={() => {
+                  onActionClick();
+                  setShowMobileArchive(false);
+                }}
+                className="w-full py-2.5 px-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover shadow-md text-xs cursor-pointer active:scale-98"
+              >
+                <Plus className="w-4 h-4" /> {actionButtonLabel}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">
+              {/* FESTET SEKSJON */}
+              {pinnedItems.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-400/90 mb-1 px-2 flex items-center gap-1.5">
+                    <Pin className="w-3 h-3 fill-amber-400" /> Festet
+                  </h4>
+                  {pinnedItems.map(item => (
+                    <div key={`mob-pin-${item.id}`} onClick={() => setShowMobileArchive(false)}>
+                      {renderHistoryItem(item)}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* TIDLIGERE ARBEID (MAPPER OG FILER) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between mb-1 px-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {historySectionTitle || 'Tidligere arbeid'}
+                  </h4>
+                </div>
+
+                {unpinnedItems.length === 0 && pinnedItems.length === 0 && folders.length === 0 ? (
+                  <p className="text-xs text-slate-500 px-2 italic py-2">Ingen samtaler enda.</p>
+                ) : (
+                  <>
+                    {/* Mapper */}
+                    {folders.map(folder => {
+                      const isOpen = expandedFolders[folder.id];
+                      const folderItems = unpinnedItems.filter(item => item.folderId === folder.id);
+                      return (
+                        <div key={`mob-f-${folder.id}`} className="mb-1">
+                          <button 
+                            onClick={() => toggleFolder(folder.id)}
+                            className="w-full text-left px-2 py-1.5 rounded-lg flex items-center gap-2 text-slate-300 hover:text-white"
+                          >
+                            {isOpen ? <FolderOpen className="w-3.5 h-3.5 text-primary-light" /> : <Folder className="w-3.5 h-3.5 text-slate-400" />}
+                            <span className="text-xs font-semibold truncate flex-1">{folder.name}</span>
+                            <ChevronDown className="w-3 h-3 text-slate-500" style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                          </button>
+                          {isOpen && (
+                            <div className="pl-3 ml-2 border-l border-slate-800 space-y-1 mt-1">
+                              {folderItems.length === 0 ? (
+                                <p className="text-[10px] text-slate-500 italic py-1 px-2">Tom mappe</p>
+                              ) : (
+                                folderItems.map(item => (
+                                  <div key={`mob-fi-${item.id}`} onClick={() => setShowMobileArchive(false)}>
+                                    {renderHistoryItem(item)}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Filer / samtaler uten mappe */}
+                    {unpinnedItems.filter(item => !item.folderId).map(item => (
+                      <div key={`mob-item-${item.id}`} onClick={() => setShowMobileArchive(false)}>
+                        {renderHistoryItem(item)}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SLETT BEKREFTELSES-MODAL */}
       {itemToDelete && (

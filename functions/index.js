@@ -452,7 +452,164 @@ exports.api = onRequest(
       }
     }
 
+    // Endepunkt: /api/superveilederen (REST/HTTP proxy)
+    if (rawPath.includes("/superveilederen")) {
+      try {
+        const { message, documentContext, history = [] } = req.body || {};
+
+        const baseSocraticPrompt = "Du er Superveilederen for barnehagelærerstudenter. Bruk sokratisk metode for å utforske deres refleksjoner. Ikke gi svaret direkte.";
+        
+        const documentAnalysisPrompt = `Du er BLU-hjelperen. Analyser det vedlagte dokumentet. Fokuser på akademisk språk, struktur og forankring i Rammeplanen. 
+        
+Dokumentinnhold: 
+"""${documentContext}"""`;
+
+        const systemPrompt = documentContext ? documentAnalysisPrompt : baseSocraticPrompt;
+
+        const aiMessages = [
+          { role: "system", content: systemPrompt },
+          ...(Array.isArray(history) ? history : []),
+          { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
+        ];
+
+        const ai = new GoogleGenAI({ apiKey });
+        const contents = [];
+        if (Array.isArray(history)) {
+          for (const item of history) {
+            if (!item || item.role === "system") continue;
+            const role = item.role === "assistant" || item.role === "model" ? "model" : "user";
+            const text = item.content || item.text || (Array.isArray(item.parts) ? item.parts.map(p => typeof p === "string" ? p : p.text).join(" ") : "");
+            if (text) contents.push({ role, parts: [{ text }] });
+          }
+        }
+        contents.push({
+          role: "user",
+          parts: [{ text: message || "Vennligst analyser det vedlagte dokumentet." }]
+        });
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
+        });
+
+        return res.status(200).json({ 
+          text: response.text || "",
+          mode: documentContext ? "documentAnalysis" : "socratic",
+          aiMessages
+        });
+      } catch (error) {
+        console.error("Feil i /api/superveilederen:", error);
+        return res.status(500).json({ error: error?.message || "Feil under samtale med Superveilederen." });
+      }
+    }
+
     return res.status(404).json({ error: `Endepunktet '${rawPath}' ble ikke funnet på API-funksjonen.` });
   }
 );
+
+/**
+ * =================================================================================
+ * FUNKSJON 4: superveilederenChat (Cloud Function Callable)
+ * =================================================================================
+ * Håndterer dynamiske system-prompter basert på om et dokument er lagt ved:
+ * - Ingen fil lagt ved -> baseSocraticPrompt (Superveilederen, sokratisk metode)
+ * - Fil lagt ved (documentContext) -> documentAnalysisPrompt (BLU-hjelperen)
+ */
+exports.superveilederenChat = functions.region('europe-west1').https.onCall(async (data, context) => {
+  const { message, documentContext, history = [] } = data || {};
+
+  const baseSocraticPrompt = "Du er Superveilederen for barnehagelærerstudenter. Bruk sokratisk metode for å utforske deres refleksjoner. Ikke gi svaret direkte.";
+  
+  const documentAnalysisPrompt = `Du er BLU-hjelperen. Analyser det vedlagte dokumentet. Fokuser på akademisk språk, struktur og forankring i Rammeplanen. 
+  
+  Dokumentinnhold: 
+  """${documentContext}"""`;
+
+  // Dynamisk valg av system-prompt
+  const systemPrompt = documentContext ? documentAnalysisPrompt : baseSocraticPrompt;
+
+  // Bygg meldings-arrayen for AI-modellen
+  const aiMessages = [
+    { role: "system", content: systemPrompt },
+    ...(Array.isArray(history) ? history : []),
+    { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
+  ];
+
+  let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    try {
+      apiKey = functions.config().gemini?.key;
+    } catch (e) {}
+  }
+
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      "Mangler GEMINI_API_KEY på serveren. Vennligst legg inn GEMINI_API_KEY i miljøvariabler eller Firebase Functions config."
+    );
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Transformer meldinger til Gemini contents format
+    const contents = [];
+    if (Array.isArray(history)) {
+      for (const item of history) {
+        if (!item || item.role === "system") continue;
+        const role = item.role === "assistant" || item.role === "model" ? "model" : "user";
+        const text = item.content || item.text || (Array.isArray(item.parts) ? item.parts.map(p => typeof p === "string" ? p : p.text).join(" ") : "");
+        if (text) contents.push({ role, parts: [{ text }] });
+      }
+    }
+
+    contents.push({
+      role: "user",
+      parts: [{ text: message || "Vennligst analyser det vedlagte dokumentet." }]
+    });
+
+    const candidates = [
+      "gemini-3.8-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-latest",
+      "gemini-2.5-flash"
+    ];
+
+    let lastErr = null;
+    for (const m of candidates) {
+      try {
+        const response = await ai.models.generateContent({
+          model: m,
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+          }
+        });
+
+        return {
+          text: response.text || "",
+          mode: documentContext ? "documentAnalysis" : "socratic",
+          aiMessages
+        };
+      } catch (err) {
+        lastErr = err;
+        const msg = err?.message || String(err);
+        if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
+          throw err;
+        }
+      }
+    }
+    throw lastErr;
+  } catch (error) {
+    console.error("Feil i superveilederenChat:", error);
+    throw new functions.https.HttpsError("internal", error?.message || "Feil under generering fra modellen.");
+  }
+});
 

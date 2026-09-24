@@ -4545,22 +4545,13 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'field-assistant' && (
-            <motion.div
-              key="field-assistant"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="w-full"
-            >
-              <FieldAssistant 
-                user={user}
-                initialPrompt={fieldAssistantPrompt}
-                onGoToNotes={() => {
-                  setActiveTab('field-notes');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            </motion.div>
+            <Superveileder 
+              key="field-assistant" 
+              user={user} 
+              initialAssistant="feltveileder"
+              didacticProfile={pedagogicalProfile} 
+              onAssistantChange={(ass) => setActiveTab(ass === 'feltveileder' ? 'field-assistant' : 'assistant')}
+            />
           )}
 
           {activeTab === 'home' && (
@@ -4591,24 +4582,14 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             />
           )}
 
-          {activeTab === 'assistant' && (
+          {(activeTab === 'assistant' || activeTab === 'blu-hjelper') && (
             <Superveileder 
               key="assistant" 
               user={user} 
+              initialAssistant="superveileder"
               didacticProfile={pedagogicalProfile} 
-              onSwitchToBlu={() => setActiveTab('blu-hjelper')} 
+              onAssistantChange={(ass) => setActiveTab(ass === 'feltveileder' ? 'field-assistant' : 'assistant')}
             />
-          )}
-
-          {activeTab === 'blu-hjelper' && (
-            <div key="blu-hjelper" className="flex-1 flex flex-col py-2">
-              <DesktopDashboardPage 
-                user={user} 
-                onOpenSettings={() => setActiveTab('settings')} 
-                onBackToHome={() => setActiveTab('home')} 
-                onSwitchToSuperveileder={() => setActiveTab('assistant')}
-              />
-            </div>
           )}
 
           {activeTab === 'collaboration' && (
@@ -4837,7 +4818,6 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               <Superveileder 
                 user={user} 
                 didacticProfile={pedagogicalProfile} 
-                onSwitchToBlu={() => setActiveTab('blu-hjelper')} 
               />
             </div>
           )}

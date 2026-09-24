@@ -118,21 +118,22 @@ export const Home: React.FC<HomeProps> = ({
     >
       <div className="w-full flex flex-col gap-6 lg:gap-8">
         {/* VELKOMMEN-BOKS */}
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 w-full flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 w-full flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
               Klar for å skrive, {user?.displayName?.split(' ')[0] || 'Svein'}?
             </h1>
-            <p className="text-slate-500 mt-2">
+            <p className="text-slate-500 text-sm sm:text-base mt-1.5 md:mt-2">
               Hva vil du fokusere på i dag? Fortsett der du slapp, eller start på noe nytt.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+          {/* Skjult på mobil for en ren forside, synlig på md+ */}
+          <div className="hidden md:flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
             <button 
-              onClick={() => setActiveTab('blu-hjelper')} 
+              onClick={() => setActiveTab('assistant')} 
               className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all w-full sm:w-auto cursor-pointer"
             >
-              <GraduationCap className="w-5 h-5 text-blue-400" /> BLU-hjelperen Chat
+              <Sparkles className="w-5 h-5 text-indigo-400" /> Superveilederen Chat
             </button>
             <button 
               onClick={() => createNewDocument()} 
@@ -200,12 +201,12 @@ export const Home: React.FC<HomeProps> = ({
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8 w-full">
           
-          {/* ========================================== */}
-          {/* VENSTRE KOLONNE - Arbeidsområdet (8 av 12)   */}
-          {/* ========================================== */}
-          <div className="xl:col-span-8 flex flex-col gap-6 lg:gap-8 w-full">
+          {/* ================================================================= */}
+          {/* VENSTRE KOLONNE - Arbeidsområdet (Skjult på mobil, synlig på md+)  */}
+          {/* ================================================================= */}
+          <div className="hidden md:flex xl:col-span-8 flex-col gap-6 lg:gap-8 w-full">
             
-            {/* 1. SUPERVEILEDEREN */}
+            {/* 1. SUPERVEILEDEREN (Kun desktop) */}
             <div className="bg-indigo-50/50 p-8 rounded-3xl border border-indigo-100 w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:shadow-md transition-shadow">
               <div className="flex items-start gap-5">
                 <div className="bg-indigo-600 p-4 rounded-2xl shadow-lg shadow-indigo-200 shrink-0">
@@ -226,7 +227,7 @@ export const Home: React.FC<HomeProps> = ({
               </button>
             </div>
 
-            {/* 2. BASEN (Kollokvie) */}
+            {/* 2. BASEN (Kollokvie) (Kun desktop) */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 w-full flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 hover:shadow-md transition-shadow">
               <div className="flex items-start gap-5">
                 <div className="bg-slate-100 p-4 rounded-2xl shrink-0">
