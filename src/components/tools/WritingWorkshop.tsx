@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
   FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, PanelRightClose, Send, Archive, User,
-  Folder, FolderOpen, FolderPlus, Plus, Trash2, X // Nye ikoner for mapper
+  Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown // Nye ikoner for mapper og kapittelflytting
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
@@ -30,6 +30,7 @@ export interface DocumentItem extends HistoryItem {
   template: string;
   targetWords: number;
   updatedAt: string;
+  outline?: { id: number; title: string; subItems: string[] }[];
 }
 
 export interface ChatMessage {
@@ -381,17 +382,32 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
 
   const getCurrentOutline = () => {
     if (outline.length > 0) return outline;
+    if (activeDoc.outline && Array.isArray(activeDoc.outline) && activeDoc.outline.length > 0) return activeDoc.outline;
     const key = selectedTemplate || activeDoc.template || 'Refleksjonsnotat';
     return templates[key] || templates['Refleksjonsnotat'] || [];
   };
 
+  // Synkroniser outline når aktivt dokument endres
+  useEffect(() => {
+    if (activeDoc?.outline && Array.isArray(activeDoc.outline) && activeDoc.outline.length > 0) {
+      setOutline(activeDoc.outline);
+    } else {
+      const key = selectedTemplate || activeDoc?.template || 'Refleksjonsnotat';
+      if (templates[key]) {
+        setOutline([...templates[key]]);
+      } else {
+        setOutline([]);
+      }
+    }
+  }, [activeDocId]);
+
   const handleSelectTemplate = (templateName: string) => {
     setSelectedTemplate(templateName);
-    if (templates[templateName]) {
-      setOutline([...templates[templateName]]);
-    } else {
-      setOutline([{ id: Date.now(), title: 'Innledning', subItems: [] }]);
-    }
+    const newOutline = templates[templateName]
+      ? [...templates[templateName]]
+      : [{ id: Date.now(), title: 'Innledning', subItems: [] }];
+    setOutline(newOutline);
+    handleUpdateActiveDoc({ template: templateName, outline: newOutline });
   };
 
   const handleAddChapter = (titleToAdd?: string) => {
@@ -400,6 +416,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     const baseList = [...getCurrentOutline()];
     const updated = [...baseList, { id: Date.now(), title, subItems: [] }];
     setOutline(updated);
+    handleUpdateActiveDoc({ outline: updated });
     setNewChapterTitle('');
   };
 
@@ -408,6 +425,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     if (baseList[index]) {
       baseList[index] = { ...baseList[index], title: newTitle };
       setOutline(baseList);
+      handleUpdateActiveDoc({ outline: baseList });
     }
   };
 
@@ -415,6 +433,25 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     const baseList = [...getCurrentOutline()];
     const updated = baseList.filter((_, i) => i !== index);
     setOutline(updated);
+    handleUpdateActiveDoc({ outline: updated });
+  };
+
+  const handleMoveChapterUp = (index: number) => {
+    if (index <= 0) return;
+    const baseList = [...getCurrentOutline()];
+    const [movedItem] = baseList.splice(index, 1);
+    baseList.splice(index - 1, 0, movedItem);
+    setOutline(baseList);
+    handleUpdateActiveDoc({ outline: baseList });
+  };
+
+  const handleMoveChapterDown = (index: number) => {
+    const baseList = [...getCurrentOutline()];
+    if (index >= baseList.length - 1) return;
+    const [movedItem] = baseList.splice(index, 1);
+    baseList.splice(index + 1, 0, movedItem);
+    setOutline(baseList);
+    handleUpdateActiveDoc({ outline: baseList });
   };
 
   const handleAddSubItem = (chapterIdx: number, subItemText: string) => {
@@ -426,6 +463,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         subItems: [...baseList[chapterIdx].subItems, subItemText.trim()]
       };
       setOutline(baseList);
+      handleUpdateActiveDoc({ outline: baseList });
     }
   };
 
@@ -437,6 +475,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         subItems: baseList[chapterIdx].subItems.filter((_, i) => i !== subItemIdx)
       };
       setOutline(baseList);
+      handleUpdateActiveDoc({ outline: baseList });
     }
   };
 
@@ -780,10 +819,28 @@ ${activeDoc.content}`;
                     )}
                   </div>
 
-                  {activeDoc.template === 'Egendefinert struktur' && (
+                  {activeDoc.template === 'Egendefinert struktur' ? (
                     <p className="text-xs text-slate-500 mb-4">
-                      Definer dine egne kapitler og underpunkter. Du kan skrive inn kapitteltitler direkte, legge til nye kapitler eller fjerne etter behov.
+                      Definer dine egne kapitler og underpunkter. Du kan skrive inn kapitteltitler direkte, flytte dem opp og ned med pilene, legge til nye kapitler eller fjerne etter behov.
                     </p>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                      <p className="text-xs text-slate-500">
+                        Standard oppsett for denne oppgavetypen. Vil du flytte eller legge til egne kapitler?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = getCurrentOutline();
+                          handleSelectTemplate('Egendefinert struktur');
+                          handleUpdateActiveDoc({ template: 'Egendefinert struktur', outline: [...current] });
+                          setOutline([...current]);
+                        }}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-white border border-slate-200 px-3 py-1 rounded-lg shadow-2xs whitespace-nowrap"
+                      >
+                        Tilpass struktur
+                      </button>
+                    </div>
                   )}
 
                   <div className="space-y-2.5 mb-4">
@@ -823,7 +880,31 @@ ${activeDoc.content}`;
                             </div>
 
                             {activeDoc.template === 'Egendefinert struktur' && (
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {/* Flytt kapittel opp og ned */}
+                                <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveChapterUp(idx)}
+                                    disabled={idx === 0}
+                                    title={idx === 0 ? "Øverste kapittel" : "Flytt kapittel opp"}
+                                    aria-label="Flytt kapittel opp"
+                                    className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:text-slate-300 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded transition-colors"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveChapterDown(idx)}
+                                    disabled={idx === getCurrentOutline().length - 1}
+                                    title={idx === getCurrentOutline().length - 1 ? "Nederste kapittel" : "Flytt kapittel ned"}
+                                    aria-label="Flytt kapittel ned"
+                                    className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 disabled:text-slate-300 disabled:hover:bg-transparent disabled:cursor-not-allowed rounded transition-colors"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
                                 <button
                                   type="button"
                                   onClick={() => {

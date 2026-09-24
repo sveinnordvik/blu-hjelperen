@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.1.2',
+    date: '2026-09-24',
+    title: 'Oppgradering til versjon 3.1.2',
+    changes: [
+      'Lagt til mulighet for å flytte kapitler opp og ned i oppgaveoppsettet (Skriveverksted).',
+      'Forbedret kapittellagring, hurtigtilpasning fra ferdige maler og automatisk synkronisering.',
+      'Tydelig og forbedret feilhåndtering i Superveileder og Skriveverksted mot Gemini API.',
+      'Sikring av samtalestruktur (brukerinitiert historikk) og Cloud Functions-avhengigheter.'
+    ]
+  },
+  {
     version: 'v3.1.1',
     date: '2026-09-16',
     title: 'Oppgradering til versjon 3.1.1',
