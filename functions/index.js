@@ -328,6 +328,14 @@ exports.api = onRequest(
           requestedModel = "gemini-3.8-flash";
         }
 
+        let sanitizedContents = contents;
+        if (Array.isArray(sanitizedContents)) {
+          const firstUserIndex = sanitizedContents.findIndex((item) => item && (item.role === 'user' || !item.role));
+          if (firstUserIndex > 0) {
+            sanitizedContents = sanitizedContents.slice(firstUserIndex);
+          }
+        }
+
         const candidates = [
           requestedModel,
           "gemini-3.1-flash-lite",
@@ -340,7 +348,7 @@ exports.api = onRequest(
           try {
             const response = await ai.models.generateContent({
               model: m,
-              contents,
+              contents: sanitizedContents,
               config,
             });
             return res.status(200).json({ text: response.text || "" });
@@ -356,7 +364,30 @@ exports.api = onRequest(
         throw lastErr;
       } catch (error) {
         console.error("Feil i Cloud Function /api/gemini/generate:", error);
-        return res.status(500).json({ error: error?.message || "Feil ved generering av svar fra Gemini." });
+        let errMsg = error?.message || String(error);
+        try {
+          const parsed = JSON.parse(errMsg);
+          if (parsed?.error?.message) errMsg = parsed.error.message;
+        } catch (e) {}
+
+        const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
+        const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
+        const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
+        const isInvalidKey = errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid");
+
+        if (isInvalidKey) {
+          return res.status(401).json({ error: "Ugyldig Gemini API-nøkkel satt opp i Firebase Functions/GitHub Secrets." });
+        }
+        if (isDepleted) {
+          return res.status(429).json({ error: "API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på kreditt." });
+        }
+        if (isRateLimit) {
+          return res.status(429).json({ error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota exceeded). Vent litt og prøv igjen." });
+        }
+        if (isUnavailable) {
+          return res.status(503).json({ error: "KI-modellen opplever stor pågang akkurat nå (503 High Demand). Vent noen sekunder og prøv igjen." });
+        }
+        return res.status(500).json({ error: errMsg || "Feil ved generering av svar fra Gemini." });
       }
     }
 

@@ -24,7 +24,14 @@ export async function callGoogleAIProxy(params: {
   if (typeof validatedContents === 'string') {
     if (!validatedContents.trim()) validatedContents = " ";
   } else if (Array.isArray(validatedContents)) {
-    validatedContents = validatedContents.map(item => {
+    // Sørg for at listen ikke starter med 'model', da Gemini krever 'user' først
+    const firstUserIndex = validatedContents.findIndex((item: any) => item && (item.role === 'user' || !item.role));
+    let cleanedList = firstUserIndex !== -1 ? validatedContents.slice(firstUserIndex) : validatedContents;
+    if (cleanedList.length === 0) {
+      cleanedList = [{ role: 'user', parts: [{ text: "Hei" }] }];
+    }
+
+    validatedContents = cleanedList.map(item => {
       if (item && typeof item === 'object') {
         let role = item.role;
         // Konverter "assistant", "system" eller ugyldige roller til "model"
@@ -122,24 +129,34 @@ export async function callGoogleAIProxy(params: {
         text: data.text || ""
       };
     } catch (error: any) {
+      const msg = error && typeof error === 'object' && error.message 
+        ? String(error.message) 
+        : (error instanceof Error ? error.message : String(error || ''));
+
       // Returner feilen direkte hvis det er en permanent feil vi ikke skal repetere på
-      if (error instanceof Error && (
-           error.message.includes("Mangler GEMINI_API_KEY") || 
-           error.message.includes("Ugyldig Gemini API-nøkkel") || 
-           error.message.includes("API key not valid") ||
-           error.message.includes("er ikke tilgjengelig for din API") ||
-           error.message.includes("prepayment credits are depleted") ||
-           error.message.includes("credits are depleted") ||
-           error.message.includes("Kritisk feil:") ||
-           error.message.includes("Feil (404)")
-          )) {
-        throw error;
+      if (
+        msg.includes("Mangler GEMINI_API_KEY") || 
+        msg.includes("Ugyldig Gemini API-nøkkel") || 
+        msg.includes("API key not valid") ||
+        msg.includes("API_KEY_INVALID") ||
+        msg.includes("er ikke tilgjengelig for din API") ||
+        msg.includes("prepayment credits are depleted") ||
+        msg.includes("credits are depleted") ||
+        msg.includes("Kritisk feil:") ||
+        msg.includes("Feil (404)")
+      ) {
+        throw new Error(msg);
       }
 
-      const msg = error && typeof error === 'object' && error.message ? String(error.message) : (error instanceof Error ? error.message : "");
-
-      if (msg.includes("prepayment credits are depleted") || msg.includes("credits are depleted")) {
-        throw new Error("API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å administrere prosjekt og kvoter, eller oppdater nøkkelen i Settings -> Secrets.");
+      // Hvis backend-serveren er nede eller utilgjengelig (f.eks. nettverksfeil), prøv direkte fallback dersom klientnøkkel finnes
+      const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
+      if (clientApiKey && clientApiKey.length > 10 && (msg.includes("Failed to fetch") || msg.includes("NetworkError") || error?.isServerError)) {
+        try {
+          console.warn("Backend utilgjengelig eller nettverksfeil - forsøker direkte Gemini API-kall med VITE_GEMINI_API_KEY.");
+          return await callDirectGeminiApi(targetModel, validatedContents, params.config);
+        } catch (directErr: any) {
+          console.warn("Direkte fallback feilet også:", directErr);
+        }
       }
 
       if (attempt >= maxRetries) {
@@ -149,7 +166,7 @@ export async function callGoogleAIProxy(params: {
         if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE")) {
           throw new Error("KI-modellen opplever stor pågang akkurat nå (503). Prøv igjen om et lite øyeblikk.");
         }
-        throw new Error(`${UIfriendlyError} (Siste feilmelding: ${msg})`);
+        throw new Error(msg || `${UIfriendlyError} (Siste feilmelding: ${msg})`);
       }
       
       attempt++;
@@ -2094,11 +2111,20 @@ Retningslinjer basert på Modus:
 
 Vær oppmuntrende, presis, og bruk norsk. Unngå å repetere utkastet deres, gi heller retning.`;
 
-  // Formaterer tidligere meldinger til Gemini sitt format (user/model)
-  const contents = context.messages.map(msg => ({
+  // Sørg for at listen ikke starter med 'model' (f.eks. velkomsthilsen fra assistenten)
+  const rawMessages = (context.messages || []).filter(msg => msg && msg.content && msg.content.trim().length > 0);
+  const firstUserIdx = rawMessages.findIndex(m => m.role === 'user');
+  const validHistory = firstUserIdx !== -1 ? rawMessages.slice(firstUserIdx) : rawMessages;
+
+  // Formaterer meldinger til Gemini sitt format (user/model)
+  const contents = validHistory.map(msg => ({
     role: msg.role === 'user' ? 'user' : 'model',
     parts: [{ text: msg.content }]
   }));
+
+  if (contents.length === 0) {
+    contents.push({ role: 'user', parts: [{ text: 'Hei' }] });
+  }
 
   try {
     const response = await callGoogleAIProxy({

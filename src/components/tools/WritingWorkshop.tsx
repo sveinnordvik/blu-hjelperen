@@ -483,12 +483,16 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
       };
       
       setMessages(prev => [...prev, aiResponse]);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Feil ved kommunikasjon med Gemini:", error);
+      const errMsg = error?.message || (typeof error === 'string' ? error : '');
+      const displayMsg = errMsg 
+        ? errMsg 
+        : "Kunne ikke hente svar fra veilederen akkurat nå. Vennligst prøv å sende meldingen på nytt om et øyeblikk.";
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "Beklager, jeg mistet forbindelsen til serveren. Kan du prøve å sende meldingen på nytt?"
+        content: displayMsg
       }]);
     } finally {
       setIsChatLoading(false);
@@ -516,9 +520,9 @@ ${activeDoc.content}`;
       const result = await analyzeWithSystemPrompt(prompt, systemPrompt);
       const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
       setAnalysisResult(resultText);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setAnalysisResult("Kunne ikke fullføre analysen. Prøv igjen senere.");
+      setAnalysisResult(err?.message || "Kunne ikke fullføre analysen. Prøv igjen senere.");
     } finally {
       setIsAnalyzing(false);
     }
