@@ -19,6 +19,7 @@ import {
   Search,
   Plus,
   ArrowLeft,
+  ArrowRight,
   Trash2,
   Copy,
   AlertCircle
@@ -89,7 +90,20 @@ I stedet for å gripe inn umiddelbart og fordele lekene, satte jeg meg ned på h
   }
 ];
 
-export function ProcessLog(_props?: { [key: string]: any }) {
+interface ProcessLogProps {
+  user?: any;
+  initialNote?: {
+    title: string;
+    content: string;
+    category?: string;
+  } | null;
+  onClearInitialNote?: () => void;
+  onOpenFieldNotes?: () => void;
+  onOpenFieldAssistant?: () => void;
+  [key: string]: any;
+}
+
+export function ProcessLog(props?: ProcessLogProps) {
   const [logs, setLogs] = useState<ProcessLogItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -125,6 +139,28 @@ export function ProcessLog(_props?: { [key: string]: any }) {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSuggestingTheory, setIsSuggestingTheory] = useState(false);
   const [theorySuggestions, setTheorySuggestions] = useState<string | null>(null);
+
+  // Integrasjon med Kladdebok i felt og Feltveileder
+  const [fieldNotes, setFieldNotes] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('blu_field_notes');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [fieldAssistantChats, setFieldAssistantChats] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('blu_field_assistant_chat');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showFieldNotesDrawer, setShowFieldNotesDrawer] = useState(false);
+  const [showFieldAssistantDrawer, setShowFieldAssistantDrawer] = useState(false);
 
   // Mobil-spesifikk state
   const [mobileSearchQuery, setMobileSearchQuery] = useState('');
@@ -195,6 +231,15 @@ export function ProcessLog(_props?: { [key: string]: any }) {
         } else {
           setFolders([]); // Tom hvis brukeren ikke har laget mapper enda
         }
+
+        // Hent feltnotater fra Firebase
+        const fieldNotesQ = query(collection(db, 'fieldNotes'), where('userId', '==', user.uid));
+        const fieldNotesSnap = await getDocs(fieldNotesQ);
+        if (!fieldNotesSnap.empty) {
+          const fetchedNotes = fieldNotesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setFieldNotes(fetchedNotes);
+          localStorage.setItem('blu_field_notes', JSON.stringify(fetchedNotes));
+        }
       } catch (error) {
         console.error("Feil ved henting av data fra skyen:", error);
       }
@@ -222,6 +267,94 @@ export function ProcessLog(_props?: { [key: string]: any }) {
     } catch (error) {
       console.error("Feil ved lagring av logg:", error);
     }
+  };
+
+  // Håndter overføring fra Kladdebok (initialNote prop)
+  useEffect(() => {
+    if (props?.initialNote && props.initialNote.content) {
+      const newId = `log-${Date.now()}`;
+      const note = props.initialNote;
+      const cat = note.category === 'Observasjon' 
+        ? 'Praksisfortelling' 
+        : note.category === 'Didaktisk idé' 
+        ? 'Didaktisk refleksjon' 
+        : 'Praksisfortelling';
+
+      const newLogItem: ProcessLogItem = {
+        id: newId,
+        title: note.title || 'Observasjon fra felt',
+        subtitle: `Fra Kladdebok i felt • ${new Date().toLocaleDateString('no-NO')}`,
+        isPinned: false,
+        category: cat,
+        situation: note.content,
+        reflection: '',
+        theoryLinks: note.category === 'Rammeplanen' ? 'Rammeplan for barnehagen' : '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      setLogs(prev => [newLogItem, ...prev]);
+      setActiveLogId(newId);
+      setPreviewMode('edit');
+      setMobileIsEditing(true);
+      saveLogToFirebase(newLogItem);
+      props.onClearInitialNote?.();
+    }
+  }, [props?.initialNote]);
+
+  const handleInsertFieldNote = (note: any) => {
+    if (!activeLog) return;
+    const currentSituation = activeLog.situation ? activeLog.situation.trim() : '';
+    const newSituation = currentSituation
+      ? `${currentSituation}\n\n### Observasjon fra felt (${note.title}):\n${note.content}`
+      : note.content;
+
+    const updated = {
+      ...activeLog,
+      title: (!activeLog.title || activeLog.title === 'Uten tittel') ? note.title : activeLog.title,
+      situation: newSituation,
+      updatedAt: new Date().toISOString()
+    };
+    handleUpdateActiveLog(updated);
+    saveLogToFirebase(updated);
+    setShowFieldNotesDrawer(false);
+  };
+
+  const handleCreateLogFromFieldNote = (note: any) => {
+    const newId = `log-${Date.now()}`;
+    const newLogItem: ProcessLogItem = {
+      id: newId,
+      title: note.title,
+      subtitle: `Fra Kladdebok • ${note.category}`,
+      isPinned: false,
+      category: note.category === 'Observasjon' ? 'Praksisfortelling' : note.category === 'Didaktisk idé' ? 'Didaktisk refleksjon' : 'Praksisfortelling',
+      situation: note.content,
+      reflection: '',
+      theoryLinks: note.category === 'Rammeplanen' ? 'Rammeplan for barnehagen' : '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setLogs(prev => [newLogItem, ...prev]);
+    setActiveLogId(newId);
+    setPreviewMode('edit');
+    saveLogToFirebase(newLogItem);
+    setShowFieldNotesDrawer(false);
+  };
+
+  const handleInsertAssistantAdvice = (msg: any) => {
+    if (!activeLog) return;
+    const currentReflection = activeLog.reflection ? activeLog.reflection.trim() : '';
+    const newReflection = currentReflection
+      ? `${currentReflection}\n\n### Veiledersparring:\n${msg.content}`
+      : msg.content;
+    const updated = {
+      ...activeLog,
+      reflection: newReflection,
+      theoryLinks: activeLog.theoryLinks || 'Rammeplan for barnehagen & pedagogisk teori',
+      updatedAt: new Date().toISOString()
+    };
+    handleUpdateActiveLog(updated);
+    saveLogToFirebase(updated);
+    setShowFieldAssistantDrawer(false);
   };
 
   // Hjelpefunksjon for å lagre mapper til skyen
@@ -544,6 +677,160 @@ Foreslå:
                       <option value="Etisk dilemma">Etisk dilemma</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Felt-integrasjon: Kladdebok & Feltveileder */}
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/90 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                        <BookOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                          Kladdebok i felt & Sparring
+                          <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-bold">
+                            {fieldNotes.length} notater tilgjengelig
+                          </span>
+                        </h4>
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          Hent dine rå observasjoner eller veiledersparring direkte inn i praksisloggen
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFieldNotesDrawer(!showFieldNotesDrawer);
+                          setShowFieldAssistantDrawer(false);
+                        }}
+                        className="py-1.5 px-3 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{showFieldNotesDrawer ? 'Skjul feltnotater' : 'Se feltnotater'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFieldAssistantDrawer(!showFieldAssistantDrawer);
+                          setShowFieldNotesDrawer(false);
+                        }}
+                        className="py-1.5 px-3 bg-white hover:bg-indigo-50 text-indigo-800 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>{showFieldAssistantDrawer ? 'Skjul sparring' : 'Siste sparring'}</span>
+                      </button>
+
+                      {props?.onOpenFieldNotes && (
+                        <button
+                          type="button"
+                          onClick={props.onOpenFieldNotes}
+                          className="py-1.5 px-2.5 bg-white/80 hover:bg-white text-slate-600 hover:text-emerald-800 border border-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <span>Åpne kladdebok</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Viser Feltnotater-skuffen */}
+                  {showFieldNotesDrawer && (
+                    <div className="pt-3 border-t border-emerald-200/60 space-y-2.5 animate-in fade-in">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                        <span>Velg et feltnotat for å fylle inn eller opprette en ny praksislogg:</span>
+                        <span className="text-slate-400">{fieldNotes.length} notater</span>
+                      </div>
+
+                      {fieldNotes.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-2">
+                          Ingen feltnotater funnet. Skriv ned en observasjon i Kladdebok i felt først.
+                        </p>
+                      ) : (
+                        <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                          {fieldNotes.map((fn: any) => (
+                            <div
+                              key={`fn-drawer-${fn.id}`}
+                              className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-emerald-300 transition-all flex items-start justify-between gap-3"
+                            >
+                              <div className="space-y-1 max-w-[70%]">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    {fn.category || 'Observasjon'}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-900 truncate">
+                                    {fn.title}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                                  {fn.content}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-col gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleInsertFieldNote(fn)}
+                                  className="py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  Sett inn her
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateLogFromFieldNote(fn)}
+                                  className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  Ny logg av denne
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Viser Sparring-skuffen */}
+                  {showFieldAssistantDrawer && (
+                    <div className="pt-3 border-t border-indigo-200/60 space-y-2.5 animate-in fade-in">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                        <span>Siste svar fra Feltveilederen (sett inn i didaktisk refleksjon):</span>
+                      </div>
+
+                      {fieldAssistantChats.filter((m: any) => m.role === 'assistant' && m.id !== 'msg-welcome').length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-2">
+                          Ingen råd funnet fra Feltveileder enda. Start en samtale i Feltveileder for å få didaktisk sparring.
+                        </p>
+                      ) : (
+                        <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                          {fieldAssistantChats
+                            .filter((m: any) => m.role === 'assistant' && m.id !== 'msg-welcome')
+                            .slice(-5)
+                            .reverse()
+                            .map((msg: any) => (
+                              <div
+                                key={`fa-drawer-${msg.id}`}
+                                className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs hover:border-indigo-300 transition-all flex items-start justify-between gap-3"
+                              >
+                                <p className="text-xs text-slate-700 line-clamp-3 leading-relaxed max-w-[75%]">
+                                  {msg.content}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleInsertAssistantAdvice(msg)}
+                                  className="py-1 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-colors shrink-0 cursor-pointer"
+                                >
+                                  Sett inn i refleksjon
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Situasjonsbeskrivelse med verktøylinje */}

@@ -363,9 +363,51 @@
       "required": [
         "userId"
       ]
+    },
+    "FieldNote": {
+      "title": "FieldNote",
+      "description": "User field notes from Kladdablokk",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "content"
+      ]
     }
   },
   "firestore": {
+    "/fieldNotes/{noteId}": {
+      "schema": "FieldNote",
+      "description": "User field notes and kladdablokk entries"
+    },
     "/documents/{docId}": {
       "schema": "Document",
       "description": "User writing documents and assignments"

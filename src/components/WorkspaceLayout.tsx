@@ -188,11 +188,11 @@ export function WorkspaceLayout({
 
   return (
     <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed }}>
-      <div className="flex w-full h-[calc(100vh-140px)] min-h-[700px] bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+      <div className="flex w-full h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] min-h-[520px] md:min-h-[700px] bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
       
-      {/* SIDEMENY */}
+      {/* SIDEMENY (Skjult på mobil slik at innholdet får 100% bredde, synlig på md+) */}
       <aside 
-        className={`bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out select-none relative ${
+        className={`bg-slate-900 text-slate-300 flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out select-none relative hidden md:flex ${
           isCollapsed ? 'w-16' : 'w-80'
         }`}
       >

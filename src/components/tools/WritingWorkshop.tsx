@@ -1098,8 +1098,8 @@ ${activeDoc.content}`;
               {activePanelTab === 'superveileder' ? (
                 // SUPERVEILEDER CHAT UI
                 <div className="flex flex-col h-full">
-                  <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-center gap-1.5">
-                    {['Auto', 'Sokratisk', 'Rammeplan', 'APA', 'Metode'].map(mode => (
+                  <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-center gap-1.5 flex-wrap">
+                    {['Auto', 'Sokratisk', 'Rammeplan', 'APA', 'Metode', 'Lytte'].map(mode => (
                       <button 
                         key={mode} 
                         onClick={() => setChatMode(mode)} 

@@ -547,6 +547,21 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
     saveAs(blob, fileName);
   };
 
+  const handleExportNotes = async () => {
+    if (!activeGroup) return;
+    const docxDoc = new Document({
+      sections: [{ 
+        properties: {}, 
+        children: [
+          new Paragraph(`Fellesnotater for ${activeGroup.name}`),
+          new Paragraph(activeGroup.notes || 'Ingen notater skrevet enda.')
+        ] 
+      }]
+    });
+    const blob = await Packer.toBlob(docxDoc);
+    saveAs(blob, `${activeGroup.name}_fellesnotater.docx`);
+  };
+
   // Calendar logic
   const handleFetchCalendar = async () => {
     if (!calendarLinkInput.trim() || !activeGroup) {
@@ -733,7 +748,10 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
   }));
 
   return (
-    <WorkspaceLayout
+    <>
+      {/* DESKTOP VISNING (Uendret og bevart for md: og større) */}
+      <div className="hidden md:block w-full h-full">
+        <WorkspaceLayout
       title="Basen (Kollokvie)"
       subtitle="Samarbeid og felles læring"
       icon={<Users className="w-6 h-6" />}
@@ -1792,6 +1810,551 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
         )
       )}
     </WorkspaceLayout>
+      </div>
+
+      {/* MOBIL VISNING (Dedikert, responsiv kollokvieopplevelse for mobil) */}
+      <div className="md:hidden w-full max-w-xl mx-auto pb-28 px-3 sm:px-4 space-y-4">
+        {/* Mobil Header Banner */}
+        <div className="bg-gradient-to-r from-violet-700 via-purple-700 to-indigo-800 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
+                <Users className="w-3.5 h-3.5 text-purple-200" /> Basen (Kollokvie)
+              </span>
+              <button
+                onClick={handleNewGroup}
+                className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Ny gruppe
+              </button>
+            </div>
+
+            <h2 className="text-xl font-black tracking-tight text-white">
+              {activeGroup ? activeGroup.name : 'Dine kollokviegrupper'}
+            </h2>
+            <p className="text-xs text-purple-100 mt-1 leading-relaxed">
+              {activeGroup 
+                ? `${activeGroup.members?.length || 1} medlemmer • ${activeGroup.todos?.filter(t => !t.completed).length || 0} åpne gjøremål` 
+                : 'Samarbeid om oppgaver, fellesnotater og møter.'}
+            </p>
+
+            {/* Hurtig-knapp: Inviteringslenke */}
+            {activeGroup && (
+              <button 
+                onClick={handleCopyInvite}
+                className="mt-3.5 w-full py-2 px-3 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-bold flex items-center justify-between text-white transition-colors cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Share2 className="w-3.5 h-3.5 text-purple-200" />
+                  <span>Inviter medstudenter</span>
+                </span>
+                <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-md font-semibold">
+                  {copiedInvite ? '✓ Lenke kopiert!' : 'Kopier lenke'}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Gruppevelger-piller */}
+        {groups.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+            {groups.map(g => (
+              <button
+                key={`m-grp-${g.id}`}
+                onClick={() => {
+                  setActiveGroupId(g.id);
+                  setActiveTab('oversikt');
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  activeGroupId === g.id
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {g.name}
+              </button>
+            ))}
+            <button
+              onClick={handleNewGroup}
+              className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1 shrink-0 hover:bg-purple-100 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Ny
+            </button>
+          </div>
+        )}
+
+        {/* Innhold når ingen gruppe er valgt */}
+        {!activeGroup ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 text-center space-y-3">
+            <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Users className="w-7 h-7" />
+            </div>
+            <h3 className="font-extrabold text-slate-900 text-base">Ingen gruppe valgt</h3>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+              Opprett en ny kollokviegruppe for studievennene dine, eller velg en gruppe ovenfor.
+            </p>
+            <button
+              onClick={handleNewGroup}
+              className="w-full py-3 px-4 bg-primary text-white rounded-2xl font-bold text-sm shadow-md hover:bg-primary-hover transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Opprett kollokviegruppe
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Undernavigasjon for aktiv gruppe på mobil */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+              {[
+                { id: 'chat', label: 'Chat', icon: MessageSquare, badge: activeGroup.unreadChat ? '•' : null },
+                { id: 'oversikt', label: 'Oversikt', icon: Users },
+                { id: 'kalender', label: 'Kalender', icon: Calendar, badge: activeGroup.events?.length ? activeGroup.events.length : null },
+                { id: 'notater', label: 'Notater', icon: FileText },
+                { id: 'filer', label: 'Filer & Todo', icon: Folder, badge: activeGroup.todos?.filter(t => !t.completed).length ? activeGroup.todos.filter(t => !t.completed).length : null },
+                { id: 'ki', label: 'KI-støtte', icon: Sparkles }
+              ].map(t => {
+                const Icon = t.icon;
+                const isActive = activeTab === t.id;
+                return (
+                  <button
+                    key={`mobile-tab-${t.id}`}
+                    onClick={() => setActiveTab(t.id as any)}
+                    className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isActive
+                        ? 'bg-primary text-white shadow-xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{t.label}</span>
+                    {t.badge && (
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                        isActive ? 'bg-white text-primary' : 'bg-primary/10 text-primary'
+                      }`}>
+                        {t.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* FANEVIST INNHOLD */}
+
+            {/* 1. CHAT */}
+            {activeTab === 'chat' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3.5 shadow-xs">
+                {activeGroup.meetingLink && (
+                  <a
+                    href={activeGroup.meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Video className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>Fast videomøterom</span>
+                    </div>
+                    <span className="text-[11px] bg-indigo-600 text-white px-2 py-0.5 rounded-md font-extrabold">
+                      Bli med
+                    </span>
+                  </a>
+                )}
+
+                {/* Meldingsstrøm */}
+                <div className="max-h-[380px] min-h-[220px] overflow-y-auto space-y-3 p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80">
+                  {(!activeGroup.messages || activeGroup.messages.length === 0) ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      Ingen meldinger enda. Si hei til kollokviet!
+                    </div>
+                  ) : (
+                    activeGroup.messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex gap-2.5 ${msg.isMe ? 'flex-row-reverse' : ''}`}
+                      >
+                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                          msg.color === 'emerald' ? 'bg-emerald-600' :
+                          msg.color === 'amber' ? 'bg-amber-600' :
+                          msg.color === 'rose' ? 'bg-rose-600' :
+                          msg.color === 'blue' ? 'bg-blue-600' : 'bg-indigo-600'
+                        }`}>
+                          {msg.user[0]}
+                        </div>
+                        <div className={`max-w-[80%] ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                          <div className={`flex items-center gap-1.5 mb-1 text-[10px] text-slate-400 ${msg.isMe ? 'justify-end' : ''}`}>
+                            <span className="font-bold text-slate-700">{msg.user}</span>
+                            <span>{msg.time}</span>
+                          </div>
+                          <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
+                            msg.isMe 
+                              ? 'bg-primary text-white rounded-tr-xs' 
+                              : 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs shadow-2xs'
+                          }`}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Hurtig-prompts */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+                  {[
+                    'Oppsummer hva vi har diskutert',
+                    'Foreslå neste møteagenda',
+                    '3 didaktiske problemstillinger'
+                  ].map(prompt => (
+                    <button
+                      key={prompt}
+                      onClick={() => setGroupInput(prompt)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap font-medium transition-colors cursor-pointer"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Meldingsinput */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={groupInput}
+                    onChange={e => setGroupInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSendGroupMessage()}
+                    placeholder="Skriv til gruppen..."
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-primary"
+                  />
+                  <button
+                    onClick={handleSendGroupMessage}
+                    disabled={!groupInput.trim()}
+                    className="p-2.5 bg-primary text-white rounded-xl disabled:opacity-50 hover:bg-primary-hover transition-colors cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 2. OVERSIKT */}
+            {activeTab === 'oversikt' && (
+              <div className="space-y-3.5">
+                {/* Videomøterom */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <Video className="w-4 h-4 text-indigo-600" /> Videomøte (Teams / Meet)
+                    </span>
+                    {activeGroup.meetingLink && (
+                      <a
+                        href={activeGroup.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-indigo-600 hover:underline"
+                      >
+                        Åpne rom
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={activeGroup.meetingLink || ''}
+                    onChange={e => updateActiveGroup({ meetingLink: e.target.value })}
+                    placeholder="Lim inn Teams-, Zoom- eller Meet-lenke..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                {/* Medlemmer */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-primary" /> Medlemmer ({activeGroup.members?.length || 1})
+                    </span>
+                    <button
+                      onClick={handleCopyInvite}
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" /> Inviter
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {activeGroup.members?.map(m => (
+                      <div key={m.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-white ${
+                            m.color === 'emerald' ? 'bg-emerald-600' :
+                            m.color === 'amber' ? 'bg-amber-600' :
+                            m.color === 'rose' ? 'bg-rose-600' :
+                            m.color === 'blue' ? 'bg-blue-600' : 'bg-indigo-600'
+                          }`}>
+                            {m.name[0]}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900">{m.name}</p>
+                            <p className="text-[10px] text-slate-400 capitalize">{m.role || 'Medlem'}</p>
+                          </div>
+                        </div>
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Online" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gruppeinnstillinger-knapp */}
+                <button
+                  onClick={() => setShowSettingsModal(true)}
+                  className="w-full py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 text-slate-500" /> Gruppeinnstillinger
+                </button>
+              </div>
+            )}
+
+            {/* 3. KALENDER */}
+            {activeTab === 'kalender' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-primary" /> Planlagte hendelser
+                  </h3>
+                  <button
+                    onClick={() => setShowEventModal(true)}
+                    className="px-2.5 py-1.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Ny hendelse
+                  </button>
+                </div>
+
+                <div className="space-y-2.5">
+                  {(!activeGroup.events || activeGroup.events.length === 0) ? (
+                    <div className="text-center py-8 text-slate-400 text-xs">
+                      Ingen planlagte hendelser enda. Trykk på "+ Ny hendelse" for å opprette et møte eller en frist.
+                    </div>
+                  ) : (
+                    activeGroup.events.map(ev => {
+                      const cat = categoryConfig[ev.category || 'meeting'] || categoryConfig['meeting'];
+                      return (
+                        <div key={ev.id} className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${cat.color}`}>
+                              {cat.label}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-500">{ev.date}</span>
+                          </div>
+                          <h4 className="text-xs font-bold text-slate-900">{ev.title}</h4>
+                          {ev.description && (
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{ev.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-[10px] text-slate-400 pt-1">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {ev.allDay ? 'Hele dagen' : `${ev.startTime || '09:00'} - ${ev.endTime || '10:00'}`}
+                            </span>
+                            {ev.location && (
+                              <span>• {ev.location}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 4. NOTATER */}
+            {activeTab === 'notater' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-primary" /> Fellesnotater
+                  </h3>
+                  <button
+                    onClick={handleExportNotes}
+                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Word (.docx)
+                  </button>
+                </div>
+                <textarea
+                  value={activeGroup.notes || ''}
+                  onChange={e => updateActiveGroup({ notes: e.target.value })}
+                  placeholder="Skriv felles kollokvienotater, oppgavedisposisjon, møtereferat..."
+                  className="w-full min-h-[300px] p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:border-primary leading-relaxed resize-y"
+                />
+              </div>
+            )}
+
+            {/* 5. FILER & TODO */}
+            {activeTab === 'filer' && (
+              <div className="space-y-3.5">
+                {/* Gjøremål */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <CheckSquare className="w-4 h-4 text-primary" /> Gjøremål ({activeGroup.todos?.filter(t => !t.completed).length || 0})
+                  </h3>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newTodoInput}
+                      onChange={e => setNewTodoInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAddTodo()}
+                      placeholder="Ny oppgave for gruppen..."
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-primary"
+                    />
+                    <button
+                      onClick={handleAddTodo}
+                      disabled={!newTodoInput.trim()}
+                      className="p-2 bg-primary text-white rounded-xl disabled:opacity-50 hover:bg-primary-hover cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {(!activeGroup.todos || activeGroup.todos.length === 0) ? (
+                      <p className="text-[11px] text-slate-400 text-center py-2">Ingen gjøremål registrert.</p>
+                    ) : (
+                      activeGroup.todos.map(t => (
+                        <div
+                          key={t.id}
+                          onClick={() => handleToggleTodo(t.id)}
+                          className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
+                            t.completed 
+                              ? 'bg-slate-50 border-slate-100 text-slate-400 line-through' 
+                              : 'bg-white border-slate-200 text-slate-800 hover:border-primary/40'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={t.completed}
+                            onChange={() => {}}
+                            className="rounded-md text-primary pointer-events-none"
+                          />
+                          <span className="flex-1 font-medium">{t.task}</span>
+                          {t.assignee && (
+                            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-md text-slate-500 font-semibold">
+                              {t.assignee}
+                            </span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Delte filer */}
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Folder className="w-4 h-4 text-primary" /> Gruppefiler ({activeGroup.files?.length || 0})
+                    </h3>
+                    <label className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" /> Last opp
+                      <input type="file" onChange={handleFileUpload} className="hidden" multiple />
+                    </label>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {(!activeGroup.files || activeGroup.files.length === 0) ? (
+                      <p className="text-[11px] text-slate-400 text-center py-2">Ingen filer lastet opp enda.</p>
+                    ) : (
+                      activeGroup.files.map(f => (
+                        <div key={f.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <FileIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                            <span className="font-medium text-slate-700 truncate">{f.name}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 shrink-0 ml-2">{f.size}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 6. KI-STØTTE */}
+            {activeTab === 'ki' && (
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 space-y-3 shadow-xs">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base">Kollokvie-sparring & Flashcards</h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Bruk kollokviet til å drøfte vanskelige faglige begreper fra pensum og Rammeplanen. Still spørsmål i chatten for felles didaktisk analyse.
+                </p>
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      setActiveTab('chat');
+                      setGroupInput('Hva er de viktigste didaktiske prinsippene i Rammeplanen for barnehagen?');
+                    }}
+                    className="w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" /> Start KI-sparring i chatten
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* MOBIL MODAL: OPPRETT NY GRUPPE */}
+      <AnimatePresence>
+        {showCreateGroup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white p-6 rounded-3xl shadow-2xl max-w-sm w-full border border-slate-200 space-y-4"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Users className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Opprett ny gruppe</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Lag et felles rom for kollokviet eller prosjektgruppen din.</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5">Gruppenavn</label>
+                <input 
+                  type="text" 
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateGroupConfirm()}
+                  placeholder="F.eks. Kollokviegruppe 4"
+                  autoFocus
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  onClick={() => setShowCreateGroup(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer"
+                >
+                  Avbryt
+                </button>
+                <button 
+                  onClick={handleCreateGroupConfirm}
+                  disabled={!newGroupName.trim()}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-hover transition-all shadow-md shadow-primary/20 disabled:opacity-50 cursor-pointer"
+                >
+                  Opprett
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 

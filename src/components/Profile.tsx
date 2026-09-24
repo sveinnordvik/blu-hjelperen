@@ -173,8 +173,29 @@ export function Profile({
       onItemClick={(id) => setActiveMenu(id)}
       historySectionTitle=""
     >
-      <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-slate-50 flex justify-center custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-10 bg-slate-50 flex justify-center custom-scrollbar">
         <div className="max-w-4xl w-full">
+
+          {/* Mobil Tommelvennlig Hurtigmeny (Sticky faner for rask tommel-navigasjon) */}
+          <div className="md:hidden sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md pb-3.5 pt-1 mb-4">
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-2xl gap-1 border border-slate-300/40 shadow-xs">
+              {menuItems.map((item) => (
+                <button
+                  key={`mobile-tab-${item.id}`}
+                  onClick={() => setActiveMenu(item.id)}
+                  className={cn(
+                    "flex-1 py-3 px-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all min-h-[46px] cursor-pointer active:scale-95",
+                    activeMenu === item.id 
+                      ? "bg-white text-slate-900 shadow-sm font-black" 
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  {item.icon}
+                  <span className="truncate">{item.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* ========================================================================= */}
           {/* VISNING 1: MIN PROFIL                                                    */}
@@ -184,7 +205,7 @@ export function Profile({
               key="view-profile"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-8 pb-16"
+              className="space-y-6 sm:space-y-8 pb-16"
             >
               {/* Toppseksjon med tittel og Lagre-knapp */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -197,7 +218,7 @@ export function Profile({
                     onClick={handleSaveProfile}
                     disabled={isSavingProfile}
                     className={cn(
-                      "px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md self-start sm:self-auto cursor-pointer",
+                      "w-full sm:w-auto min-h-[48px] px-6 py-3.5 bg-slate-900 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-md cursor-pointer active:scale-[0.98]",
                       isSavingProfile && "opacity-70 cursor-not-allowed"
                     )}
                   >
@@ -271,7 +292,7 @@ export function Profile({
                       value={profile?.name || ''} 
                       onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       placeholder="F.eks. Svein Nordvik"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -282,7 +303,7 @@ export function Profile({
                       value={profile?.email || ''} 
                       onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                       placeholder="student@dmmh.no"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -293,7 +314,7 @@ export function Profile({
                       value={profile?.studentId || ''} 
                       onChange={(e) => setProfile({ ...profile, studentId: e.target.value })}
                       placeholder="Ditt studentnummer"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -304,7 +325,7 @@ export function Profile({
                       value={profile?.candidateId || ''} 
                       onChange={(e) => setProfile({ ...profile, candidateId: e.target.value })}
                       placeholder="F.eks. 101"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -315,7 +336,7 @@ export function Profile({
                       value={profile?.year || ''} 
                       onChange={(e) => setProfile({ ...profile, year: e.target.value })}
                       placeholder="F.eks. 2024-2027"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -325,7 +346,7 @@ export function Profile({
                       type="date" 
                       value={profile?.deadline || ''} 
                       onChange={(e) => setProfile({ ...profile, deadline: e.target.value })}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -336,7 +357,7 @@ export function Profile({
                       value={profile?.studiested || ''} 
                       onChange={(e) => setProfile({ ...profile, studiested: e.target.value })}
                       placeholder="F.eks. DMMH, OsloMet, NTNU..."
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -351,7 +372,7 @@ export function Profile({
                         }
                         setProfile({ ...profile, studyProgram: e.target.value });
                       }}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     >
                       <option value="">Velg studieprogram...</option>
                       <option value="Barnehagelærer, heltid">Barnehagelærer, heltid</option>
@@ -370,7 +391,7 @@ export function Profile({
                       value={profile?.specialization || ''} 
                       onChange={(e) => setProfile({ ...profile, specialization: e.target.value })}
                       placeholder="F.eks. Natur, helse og bevegelse"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -381,7 +402,7 @@ export function Profile({
                       value={profile?.studyModel || ''} 
                       onChange={(e) => setProfile({ ...profile, studyModel: e.target.value })}
                       placeholder="F.eks. 2023-modell"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
 
@@ -392,7 +413,7 @@ export function Profile({
                       value={profile?.courses || ''} 
                       onChange={(e) => setProfile({ ...profile, courses: e.target.value })}
                       placeholder="F.eks. BHG3000, PED2000"
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>
                 </div>
@@ -403,7 +424,7 @@ export function Profile({
                       onClick={handleSaveProfile}
                       disabled={isSavingProfile}
                       className={cn(
-                        "px-8 py-3 bg-primary text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-primary-hover transition-all shadow-md cursor-pointer",
+                        "w-full sm:w-auto min-h-[48px] px-8 py-3.5 bg-primary text-white rounded-xl text-base sm:text-sm font-bold flex items-center justify-center gap-2 hover:bg-primary-hover transition-all shadow-md cursor-pointer active:scale-[0.98]",
                         isSavingProfile && "opacity-70 cursor-not-allowed"
                       )}
                     >
@@ -681,66 +702,72 @@ export function Profile({
                   <div className="space-y-4">
                     {setSettings && (
                       <>
-                        <div className="flex items-center justify-between">
+                        <div 
+                          onClick={() => setSettings({ ...settings, showTimerInHeader: !settings?.showTimerInHeader })}
+                          className="flex items-center justify-between py-2 px-2 -mx-2 rounded-xl hover:bg-slate-50 active:bg-slate-100 cursor-pointer min-h-[44px] transition-colors"
+                        >
                           <div>
                             <p className="text-xs font-bold text-slate-700">Vis tidtaker i toppmeny</p>
                             <p className="text-[10px] text-slate-400">Pomodoro-klokke øverst.</p>
                           </div>
-                          <button 
-                            onClick={() => setSettings({ ...settings, showTimerInHeader: !settings?.showTimerInHeader })}
+                          <div 
                             className={cn(
-                              "w-10 h-5 rounded-full relative transition-all cursor-pointer",
+                              "w-11 h-6 rounded-full relative transition-all shrink-0",
                               settings?.showTimerInHeader ? "bg-primary" : "bg-slate-200"
                             )}
                           >
                             <div className={cn(
-                              "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-xs",
+                              "absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-xs",
                               settings?.showTimerInHeader ? "right-0.5" : "left-0.5"
                             )} />
-                          </button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center justify-between">
+                        <div 
+                          onClick={() => setSettings({ ...settings, showDeadlineInHeader: !settings?.showDeadlineInHeader })}
+                          className="flex items-center justify-between py-2 px-2 -mx-2 rounded-xl hover:bg-slate-50 active:bg-slate-100 cursor-pointer min-h-[44px] transition-colors"
+                        >
                           <div>
                             <p className="text-xs font-bold text-slate-700">Vis innleveringsfrist</p>
                             <p className="text-[10px] text-slate-400">Dager igjen i toppmenyen.</p>
                           </div>
-                          <button 
-                            onClick={() => setSettings({ ...settings, showDeadlineInHeader: !settings?.showDeadlineInHeader })}
+                          <div 
                             className={cn(
-                              "w-10 h-5 rounded-full relative transition-all cursor-pointer",
+                              "w-11 h-6 rounded-full relative transition-all shrink-0",
                               settings?.showDeadlineInHeader ? "bg-primary" : "bg-slate-200"
                             )}
                           >
                             <div className={cn(
-                              "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-xs",
+                              "absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-xs",
                               settings?.showDeadlineInHeader ? "right-0.5" : "left-0.5"
                             )} />
-                          </button>
+                          </div>
                         </div>
                       </>
                     )}
 
                     {setLowStressMode && (
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                      <div 
+                        onClick={() => setLowStressMode(!lowStressMode)}
+                        className="flex items-center justify-between py-2 px-2 -mx-2 rounded-xl hover:bg-slate-50 active:bg-slate-100 cursor-pointer min-h-[44px] pt-2 border-t border-slate-100 transition-colors"
+                      >
                         <div>
                           <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                             <Moon className="w-3.5 h-3.5 text-primary" /> Lav-stress modus
                           </p>
                           <p className="text-[10px] text-slate-400">Roligere grensesnitt for dyp skriving.</p>
                         </div>
-                        <button 
-                          onClick={() => setLowStressMode(!lowStressMode)}
+                        <div 
                           className={cn(
-                            "w-10 h-5 rounded-full relative transition-all cursor-pointer",
+                            "w-11 h-6 rounded-full relative transition-all shrink-0",
                             lowStressMode ? "bg-primary" : "bg-slate-200"
                           )}
                         >
                           <div className={cn(
-                            "absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow-xs",
+                            "absolute top-0.5 w-5 h-5 bg-white rounded-full transition-all shadow-xs",
                             lowStressMode ? "right-0.5" : "left-0.5"
                           )} />
-                        </button>
+                        </div>
                       </div>
                     )}
                   </div>

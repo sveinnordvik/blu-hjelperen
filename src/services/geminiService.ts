@@ -1322,7 +1322,7 @@ REGLER FOR DETTE KALLTET:
 // FASE 4: AGENTIC WORKFLOW & SUPER-VEILEDER
 // -------------------------------------------------------------
 
-export type AgentRouteCategory = 'SOKRATISK' | 'RAG' | 'APA' | 'SPRAK' | 'LYTTE' | 'GENERELL';
+export type AgentRouteCategory = 'SOKRATISK' | 'RAG' | 'APA' | 'SPRAK' | 'LYTTE' | 'METODE' | 'GENERELL';
 
 /**
  * Super-Veilederen (Router-logikk)
@@ -1337,22 +1337,27 @@ export async function superAgentRouter(userInput: string): Promise<AgentRouteCat
     return 'APA';
   }
 
-  // 2. Språkvask / Omformulering / Korrektur
+  // 2. Vitenskapsteori, forskningsmetode og forskningsetikk (NESH/SIKT)
+  if (/\b(metode|metodisk|metodedesign|forskningsdesign|problemstilling|kvalitativ|kvantitativ|observasjon|observasjonsnotat|løpende protokoll|feltnotat|feltarbeid|intervju|intervjuguide|semistrukturert|informant|informanter|dokumentanalyse|litteraturstudie|reliabilitet|validitet|overførbarhet|forskningsetikk|nesh|sikt|samtykke|anonymisering|taushetsplikt|forske på barn)\b/i.test(text)) {
+    return 'METODE';
+  }
+
+  // 3. Språkvask / Omformulering / Korrektur
   if (/\b(språkvask|omformuler|omformulering|skriv om|korrektur|grammatikk|rett skrivefeil|forbedre teksten|flyt|fagspråk)\b/i.test(text)) {
     return 'SPRAK';
   }
 
-  // 3. Rammeplan / Barnehageloven / Formelle styringsdokumenter og fagområder
+  // 4. Rammeplan / Barnehageloven / Formelle styringsdokumenter og fagområder
   if (/\b(rammeplan|rammeplanen|barnehagelov|barnehageloven|fagområde|fagområder|fagområdet|antall,?\s*rom|natur,?\s*miljø|kunst,?\s*kultur|kropp,?\s*bevegelse|etikk,?\s*religion|nærmiljø|kommunikasjon,?\s*språk|danning|progresjon|bemanningsnorm|pedagogisk leder|samfunnsmandat)\b/i.test(text)) {
     return 'RAG';
   }
 
-  // 4. Emosjonell støtte / Debrifing etter tøff dag
-  if (/\b(sliten|frustrert|tung dag|vanskelig i praksis|grue meg|gruer meg|lei meg|umotivert|stresset|overveldet)\b/i.test(text)) {
+  // 5. Emosjonell støtte / Debrifing etter tøff dag
+  if (/\b(sliten|frustrert|tung dag|vanskelig i praksis|grue meg|gruer meg|lei meg|umotivert|stresset|overveldet|kjipt|gråte|gråt|lei av|utbrent|usikker på meg selv|praksissjokk|konflikt med praksislærer|mistrives)\b/i.test(text)) {
     return 'LYTTE';
   }
 
-  // 5. Sokratisk / Praksisrefleksjon / Didaktiske valg og dilemmaer
+  // 6. Sokratisk / Praksisrefleksjon / Didaktiske valg og dilemmaer
   if (/\b(praksisfortelling|praksis|hva tenker du|hva bør jeg|drøft|drøfting|refleksjon|reflektere|undring|undre|veiled meg|case|dilemma|hva ville du|spørsmål til ettertanke)\b/i.test(text)) {
     return 'SOKRATISK';
   }
@@ -1389,6 +1394,50 @@ export async function askRagAgent(
     console.error("Feil i askRagAgent:", error);
     const msg = error instanceof Error ? error.message : (error?.message || (typeof error === 'string' ? error : ''));
     throw new Error(msg || "Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
+  }
+}
+
+/**
+ * Metode-agenten: Spesialist på forskningsmetode, design og forskningsetikk for barnehagelærerutdanningen
+ */
+export async function askMethodAgent(
+  question: string,
+  chatHistory: Array<{ role: string; content: string }> = [],
+  contextPrompt?: string
+) {
+  const systemInstruction = `Du er "Metode-veilederen" for barnehagelærerstudenter (BLU/DMMH), spesialisert på vitenskapsteori, forskningsmetodikk og forskningsetikk for barnehagefeltet.
+${contextPrompt ? `\nKONTEKST FRA OPPGAVEN:\n${contextPrompt}\n` : ''}
+DINE FAGLIGE RETNINGSLINJER:
+1. PROBLEMSTILLING & DESIGN: Hjelp studenten med å formulere en presis, avgrenset og forskbar problemstilling. Gi veiledning i valg mellom kvalitativ metode (dybdeintervju, deltakende observasjon, feltnotater, praksisfortelling) og litteraturstudie.
+2. OBSERVASJON & INTERVJU I BARNEHAGEN: Gi konkrete råd om observasjonsmetoder (løpende protokoll, hendelsesregistrering, tidsintervall, barns stemmer) og semistrukturerte intervjuer med personale eller foresatte.
+3. FORSKNINGSETIKK (NESH & SIKT):
+   - Understrek alltid barns særlige sårbarhet og krav til informert samtykke fra foresatte ved direkte datainnsamling.
+   - Veiled om meldeplikt til SIKT (behandling av personopplysninger) og full anonymisering i tråd med barnehagelovens strenge taushetsplikt.
+4. VALIDITET OG RELIABILITET: Forklar hvordan studenten sikrer troverdighet, overførbarhet, pålitelighet og bekreftbarhet i kvalitativ pedagogisk forskning.
+5. STRUKTUR: Vær oppmuntrende, akademisk presis og strukturer svaret med tydelige overskrifter og punkter. Avslutt med ett konkret oppfølgingsspørsmål som hjelper studenten videre i forskningsprosessen.`;
+
+  try {
+    const formattedHistory = (chatHistory || []).map(msg => ({
+      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }));
+
+    const contents = [...formattedHistory, { role: "user", parts: [{ text: question }] }];
+
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.4,
+      },
+    });
+
+    return response.text;
+  } catch (error: any) {
+    console.error("Feil i askMethodAgent:", error);
+    const msg = error instanceof Error ? error.message : (error?.message || (typeof error === 'string' ? error : ''));
+    throw new Error(msg || "Klarte ikke hente svar fra Metode-veilederen akkurat nå.");
   }
 }
 
@@ -2135,9 +2184,38 @@ export interface ChatContext {
 }
 
 export const chatWithSuperveileder = async (context: ChatContext): Promise<string> => {
-  const systemInstruction = `Du er 'Superveilederen', en KI-veileder for barnehagelærerstudenter.
-Modus valgt av studenten: ${context.mode}
-Dokumenttittel: ${context.docTitle}
+  // Agentic Workflow: Finn siste brukermelding for å analysere intensjon
+  const lastUserMsg = [...(context.messages || [])].reverse().find(m => m.role === 'user')?.content || '';
+  const detectedAgent = context.mode === 'Auto' ? await superAgentRouter(lastUserMsg) : context.mode.toUpperCase();
+
+  let modeSpecificDirective = '';
+  switch (detectedAgent) {
+    case 'SOKRATISK':
+      modeSpecificDirective = '- Fokus: Sokratisk veiledning. Still åpne, utforskende spørsmål som utfordrer studenten til å tenke selv, begrunne didaktiske valg og se saken fra barnets perspektiv uten å servere ferdige svar.';
+      break;
+    case 'RAG':
+    case 'RAMMEPLAN':
+      modeSpecificDirective = '- Fokus: Rammeplanen for barnehagen (2017) og Barnehageloven. Koble teksten og problemstillingen eksplisitt til relevante kapitler, verdigrunnlag (kap. 1), barns medvirkning (kap. 3) eller fagområder (kap. 8).';
+      break;
+    case 'APA':
+      modeSpecificDirective = '- Fokus: APA 7-kildehenvisning og referanseliste. Veiled om korrekt sitering i løpende tekst og standarder ifølge Kildekompasset.';
+      break;
+    case 'SPRAK':
+      modeSpecificDirective = '- Fokus: Akademisk språk og flyt. Hjelp studenten med faglig presisjon, struktur og en rød tråd i teksten.';
+      break;
+    case 'METODE':
+      modeSpecificDirective = '- Fokus: Vitenskapsteori, forskningsmetode og forskningsetikk (NESH/SIKT). Hjelp med problemstilling, observasjon, intervju, reliabilitet/validitet og taushetsplikt.';
+      break;
+    case 'LYTTE':
+      modeSpecificDirective = '- Fokus: Empatisk støtte, debrifing og motivasjon. Møt studenten med anerkjennelse og hjelp til å sortere tanker og følelser ved stress eller frustrasjon.';
+      break;
+    default:
+      modeSpecificDirective = '- Fokus: Helhetlig didaktisk veiledning tilpasset studentens oppgave og problemstilling.';
+  }
+
+  const systemInstruction = `Du er 'Superveilederen', en erfaren og faglig støttende KI-veileder for barnehagelærerstudenter (BLU/DMMH).
+Modus valgt av studenten: ${context.mode} (Aktivt agentfokus: ${detectedAgent})
+Dokumenttittel: ${context.docTitle || 'Uten tittel'}
 Problemstilling: ${context.taskPrompt || 'Ikke oppgitt'}
 
 Studentens nåværende utkast:
@@ -2145,14 +2223,10 @@ Studentens nåværende utkast:
 ${context.docContent || 'Ingen tekst skrevet enda.'}
 """
 
-Retningslinjer basert på Modus:
-- Auto: Svar naturlig og hjelpsomt basert på teksten.
-- Sokratisk: Ikke gi fasitsvar. Still åpne, reflekterende spørsmål som driver studentens tenkning fremover.
-- Rammeplan: Koble svaret ditt direkte til Rammeplan for barnehagen.
-- APA: Hjelp med akademisk skriving, kildekritikk og APA-formatering.
-- Metode: Fokuser på forskningsmetode, datainnsamling og validitet.
+Retningslinje for denne responsen:
+${modeSpecificDirective}
 
-Vær oppmuntrende, presis, og bruk norsk. Unngå å repetere utkastet deres, gi heller retning.`;
+Vær oppmuntrende, pedagogisk forankret og skriv på presist norsk. Gi konkret veiledning som løfter oppgaven fremover.`;
 
   // Sørg for at listen ikke starter med 'model' (f.eks. velkomsthilsen fra assistenten)
   const rawMessages = (context.messages || []).filter(msg => msg && msg.content && msg.content.trim().length > 0);

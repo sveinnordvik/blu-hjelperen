@@ -247,8 +247,8 @@ export const Home: React.FC<HomeProps> = ({
               </button>
             </div>
 
-            {/* 3. SISTE DOKUMENTER (Løftet opp i arbeidsflyten) */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            {/* 3. SISTE DOKUMENTER (Skjult på mobil for et ryddig Hjem, synlig på md+) */}
+            <div className="hidden md:block bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
                   <FileText className="w-6 h-6 text-slate-400" /> Siste dokumenter
@@ -307,9 +307,9 @@ export const Home: React.FC<HomeProps> = ({
               )}
             </div>
 
-            {/* 4. MILEPÆLER OG FRISTER */}
+            {/* 4. MILEPÆLER OG FRISTER (Skjult på mobil, synlig på md+) */}
             {!lowStressMode && (
-              <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+              <div className="hidden md:block bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
                 <div className="mb-6">
                   <h3 className="text-xl font-black text-slate-900 flex items-center gap-3">
                     <Clock className="w-6 h-6 text-slate-400" /> Milepæler og frister
@@ -371,8 +371,8 @@ export const Home: React.FC<HomeProps> = ({
               </div>
             )}
 
-            {/* 5. OFTE STILTE SPØRSMÅL (FAQ) */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            {/* 5. OFTE STILTE SPØRSMÅL (FAQ) (Skjult på mobil, synlig på md+) */}
+            <div className="hidden md:block bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
               <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-3">
                 <HelpCircle className="w-6 h-6 text-slate-400" /> Ofte stilte spørsmål
               </h3>
@@ -475,33 +475,36 @@ export const Home: React.FC<HomeProps> = ({
               </div>
             </div>
 
-            {/* 3. VIKTIGE RESSURSER */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Link className="w-5 h-5 text-slate-400" /> Viktige ressurser
-              </h3>
-              <div className="space-y-3">
+            {/* 3. VIKTIGE RESSURSER (Slanket og elegant mobilkort) */}
+            <div className="bg-white p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-3 md:mb-4">
+                <h3 className="font-bold text-slate-900 text-sm md:text-base flex items-center gap-2">
+                  <Link className="w-4 h-4 md:w-5 md:h-5 text-slate-400" /> Viktige ressurser
+                </h3>
+                <span className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-wider">Ekstern</span>
+              </div>
+              <div className="space-y-2 md:space-y-3">
                 {[
-                  { title: 'SIKT Meldeskjema', url: 'https://sikt.no/logg-inn', icon: ShieldCheck },
-                  { title: 'Kildekompasset (APA 7)', url: 'https://kildekompasset.no/referansestiler/apa-7/', icon: Library },
-                  { title: 'Biblioteket', url: 'https://dmmh.no/bibliotek', icon: BookOpen }
+                  { title: 'SIKT Meldeskjema', subtitle: 'Personvern & samtykke', url: 'https://sikt.no/logg-inn', icon: ShieldCheck },
+                  { title: 'Kildekompasset', subtitle: 'APA 7 referansestil', url: 'https://kildekompasset.no/referansestiler/apa-7/', icon: Library },
+                  { title: 'DMMH Biblioteket', subtitle: 'Pensum & databaser', url: 'https://dmmh.no/bibliotek', icon: BookOpen }
                 ].map((link, idx) => (
                   <a 
                     key={`home-resource-${link.title}-${idx}`}
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-3.5 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-primary/30 hover:shadow-md transition-all group"
+                    className="flex items-center gap-2.5 sm:gap-3.5 p-2.5 sm:p-3 md:p-4 bg-slate-50/80 hover:bg-white rounded-xl md:rounded-2xl border border-slate-100 hover:border-primary/30 hover:shadow-xs transition-all group min-h-[44px] cursor-pointer"
                   >
-                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 group-hover:border-primary/20 transition-colors">
-                      <link.icon className="w-5 h-5 text-slate-400 group-hover:text-primary" />
+                    <div className="p-1.5 sm:p-2 md:p-2.5 bg-white rounded-lg md:rounded-xl border border-slate-200/80 group-hover:border-primary/20 transition-colors shrink-0">
+                      <link.icon className="w-4 h-4 md:w-5 md:h-5 text-slate-500 group-hover:text-primary transition-colors" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-bold text-slate-700 block group-hover:text-primary transition-colors truncate">{link.title}</span>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <span className="text-[10px] text-slate-400 font-medium">Åpne ekstern side</span>
-                        <ExternalLink className="w-2.5 h-2.5 text-slate-300 group-hover:text-primary transition-colors" />
-                      </div>
+                      <span className="text-xs md:text-sm font-bold text-slate-800 block group-hover:text-primary transition-colors truncate">{link.title}</span>
+                      <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{link.subtitle}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 text-slate-400 group-hover:text-primary transition-colors">
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </div>
                   </a>
                 ))}

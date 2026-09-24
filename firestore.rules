@@ -127,6 +127,15 @@ service cloud.firestore {
              (!('isPinned' in data) || data.isPinned is bool);
     }
 
+    function isValidFieldNote(data) {
+      return data.keys().hasAll(['userId', 'title', 'content']) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() <= 500 &&
+             data.content is string && data.content.size() <= 50000 &&
+             (!('category' in data) || data.category is string) &&
+             (!('tags' in data) || data.tags is list);
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -244,6 +253,14 @@ service cloud.firestore {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidFolder(incoming());
       allow update: if isSignedIn() && isValidFolder(incoming()) && incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /fieldNotes/{noteId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidFieldNote(incoming());
+      allow update: if isSignedIn() && isValidFieldNote(incoming()) && incoming().userId == existing().userId;
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }

@@ -16,7 +16,9 @@ import {
   BookOpen,
   Compass,
   Quote,
-  Scale
+  Scale,
+  Search,
+  HeartHandshake
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { performSpraakvask, playAudio, stopAudio } from '../../services/geminiService';
@@ -24,7 +26,7 @@ import { performSpraakvask, playAudio, stopAudio } from '../../services/geminiSe
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  agentTag?: 'SOKRATISK' | 'RAG' | 'APA' | 'SPRAK' | 'GENERELL' | string;
+  agentTag?: 'SOKRATISK' | 'RAG' | 'APA' | 'SPRAK' | 'METODE' | 'LYTTE' | 'GENERELL' | string;
 }
 
 interface ChatAssistantProps {
@@ -70,6 +72,18 @@ const AGENT_META: Record<string, { label: string; icon: any; badgeClass: string;
     icon: Wand2,
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
     desc: 'Klarspråk og akademisk setningsbygning'
+  },
+  METODE: {
+    label: 'Metode & Forskning',
+    icon: Search,
+    badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    desc: 'Vitenskapelig metode, observasjon, intervju og NESH-etikk'
+  },
+  LYTTE: {
+    label: 'Lyttebot (Debrifing)',
+    icon: HeartHandshake,
+    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    desc: 'Empatisk debrifing og omsorg etter krevende praksis'
   },
   GENERELL: {
     label: 'Super-Veileder',

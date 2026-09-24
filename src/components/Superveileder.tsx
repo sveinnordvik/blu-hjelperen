@@ -22,7 +22,8 @@ import {
   Trash2,
   RotateCcw,
   AlertTriangle,
-  Plus
+  Plus,
+  HeartHandshake
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { 
@@ -32,6 +33,8 @@ import {
   askLanguageAgent,
   superAgentRouter,
   askRagAgent,
+  askLyttebot,
+  askMethodAgent,
   playAudio as playAudioService,
   stopAudio as stopAudioService
 } from '../services/geminiService';
@@ -432,12 +435,16 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         aiResponseText = await askLanguageAgent(userText);
       } else if (activeMode === 'Metode') {
         agentTag = 'METODE';
-        aiResponseText = await generateAcademicResponse(
+        aiResponseText = await askMethodAgent(
           userText,
-          cleanHistory,
-          'balanced',
-          { frameworkFocus: 'Modus: Metode & Forskningsdesign. Gi didaktisk og vitenskapsteoretisk veiledning for barnehagelærerutdanningen: problemstilling, kvalitativ/kvantitativ metode, observasjon, intervju, dokumentanalyse, litteraturstudie, etikk (NESH/samtykke) og pålitelighet/gyldighet (reliabilitet/validitet).' }
+          cleanHistory
         );
+      } else if (activeMode === 'Lytte') {
+        agentTag = 'LYTTE';
+        aiResponseText = await askLyttebot([
+          ...cleanHistory,
+          { role: 'user', content: userText }
+        ]);
       } else {
         // AUTO Modus: Ruter intelligent og lokalt med superAgentRouter (0 ekstra API-nettverkskall!)
         const routeDecision = await superAgentRouter(userText);
@@ -454,6 +461,10 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
           aiResponseText = await askApaAgent(userText);
         } else if (agentTag === 'SPRAK') {
           aiResponseText = await askLanguageAgent(userText);
+        } else if (agentTag === 'METODE') {
+          aiResponseText = await askMethodAgent(userText, cleanHistory);
+        } else if (agentTag === 'LYTTE') {
+          aiResponseText = await askLyttebot([...cleanHistory, { role: 'user', content: userText }]);
         } else {
           aiResponseText = await generateAcademicResponse(
             userText,
@@ -774,6 +785,12 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
           color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
           icon: <Search className="w-3.5 h-3.5 text-emerald-600" />
         };
+      case 'LYTTE':
+        return {
+          label: 'Lyttebot (Debrifing & Omsorg)',
+          color: 'bg-rose-50 text-rose-700 border-rose-200',
+          icon: <HeartHandshake className="w-3.5 h-3.5 text-rose-600" />
+        };
       default:
         return {
           label: 'Superveilederen',
@@ -788,7 +805,8 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     { id: 'Sokratisk', icon: <Brain className="w-4 h-4 text-purple-500" />, desc: 'Stiller reflekterende spørsmål uten fasit' },
     { id: 'Rammeplan', icon: <BookOpen className="w-4 h-4 text-indigo-500" />, desc: 'Kobling til fagområder og lovverk' },
     { id: 'APA', icon: <Quote className="w-4 h-4 text-blue-500" />, desc: 'Korrekt kildereferanse og sitat etter APA 7' },
-    { id: 'Metode', icon: <Search className="w-4 h-4 text-emerald-500" />, desc: 'Forskningsdesign, metode og etikk' }
+    { id: 'Metode', icon: <Search className="w-4 h-4 text-emerald-500" />, desc: 'Forskningsdesign, metode og etikk' },
+    { id: 'Lytte', icon: <HeartHandshake className="w-4 h-4 text-rose-500" />, desc: 'Debrifing, stressmestring og omsorg etter praksis' }
   ];
 
   return (
@@ -972,6 +990,38 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
             </div>
           )}
 
+          {/* Metode Modus Banner */}
+          {activeMode === 'Metode' && (
+            <div className="bg-emerald-50/90 border-b border-emerald-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-emerald-950 font-medium animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span><strong>Metode & Forskning aktiv:</strong> Få veiledning i problemstilling, observasjon, intervju, reliabilitet/validitet og NESH/SIKT-etikk.</span>
+              </div>
+              <button 
+                onClick={() => handleSetMode('Auto')}
+                className="text-emerald-700 hover:text-emerald-900 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
+              >
+                Nullstill til Auto
+              </button>
+            </div>
+          )}
+
+          {/* Lytte Modus Banner */}
+          {activeMode === 'Lytte' && (
+            <div className="bg-rose-50/90 border-b border-rose-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-rose-950 font-medium animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <HeartHandshake className="w-4 h-4 text-rose-600 shrink-0" />
+                <span><strong>Lyttebot (Debrifing & Omsorg) aktiv:</strong> Et trygt rom for å lufte frustrasjon, sortere tanker eller hente pusten etter en krevende praksisdag.</span>
+              </div>
+              <button 
+                onClick={() => handleSetMode('Auto')}
+                className="text-rose-700 hover:text-rose-900 underline font-bold ml-2 shrink-0 cursor-pointer text-xs"
+              >
+                Nullstill til Auto
+              </button>
+            </div>
+          )}
+
           {/* Chat-meldinger */}
           <div 
             ref={messagesContainerRef}
@@ -1082,12 +1132,28 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                       {activeMode === 'Metode' && [
                         "Hjelp meg å formulere en presis og forskbar problemstilling for oppgaven",
                         "Hva er forskjellene mellom deltakende observasjon og feltnotater?",
-                        "Hvilke forskningsetiske hensyn (NESH og samtykke) må jeg ta med barn?"
+                        "Hvilke forskningsetiske hensyn (NESH og samtykke) må jeg ta med barn?",
+                        "Hvordan sikre reliabilitet og validitet i et kvalitativt barnehageprosjekt?"
                       ].map((prompt, pIdx) => (
                         <button
                           key={pIdx}
                           onClick={() => handleSendMessage(prompt)}
                           className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+
+                      {activeMode === 'Lytte' && [
+                        "Jeg hadde en veldig tøff dag i barnehagen i dag og føler meg mislykket...",
+                        "Hvordan håndterer jeg uenighet eller dårlig kjemi med praksislærer?",
+                        "Jeg er helt overveldet over oppgavekravene og praksishverdagen samtidig",
+                        "Hvordan nullstiller jeg hodet etter en vanskelig konfliktsituasjon på avdelingen?"
+                      ].map((prompt, pIdx) => (
+                        <button
+                          key={pIdx}
+                          onClick={() => handleSendMessage(prompt)}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-950 rounded-xl text-xs transition-all text-left font-medium cursor-pointer"
                         >
                           {prompt}
                         </button>
@@ -1285,6 +1351,10 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                         ? 'Utformer sokratiske refleksjonsspørsmål...' 
                         : activeMode === 'Rammeplan'
                         ? 'Slår opp i Rammeplanen og barnehageloven...'
+                        : activeMode === 'Metode'
+                        ? 'Analyserer forskningsdesign og metodekrav...'
+                        : activeMode === 'Lytte'
+                        ? 'Lytter og forbereder en støttende debrifing...'
                         : 'Analyserer og utformer didaktisk veiledningsrespons...'}
                     </span>
                   </div>
@@ -1311,7 +1381,9 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                     ? 'Spør om forankring i Rammeplanen for barnehagen...'
                     : activeMode === 'APA'
                     ? 'Lim inn kilde eller still spørsmål om APA 7-referanser...'
-                    : `Spør om fag, rammeplan, APA eller tekst (${activeMode}-modus)...`
+                    : activeMode === 'Lytte'
+                    ? 'Del hvordan praksisdagen har vært, eller hva du kjenner på...'
+                    : `Spør om fag, rammeplan, APA, metode eller praksis (${activeMode}-modus)...`
                 }
                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
                 disabled={isLoading}

@@ -144,7 +144,9 @@ import {
   askRagAgent,
   askSocraticAgent,
   askApaAgent,
-  askLanguageAgent
+  askLanguageAgent,
+  askMethodAgent,
+  askLyttebot
 } from './services/geminiService';
 
 import { extractTextFromPdf } from './lib/pdfUtils';
@@ -1878,6 +1880,10 @@ export default function App() {
         response = await askApaAgent(userMessage);
       } else if (routeTag === 'SPRAK') {
         response = await askLanguageAgent(userMessage);
+      } else if (routeTag === 'METODE') {
+        response = await askMethodAgent(userMessage, messages);
+      } else if (routeTag === 'LYTTE') {
+        response = await askLyttebot([...messages, { role: 'user', content: userMessage }]);
       } else {
         response = await generateAcademicResponse(userMessage, messages, strictness, mergedProfile, taskSetup);
       }
