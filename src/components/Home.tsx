@@ -143,6 +143,61 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         </div>
 
+        {/* MOBIL STARTRAMPE FOR FELT (Kun på mobil, skjult på md og desktop) */}
+        <div className="md:hidden grid grid-cols-2 gap-2.5 w-full">
+          <button
+            onClick={() => setActiveTab('field-notes')}
+            className="p-3.5 bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/50 border border-emerald-200/90 rounded-2xl flex flex-col items-start gap-1.5 shadow-2xs hover:shadow-xs transition-all text-left active:scale-[0.98] cursor-pointer"
+          >
+            <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-2xs">
+              <BookOpen className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-xs text-slate-900 leading-tight">Kladdebok i felt</p>
+              <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">Egne observasjoner</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('field-assistant')}
+            className="p-3.5 bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-100/50 border border-indigo-200/90 rounded-2xl flex flex-col items-start gap-1.5 shadow-2xs hover:shadow-xs transition-all text-left active:scale-[0.98] cursor-pointer"
+          >
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-2xs">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-xs text-slate-900 leading-tight">Feltveileder</p>
+              <p className="text-[10px] text-indigo-700 font-semibold mt-0.5">Rammeplan & didaktikk</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('collaboration')}
+            className="p-3.5 bg-gradient-to-br from-blue-50 via-sky-50 to-blue-100/50 border border-blue-200/90 rounded-2xl flex flex-col items-start gap-1.5 shadow-2xs hover:shadow-xs transition-all text-left active:scale-[0.98] cursor-pointer"
+          >
+            <div className="p-2 bg-blue-600 text-white rounded-xl shadow-2xs">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-xs text-slate-900 leading-tight">Basen</p>
+              <p className="text-[10px] text-blue-700 font-semibold mt-0.5">Kollokvie & grupper</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('process-log')}
+            className="p-3.5 bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100/50 border border-amber-200/90 rounded-2xl flex flex-col items-start gap-1.5 shadow-2xs hover:shadow-xs transition-all text-left active:scale-[0.98] cursor-pointer"
+          >
+            <div className="p-2 bg-amber-600 text-white rounded-xl shadow-2xs">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-xs text-slate-900 leading-tight">Prosesslogg</p>
+              <p className="text-[10px] text-amber-800 font-semibold mt-0.5">Strukturert refleksjon</p>
+            </div>
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8 w-full">
           
           {/* ========================================== */}

@@ -16,48 +16,84 @@ export async function callGoogleAIProxy(params: {
   config?: any;
 }) {
   const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
-  let maxRetries = 3;
+  const maxRetries = 3;
   let attempt = 0;
 
-  // 1. STRICT API VALIDERING
+  // 1. STRICT API VALIDERING OG SANITISERING AV HISTORIKK
   let validatedContents = params.contents;
   if (typeof validatedContents === 'string') {
     if (!validatedContents.trim()) validatedContents = " ";
   } else if (Array.isArray(validatedContents)) {
+    // Fjern meldinger som representerer feilmeldinger fra UI så vi ikke forurenser konteksten til Gemini
+    const nonErrorMessages = validatedContents.filter((item: any) => {
+      if (!item) return false;
+      const text = (Array.isArray(item.parts) ? item.parts.map((p: any) => p?.text || '').join(' ') : (item.text || '')).toLowerCase();
+      if (
+        text.includes("kapasitetsgrensen for forespørsler er midlertidig nådd") ||
+        text.includes("forespørselen ble avbrutt") ||
+        text.includes("serverfeil ved kontakt med gemini") ||
+        text.includes("ki-modellen opplever stor pågang") ||
+        text.includes("feil (404)") ||
+        text.startsWith("feil:")
+      ) {
+        return false;
+      }
+      return true;
+    });
+
     // Sørg for at listen ikke starter med 'model', da Gemini krever 'user' først
-    const firstUserIndex = validatedContents.findIndex((item: any) => item && (item.role === 'user' || !item.role));
-    let cleanedList = firstUserIndex !== -1 ? validatedContents.slice(firstUserIndex) : validatedContents;
+    const firstUserIndex = nonErrorMessages.findIndex((item: any) => item && (item.role === 'user' || !item.role));
+    let cleanedList = firstUserIndex !== -1 ? nonErrorMessages.slice(firstUserIndex) : nonErrorMessages;
     if (cleanedList.length === 0) {
       cleanedList = [{ role: 'user', parts: [{ text: "Hei" }] }];
     }
 
-    validatedContents = cleanedList.map(item => {
+    // Normaliser deler og roller (veksle mellom user og model, samle duplikater)
+    const normalizedList: any[] = [];
+    for (const item of cleanedList) {
       if (item && typeof item === 'object') {
         let role = item.role;
-        // Konverter "assistant", "system" eller ugyldige roller til "model"
         if (role && role !== 'user' && role !== 'model') {
           role = 'model';
         }
-        
+        if (!role) role = 'user';
+
         let newParts = item.parts;
         if (Array.isArray(newParts)) {
           newParts = newParts.map((p: any) => {
             if (p && typeof p === 'object' && 'text' in p) {
               return { ...p, text: (typeof p.text === 'string' && p.text.trim()) ? p.text : " " };
             }
-            return p;
+            return typeof p === 'string' ? { text: p } : p;
           });
+        } else if (item.text) {
+          newParts = [{ text: item.text }];
+        } else {
+          newParts = [{ text: " " }];
         }
-        
-        return { ...item, role: role || 'user', parts: newParts || [{ text: " " }] };
+
+        const validTurn = { role, parts: newParts };
+
+        // Hvis to påfølgende meldinger har samme rolle, slå dem sammen for å unngå turn-rekkefølgefeil i Gemini API
+        if (normalizedList.length > 0 && normalizedList[normalizedList.length - 1].role === role) {
+          const prevText = normalizedList[normalizedList.length - 1].parts[0]?.text || '';
+          const currentText = validTurn.parts[0]?.text || '';
+          if (prevText === currentText) {
+            // Ignorer identisk duplikat (f.eks. ved rask dobbeltklikk)
+            continue;
+          }
+          normalizedList[normalizedList.length - 1].parts[0].text = `${prevText}\n\n${currentText}`;
+        } else {
+          normalizedList.push(validTurn);
+        }
       }
-      return item;
-    });
+    }
+
+    validatedContents = normalizedList.length > 0 ? normalizedList : [{ role: 'user', parts: [{ text: "Hei" }] }];
   }
 
   // Modellnavn type validation fallback
   let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : "gemini-3.8-flash";
-  // Oppgrader kun utgåtte modeller, bevar gemini-2.5-flash og gemini-3.8-flash
   if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel === "gemini-pro") {
     requestedModel = "gemini-3.8-flash";
   }
@@ -65,13 +101,23 @@ export async function callGoogleAIProxy(params: {
 
   while (attempt <= maxRetries) {
     try {
+      // Ved gjentatte forsøk ved 429 eller 503 prøver vi alternative modell-pooler med egen kvote
+      let modelForAttempt = targetModel;
+      if (attempt === 1) {
+        modelForAttempt = "gemini-3.1-flash-lite";
+      } else if (attempt === 2) {
+        modelForAttempt = "gemini-flash-latest";
+      } else if (attempt >= 3) {
+        modelForAttempt = "gemini-2.5-flash";
+      }
+
       const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
       const targetUrl = `${apiUrl}/api/gemini/generate`;
       const resp = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: attempt > 0 ? "gemini-2.5-flash" : targetModel,
+          model: modelForAttempt,
           contents: validatedContents,
           config: params.config,
         })
@@ -81,7 +127,7 @@ export async function callGoogleAIProxy(params: {
         const errData = await resp.json().catch(() => ({}));
         const statusMsg = errData.error || `HTTP error! status: ${resp.status}`;
         
-        // Hvis det er en konfigurasjonsfeil (f.eks. manglende API-nøkkel), kast den direkte.
+        // Kritiske konfigurasjonsfeil som ikke kan løses med retry
         if (resp.status === 500 && typeof statusMsg === 'string' && statusMsg.includes("Mangler GEMINI_API_KEY")) {
            throw new Error(statusMsg);
         }
@@ -89,11 +135,10 @@ export async function callGoogleAIProxy(params: {
            throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
         }
         if (resp.status === 404 && typeof statusMsg === 'string' && statusMsg.includes("is not found for API version")) {
-           console.warn(`Modell ${targetModel} ikke tilgjengelig, prøver fallback-modell...`);
+           console.warn(`Modell ${modelForAttempt} ikke tilgjengelig, prøver fallback-modell...`);
            throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
-           // Hvis /api/gemini/generate gir 404 (f.eks. på statisk hosting)
            const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
            if (clientApiKey && clientApiKey.length > 10) {
              console.warn("Backend 404 - forsøker direkte Gemini-kall med VITE_GEMINI_API_KEY.");
@@ -102,7 +147,7 @@ export async function callGoogleAIProxy(params: {
            throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller API-innstillinger.`);
         }
         
-        // Serverfeil, 429 og 503 sendes til catch-blokken for retry med backoff
+        // 429, 503 eller serverfeil sendes til catch for backoff og modullveksling
         throw { status: resp.status, message: statusMsg, isServerError: true, url: targetUrl };
       }
 
@@ -120,7 +165,7 @@ export async function callGoogleAIProxy(params: {
              console.warn("Fikk HTML fra /api/gemini/generate - faller tilbake til direkte Gemini API-kall.");
              return await callDirectGeminiApi(targetModel, validatedContents, params.config);
            }
-           throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting (som Firebase Hosting) uten en aktiv API-backend. Legg inn 'api'-funksjonen i Cloud Functions eller legg til GEMINI_API_KEY i GitHub Secrets.`);
+           throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting uten en aktiv API-backend.`);
         }
         throw new Error("Feil ved tolking av svar fra API: " + parseError.message);
       }
@@ -139,7 +184,6 @@ export async function callGoogleAIProxy(params: {
         msg.includes("Ugyldig Gemini API-nøkkel") || 
         msg.includes("API key not valid") ||
         msg.includes("API_KEY_INVALID") ||
-        msg.includes("er ikke tilgjengelig for din API") ||
         msg.includes("prepayment credits are depleted") ||
         msg.includes("credits are depleted") ||
         msg.includes("Kritisk feil:") ||
@@ -148,11 +192,11 @@ export async function callGoogleAIProxy(params: {
         throw new Error(msg);
       }
 
-      // Hvis backend-serveren er nede eller utilgjengelig (f.eks. nettverksfeil), prøv direkte fallback dersom klientnøkkel finnes
+      // Direkte fallback hvis backend feiler og klientnøkkel er til stede
       const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
       if (clientApiKey && clientApiKey.length > 10 && (msg.includes("Failed to fetch") || msg.includes("NetworkError") || error?.isServerError)) {
         try {
-          console.warn("Backend utilgjengelig eller nettverksfeil - forsøker direkte Gemini API-kall med VITE_GEMINI_API_KEY.");
+          console.warn("Backend utilgjengelig eller nettverksfeil - forsøker direkte Gemini API-kall.");
           return await callDirectGeminiApi(targetModel, validatedContents, params.config);
         } catch (directErr: any) {
           console.warn("Direkte fallback feilet også:", directErr);
@@ -160,24 +204,27 @@ export async function callGoogleAIProxy(params: {
       }
 
       if (attempt >= maxRetries) {
-        if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota")) {
+        if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || error?.status === 429) {
           throw new Error("Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota). Vent 15-20 sekunder og prøv igjen, eller sjekk kvoten i Google AI Studio.");
         }
-        if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE")) {
+        if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE") || error?.status === 503) {
           throw new Error("KI-modellen opplever stor pågang akkurat nå (503). Prøv igjen om et lite øyeblikk.");
         }
         throw new Error(msg || `${UIfriendlyError} (Siste feilmelding: ${msg})`);
       }
       
       attempt++;
-      const isRateOrBusy = msg.includes("429") || msg.includes("503") || error?.status === 429 || error?.status === 503;
-      const delayMs = isRateOrBusy ? (attempt * 2000) : (Math.pow(2, attempt) * 1000);
+      const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || error?.status === 429 || error?.status === 503;
+      // Vent 2.5s til 4.5s ved rate limit for å la per-sekund burst-kvoten resette seg
+      const delayMs = isRateOrBusy ? (attempt * 2500 + Math.floor(Math.random() * 800)) : (Math.pow(2, attempt) * 1000);
+      console.warn(`Gemini-kall feilet (forsøk ${attempt}/${maxRetries}), venter ${delayMs}ms før retry med alternativ modell...`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
-  
+
   throw new Error(UIfriendlyError);
 }
+
 
 /**
  * Klient-fallback som kaller Google Generative Language API direkte dersom statisk hosting mangler backend eller returnerer 404/HTML
@@ -1279,42 +1326,38 @@ export type AgentRouteCategory = 'SOKRATISK' | 'RAG' | 'APA' | 'SPRAK' | 'LYTTE'
 
 /**
  * Super-Veilederen (Router-logikk)
- * Analyserer studentens input lynraskt og returnerer riktig kategori
+ * Analyserer studentens input lynraskt og lokalt (sparer 100% kvote og forhindrer 429-feil)
  */
 export async function superAgentRouter(userInput: string): Promise<AgentRouteCategory> {
-  const systemInstruction = `Du er hovedruteren for 'BLU-hjelperen'.
-Analyser brukerens tekst og returner KUN én av følgende kategorier (ett enkelt ord) basert på intensjonen:
-- SOKRATISK: Brukeren reflekterer over praksis, didaktiske valg, eller trenger veiledning/undring uten fasitsvar.
-- RAG: Brukeren spør spesifikt om Rammeplanen (2017), Barnehageloven, forskrifter, eller faglige regler for barnehagen.
-- APA: Brukeren vil ha formatert en referanse, sitatkilde eller kildehenvisning.
-- SPRAK: Brukeren vil forbedre, vaske, omformulere eller skrive om en tekst.
-- LYTTE: Brukeren er sliten, stresset, trenger å lufte frustrasjoner eller lufte tanker etter en tung praksisdag.
-- GENERELL: Alt annet.`;
+  const text = (userInput || '').trim().toLowerCase();
+  if (!text) return 'GENERELL';
 
-  try {
-    const response = await callGoogleAIProxy({
-      model: "gemini-3.8-flash",
-      contents: [{ role: "user", parts: [{ text: userInput }] }],
-      config: {
-        systemInstruction,
-        temperature: 0.1,
-      },
-    });
-
-    const cleanTag = (response.text || "").trim().toUpperCase().replace(/[^A-Z]/g, '');
-    if (['SOKRATISK', 'RAG', 'APA', 'SPRAK', 'LYTTE', 'GENERELL'].includes(cleanTag)) {
-      return cleanTag as AgentRouteCategory;
-    }
-    if (cleanTag.includes('SOKRAT')) return 'SOKRATISK';
-    if (cleanTag.includes('RAG') || cleanTag.includes('RAMMEPLAN') || cleanTag.includes('LOV')) return 'RAG';
-    if (cleanTag.includes('APA') || cleanTag.includes('REFERANSE') || cleanTag.includes('KILDE')) return 'APA';
-    if (cleanTag.includes('SPRAK') || cleanTag.includes('SPRÅK')) return 'SPRAK';
-    if (cleanTag.includes('LYTTE') || cleanTag.includes('SLITEN') || cleanTag.includes('FRUSTRASJON')) return 'LYTTE';
-    return 'GENERELL';
-  } catch (error) {
-    console.error("Feil i superAgentRouter:", error);
-    return 'GENERELL';
+  // 1. APA / Kildehenvisning / Referanser
+  if (/\b(apa|kilde|kilder|referanse|referanser|litteraturliste|kildekompasset|henvisning|henvise|sitat|sitere|in-text|parentes)\b/i.test(text)) {
+    return 'APA';
   }
+
+  // 2. Språkvask / Omformulering / Korrektur
+  if (/\b(språkvask|omformuler|omformulering|skriv om|korrektur|grammatikk|rett skrivefeil|forbedre teksten|flyt|fagspråk)\b/i.test(text)) {
+    return 'SPRAK';
+  }
+
+  // 3. Rammeplan / Barnehageloven / Formelle styringsdokumenter og fagområder
+  if (/\b(rammeplan|rammeplanen|barnehagelov|barnehageloven|fagområde|fagområder|fagområdet|antall,?\s*rom|natur,?\s*miljø|kunst,?\s*kultur|kropp,?\s*bevegelse|etikk,?\s*religion|nærmiljø|kommunikasjon,?\s*språk|danning|progresjon|bemanningsnorm|pedagogisk leder|samfunnsmandat)\b/i.test(text)) {
+    return 'RAG';
+  }
+
+  // 4. Emosjonell støtte / Debrifing etter tøff dag
+  if (/\b(sliten|frustrert|tung dag|vanskelig i praksis|grue meg|gruer meg|lei meg|umotivert|stresset|overveldet)\b/i.test(text)) {
+    return 'LYTTE';
+  }
+
+  // 5. Sokratisk / Praksisrefleksjon / Didaktiske valg og dilemmaer
+  if (/\b(praksisfortelling|praksis|hva tenker du|hva bør jeg|drøft|drøfting|refleksjon|reflektere|undring|undre|veiled meg|case|dilemma|hva ville du|spørsmål til ettertanke)\b/i.test(text)) {
+    return 'SOKRATISK';
+  }
+
+  return 'GENERELL';
 }
 
 /**

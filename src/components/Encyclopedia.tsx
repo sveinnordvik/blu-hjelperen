@@ -13,7 +13,10 @@ import {
   Check,
   HelpCircle,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  ArrowLeft
 } from 'lucide-react';
 import { generateAcademicResponse } from '../services/geminiService';
 
@@ -36,6 +39,29 @@ export function Encyclopedia({
   // KI-oppslag for begreper som ikke finnes i listen
   const [isAiDefining, setIsAiDefining] = useState(false);
   const [aiCustomDefinition, setAiCustomDefinition] = useState<DictionaryEntry | null>(null);
+
+  // Mobil-spesifikk trekkspill-state (kollapsbare begreper)
+  const [expandedTerms, setExpandedTerms] = useState<Set<string>>(new Set());
+
+  const toggleTerm = (term: string) => {
+    setExpandedTerms(prev => {
+      const next = new Set(prev);
+      if (next.has(term)) {
+        next.delete(term);
+      } else {
+        next.add(term);
+      }
+      return next;
+    });
+  };
+
+  const expandAll = (terms: string[]) => {
+    setExpandedTerms(new Set(terms));
+  };
+
+  const collapseAll = () => {
+    setExpandedTerms(new Set());
+  };
 
   // Litteraturforslag
   const [literatureTopic, setLiteratureTopic] = useState('');
@@ -195,7 +221,10 @@ Strukturer svaret ryddig og akademisk:
   };
 
   return (
-    <WorkspaceLayout
+    <>
+      {/* DESKTOP VISNING (Uendret og bevart for md: og oppover) */}
+      <div className="hidden md:block w-full h-full">
+        <WorkspaceLayout
       title="Oppslagsverk"
       subtitle="Fagbegreper og guider"
       icon={<Library className="w-6 h-6" />}
@@ -511,5 +540,373 @@ Strukturer svaret ryddig og akademisk:
         </div>
       </div>
     </WorkspaceLayout>
+      </div>
+
+      {/* MOBIL VISNING (Fjernet sidebar, 2-linjers forminskede piller, kollapsbare begreper) */}
+      <div className="md:hidden w-full max-w-xl mx-auto pb-24 px-3 sm:px-4 space-y-4">
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 p-5 rounded-3xl text-white shadow-sm relative overflow-hidden">
+          <div className="relative z-10">
+            {onBackToTools && (
+              <button
+                type="button"
+                onClick={onBackToTools}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-indigo-200 hover:text-white bg-white/10 hover:bg-white/20 py-1 px-2.5 rounded-lg mb-3 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Tilbake til verktøy
+              </button>
+            )}
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="p-1.5 bg-white/20 rounded-xl backdrop-blur-xs">
+                <Library className="w-4 h-4 text-white" />
+              </span>
+              <span className="text-xs font-bold tracking-wider uppercase text-indigo-200">
+                Faglig støtte & oppslag
+              </span>
+            </div>
+            <h1 className="text-xl font-black tracking-tight text-white">
+              Pedagogisk oppslagsverk
+            </h1>
+            <p className="text-xs text-indigo-100/90 mt-1 max-w-sm">
+              Fagbegreper, litteraturforslag og guider for Zotero og EndNote.
+            </p>
+          </div>
+        </div>
+
+        {/* 2-linjers forminskede piller (4 valg fordelt 2x2 for umiddelbar tilgang uten horisontal scroll) */}
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'begreper', label: '📖 Begrepsbase' },
+            { id: 'litteratur', label: '🔍 Pensumsøk' },
+            { id: 'zotero', label: '🔖 Zotero-guide' },
+            { id: 'endnote', label: '🔖 EndNote-guide' }
+          ].map((item) => (
+            <button
+              key={`mobile-tab-${item.id}`}
+              type="button"
+              onClick={() => setActiveMenuId(item.id)}
+              className={`text-xs py-2 px-3 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeMenuId === item.id
+                  ? 'bg-slate-900 text-white shadow-2xs'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* INNHOLD BASERT PÅ AKTIVT MENYVALG */}
+
+        {/* 1. BEGREPER (Kollapsbare trekkspill-kort) */}
+        {activeMenuId === 'begreper' && (
+          <div className="space-y-3.5 animate-in fade-in duration-200">
+            {/* Søkefelt */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Søk begrep (f.eks. Resiliens, Ontologi...)"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs font-medium"
+              />
+            </div>
+
+            {/* Kontroll-linje: Antall & Åpne/Lukk alle */}
+            <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
+              <span>{filteredDictionary.length} pedagogiske begreper</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => expandAll(filteredDictionary.map(d => d.term))}
+                  className="font-bold text-indigo-700 hover:underline cursor-pointer"
+                >
+                  Åpne alle
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="font-bold text-slate-500 hover:underline cursor-pointer"
+                >
+                  Lukk alle
+                </button>
+              </div>
+            </div>
+
+            {/* Begrepsliste - Trekkspill / Accordion */}
+            <div className="space-y-2.5">
+              {filteredDictionary.map((item, idx) => {
+                const isExpanded = expandedTerms.has(item.term);
+                return (
+                  <div
+                    key={`term-${item.term}-${idx}`}
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs transition-all"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleTerm(item.term)}
+                      className="w-full p-3.5 flex items-center justify-between text-left gap-2 hover:bg-slate-50/60 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-bold text-slate-900 text-sm truncate">
+                          {item.term}
+                        </span>
+                        {item.category && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                            {item.category}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronDown 
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${
+                          isExpanded ? 'rotate-180 text-indigo-600' : ''
+                        }`} 
+                      />
+                    </button>
+
+                    {isExpanded && (
+                      <div className="px-3.5 pb-3.5 pt-1 border-t border-slate-100 text-xs text-slate-700 space-y-2.5 bg-slate-50/40 animate-in fade-in duration-150">
+                        <p className="leading-relaxed">
+                          {item.desc}
+                        </p>
+                        {item.example && (
+                          <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 text-[11px] text-slate-600 italic">
+                            <span className="font-semibold text-slate-800 not-italic">Eksempel: </span>
+                            {item.example}
+                          </div>
+                        )}
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(item.term, item.desc);
+                            }}
+                            className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                          >
+                            {copiedTerm === item.term ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="text-emerald-600 font-bold">Kopiert!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Kopier definisjon</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* KI-definisjon dersom ingen treff */}
+            {filteredDictionary.length === 0 && (
+              <div className="bg-white p-6 rounded-3xl border border-dashed border-slate-300 text-center space-y-3">
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto">
+                  <HelpCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    Fant ingen definisjon for «{searchTerm}»
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto">
+                    Vil du at Superveilederen skal slå opp begrepet tilpasset barnehagelærerutdanningen?
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFetchAiDefinition}
+                  disabled={isAiDefining}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 mx-auto shadow-xs disabled:opacity-50 cursor-pointer"
+                >
+                  {isAiDefining ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Henter definisjon...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Hent forklaring med KI</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. PENSUM & LITTERATURFORSLAG */}
+        {activeMenuId === 'litteratur' && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Search className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-base">Pensum & litteratursøk</h3>
+                <p className="text-slate-500 text-xs">Få konkrete bok-, artikkel- og Rammeplantips.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Hva handler oppgaven eller praksisen din om?
+                </label>
+                <textarea 
+                  rows={4}
+                  value={literatureTopic}
+                  onChange={(e) => setLiteratureTopic(e.target.value)}
+                  placeholder="F.eks. Lekens betydning for språkutvikling hos flerspråklige barn, eller overganger fra småbarnsavdeling..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs leading-relaxed text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {literatureError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{literatureError}</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleFetchLiterature}
+                disabled={isFetchingLiterature || !literatureTopic.trim()}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isFetchingLiterature ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Leter frem relevant litteratur...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Søk i faglitteratur</span>
+                  </>
+                )}
+              </button>
+
+              {literatureResults && (
+                <div className="mt-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/70">
+                    <span className="text-xs font-black text-slate-800">Anbefalt litteratur</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(literatureResults);
+                        setCopiedTerm('literature');
+                        setTimeout(() => setCopiedTerm(null), 2000);
+                      }}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedTerm === 'literature' ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span className="text-emerald-600">Kopiert</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Kopier</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-xs text-slate-700 whitespace-pre-line leading-relaxed">
+                    {literatureResults}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 3. ZOTERO GUIDE */}
+        {activeMenuId === 'zotero' && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="p-2.5 bg-red-50 text-red-500 rounded-xl">
+                <Bookmark className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-base">Zotero-guide</h3>
+                <p className="text-slate-500 text-xs">Gratis referanseverktøy for Word & Google Docs.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700 leading-relaxed">
+              <p>
+                <strong>Hvorfor Zotero?</strong> Zotero samler, lagrer og siterer automatisk i henhold til APA 7 direkte i Word eller Google Docs.
+              </p>
+
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                <h4 className="font-bold text-slate-900 text-xs">Slik kommer du i gang:</h4>
+                <ol className="list-decimal pl-4 space-y-1.5 text-slate-600">
+                  <li>Last ned fra <a href="https://www.zotero.org/" target="_blank" rel="noreferrer" className="text-indigo-600 font-bold underline">Zotero.org</a>.</li>
+                  <li>Installer <strong>"Zotero Connector"</strong> i nettleseren din.</li>
+                  <li>Bruk Zotero-tillegget i Word for ett-klikks referanser.</li>
+                  <li>Velg <strong>"Norsk APA 7th"</strong> i Word-innstillingene.</li>
+                </ol>
+              </div>
+
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-indigo-900 text-[11px]">
+                <strong className="block mb-0.5">Tips for barnehagelærerstudenter:</strong>
+                Rammeplanen for barnehagen kan legges inn som rapport/offentlig dokument med <em>Kunnskapsdepartementet</em> som forfatter.
+              </div>
+
+              <a 
+                href="https://www.zotero.org/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
+              >
+                <span>Åpne Zotero.org</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* 4. ENDNOTE GUIDE */}
+        {activeMenuId === 'endnote' && (
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl">
+                <Bookmark className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-base">EndNote-guide</h3>
+                <p className="text-slate-500 text-xs">For studenter med høgskole- eller universitetslisens.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700 leading-relaxed">
+              <p>
+                Sjekk med institusjonen din (f.eks. HVL, OsloMet, USN, UiS, DMMH) om du har fri tilgang via Feide og programmvareportalen.
+              </p>
+
+              <div className="bg-blue-50/60 border border-blue-100 p-3.5 rounded-2xl text-blue-900 space-y-1.5">
+                <h5 className="font-bold">Tre huskeregler for EndNote:</h5>
+                <ul className="list-disc pl-4 space-y-1 text-slate-700">
+                  <li>Bruk alltid funksjonen <strong>"Cite While You Write" (CWYW)</strong> i Microsoft Word.</li>
+                  <li>Eksporter referanser direkte fra Oria med RIS-format.</li>
+                  <li>Lagre EndNote-biblioteket på lokal disk (ikke skylagring som Dropbox/OneDrive, da det kan skade filene).</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

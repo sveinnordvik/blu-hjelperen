@@ -12,6 +12,8 @@ import { PresentationGenerator } from './components/PresentationGenerator';
 import { Resources } from './components/Resources';
 import { Profile as ProfileComponent } from './components/Profile';
 import { isUnlimitedUser, isAdminUser } from './config/accessConfig';
+import { FieldNotes } from './components/mobile/FieldNotes';
+import { FieldAssistant } from './components/mobile/FieldAssistant';
 
 /**
  * @license
@@ -371,7 +373,8 @@ export default function App() {
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools' | 'field-notes' | 'field-assistant'>('home');
+  const [fieldAssistantPrompt, setFieldAssistantPrompt] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('tools-overview');
   const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
   const [writingStep, setWritingStep] = useState(1);
@@ -1011,7 +1014,7 @@ export default function App() {
   const activeGroup = navigationGroups.find(group => 
     group.id === activeTab || 
     group.subTabs.some(sub => sub.id === activeTab) ||
-    (group.id === 'skriving' && (activeTab === 'blu-hjelper' || activeTab === 'super-chat' || activeTab === 'desktop-dashboard')) ||
+    (group.id === 'skriving' && (activeTab === 'blu-hjelper' || activeTab === 'super-chat' || activeTab === 'desktop-dashboard' || activeTab === 'field-notes' || activeTab === 'field-assistant')) ||
     (group.id === 'verktoy' && [
       'verktoy', 
       'tools', 
@@ -1026,6 +1029,49 @@ export default function App() {
       'glossary-auto'
     ].includes(activeTab))
   ) || navigationGroups[0];
+
+  // Mobil-spesifikk navigasjon (5 faste punkter, ressursfane utelatt)
+  const mobileNavigationGroups = [
+    { 
+      id: 'hjem', 
+      label: 'Hjem', 
+      icon: HomeIcon, 
+      tabId: 'home' 
+    },
+    { 
+      id: 'skriving', 
+      label: 'Skriving', 
+      icon: PenTool, 
+      tabId: 'field-notes' 
+    },
+    { 
+      id: 'verktoy', 
+      label: 'Verktøy', 
+      icon: Zap, 
+      tabId: 'tools-overview' 
+    },
+    { 
+      id: 'basen', 
+      label: 'Basen', 
+      icon: Users, 
+      tabId: 'collaboration' 
+    },
+    { 
+      id: 'profil', 
+      label: 'Profil', 
+      icon: User, 
+      tabId: 'profile' 
+    }
+  ];
+
+  const activeMobileGroup = (() => {
+    if (activeTab === 'home') return 'hjem';
+    if (['field-notes', 'field-assistant', 'process-log', 'writing-workshop', 'assistant', 'blu-hjelper', 'super-chat'].includes(activeTab)) return 'skriving';
+    if (['verktoy', 'tools', 'tools-overview', 'dictionary', 'document-analysis', 'simulator', 'presentations', 'pdf-analysis', 'oral-simulator', 'presentation-generator', 'glossary-auto'].includes(activeTab)) return 'verktoy';
+    if (activeTab === 'collaboration') return 'basen';
+    if (['profile', 'settings', 'pricing', 'admin', 'about', 'privacy', 'terms', 'milestones'].includes(activeTab)) return 'profil';
+    return 'hjem';
+  })();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -4195,62 +4241,78 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           </div>
         )}
 
-        {/* Mobile/Tablet Nav (Fixed Bottom) */}
+        {/* Mobile/Tablet Nav (Fixed Bottom - 5 faste knapper) */}
         <div className={cn(
-          "md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-[100] flex overflow-x-auto no-scrollbar shadow-[0_-4px_12px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-in-out",
+          "md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-[100] flex shadow-[0_-4px_12px_rgba(0,0,0,0.05)] transition-transform duration-300 ease-in-out pb-safe",
           (isFocusMode || !showBottomNav) ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
         )}>
-          {navigationGroups.map((group) => (
-            <button
-              key={`sidebar-nav-${group.id}`}
-              onClick={() => handleTabClick(group.subTabs[0].id, group.subTabs[0].requiredTier)}
-              className={cn(
-                "flex-1 flex flex-col items-center py-3 px-2 gap-1 transition-all min-w-[72px] relative",
-                activeGroup.id === group.id 
-                  ? "text-primary bg-primary-light/10" 
-                  : "text-slate-400"
-              )}
-            >
-              <div className="relative">
-                <group.icon className="w-5 h-5" />
-                {!checkAccess(group.subTabs[0].requiredTier) && (
-                  <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                    <Lock className="w-2 h-2 text-slate-400" />
-                  </div>
-                )}
-              </div>
-              <span className="text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">
-                {group.label}
-              </span>
-              {activeGroup.id === group.id && (
-                <motion.div layoutId="mobile-nav-indicator" className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Mobile Sub Nav (Fixed above bottom nav) */}
-        {activeGroup.subTabs.length > 1 && (
-          <div className={cn(
-            "md:hidden fixed bottom-[68px] left-0 right-0 bg-slate-50/95 backdrop-blur-sm border-t border-slate-100 z-[90] flex overflow-x-auto whitespace-nowrap gap-3 pb-4 pt-2 px-4 transition-transform duration-300 ease-in-out hide-scrollbar",
-            (isFocusMode || !showBottomNav) ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
-          )}>
-            {activeGroup.subTabs.map((sub, sIdx) => (
+          {mobileNavigationGroups.map((group) => {
+            const isGroupActive = activeMobileGroup === group.id;
+            return (
               <button
-                key={`mobile-sub-${activeGroup.id}-${sub.id}-${sIdx}`}
-                onClick={() => handleTabClick(sub.id, sub.requiredTier)}
+                key={`mobile-bottom-nav-${group.id}`}
+                onClick={() => {
+                  if (group.id === 'skriving') {
+                    if (['field-notes', 'field-assistant', 'process-log'].includes(activeTab)) {
+                      // Already in a mobile writing subtab
+                    } else {
+                      handleTabClick('field-notes');
+                    }
+                  } else if (group.id === 'verktoy') {
+                    handleTabClick('tools-overview');
+                  } else {
+                    handleTabClick(group.tabId);
+                  }
+                }}
                 className={cn(
-                  "flex-shrink-0 px-5 py-2.5 rounded-full text-[10px] font-bold transition-all flex items-center gap-2",
-                  (activeTab === sub.id || (activeTab === 'verktoy' && activeSubTab === sub.id) || (activeTab === 'blu-hjelper' && sub.id === 'assistant'))
-                    ? "bg-primary text-white shadow-md shadow-primary-light" 
-                    : "bg-white text-slate-600 border border-slate-200"
+                  "flex-1 flex flex-col items-center py-2.5 px-1 gap-1 transition-all min-w-0 relative cursor-pointer",
+                  isGroupActive 
+                    ? "text-primary bg-primary-light/10 font-bold" 
+                    : "text-slate-400 hover:text-slate-600"
                 )}
               >
-                <sub.icon className="w-3.5 h-3.5" />
-                {sub.label}
-                {!checkAccess(sub.requiredTier) && <Lock className="w-3 h-3 opacity-50" />}
+                <div className="relative">
+                  <group.icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider whitespace-nowrap truncate max-w-[62px]">
+                  {group.label}
+                </span>
+                {isGroupActive && (
+                  <motion.div layoutId="mobile-nav-indicator" className="absolute top-0 left-0 right-0 h-0.5 bg-primary" />
+                )}
               </button>
-            ))}
+            );
+          })}
+        </div>
+
+        {/* Mobile Sub Nav (Kun for Skriving: Kladdebok, Feltveileder, Prosesslogg) */}
+        {activeMobileGroup === 'skriving' && (
+          <div className={cn(
+            "md:hidden fixed bottom-[56px] left-0 right-0 bg-slate-50/95 backdrop-blur-sm border-t border-slate-200 z-[90] flex items-center justify-around py-2 px-2 transition-transform duration-300 ease-in-out shadow-xs",
+            (isFocusMode || !showBottomNav) ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
+          )}>
+            {[
+              { id: 'field-notes', label: 'Kladdebok', icon: BookOpen },
+              { id: 'field-assistant', label: 'Feltveileder', icon: Sparkles },
+              { id: 'process-log', label: 'Prosesslogg', icon: FileText }
+            ].map((sub) => {
+              const isSubActive = activeTab === sub.id;
+              return (
+                <button
+                  key={`mobile-sub-skriving-${sub.id}`}
+                  onClick={() => handleTabClick(sub.id)}
+                  className={cn(
+                    "flex-1 mx-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
+                    isSubActive
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                  )}
+                >
+                  <sub.icon className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">{sub.label}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
@@ -4451,6 +4513,48 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
           {activeTab === 'didaktisk-planlegger' && isAdminUser(user?.email || profile.email) && (
             <DidaktiskPlanlegger key="didaktisk-planlegger" />
+          )}
+
+          {activeTab === 'field-notes' && (
+            <motion.div
+              key="field-notes"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full"
+            >
+              <FieldNotes 
+                user={user}
+                onAskFieldAssistant={(prompt) => {
+                  setFieldAssistantPrompt(prompt);
+                  setActiveTab('field-assistant');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onSendToProcessLog={(note) => {
+                  setActiveTab('process-log');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </motion.div>
+          )}
+
+          {activeTab === 'field-assistant' && (
+            <motion.div
+              key="field-assistant"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="w-full"
+            >
+              <FieldAssistant 
+                user={user}
+                initialPrompt={fieldAssistantPrompt}
+                onGoToNotes={() => {
+                  setActiveTab('field-notes');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </motion.div>
           )}
 
           {activeTab === 'home' && (

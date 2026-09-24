@@ -66,19 +66,19 @@ const _dirname = getDirname();
 // Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
 async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
   let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
-  // Oppgrader kun utgåtte modeller (1.5 og 2.0) til 3.8-flash. Bevar 2.5-flash da den er universelt tilgjengelig.
+  // Oppgrader utgåtte modeller (1.5 og 2.0) til 3.8-flash
   if (initial.includes("1.5") || initial.includes("2.0") || initial === "gemini-pro") {
     initial = "gemini-3.8-flash";
   }
 
   // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
+  // gemini-3.1-flash-lite har separat kvotepool og er lynrask, ideell som umiddelbar fallback ved rate limit
   const modelCandidates = [
     initial,
-    "gemini-3.8-flash",
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
     "gemini-3.1-flash-lite",
-    "gemini-3.1-pro-preview"
+    "gemini-flash-latest",
+    "gemini-3.8-flash",
+    "gemini-2.5-flash"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;
@@ -104,11 +104,12 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
         throw err;
       }
 
-      console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}). Forsøker neste kandidat...`);
+      console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}). Forsøker neste kandidat (${modelCandidates[i + 1] || 'ingen'})...`);
 
-      // Hvis flere modeller gjenstår, vent et lite øyeblikk og prøv neste
+      // Hvis flere modeller gjenstår, vent for å la per-sekund burst-kvote resette seg før neste kandidat
       if (i < modelCandidates.length - 1) {
-        await new Promise(r => setTimeout(r, 600));
+        const waitTime = (isQuotaOrRateLimit || isUnavailable) ? 1400 : 500;
+        await new Promise(r => setTimeout(r, waitTime));
       }
     }
   }

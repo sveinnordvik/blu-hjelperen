@@ -10,12 +10,18 @@ import {
   Italic, 
   List, 
   Quote, 
-  FileText,
-  HelpCircle,
-  Lightbulb,
-  Eye,
-  Edit3,
-  FolderPlus
+  FileText, 
+  HelpCircle, 
+  Lightbulb, 
+  Eye, 
+  Edit3, 
+  FolderPlus,
+  Search,
+  Plus,
+  ArrowLeft,
+  Trash2,
+  Copy,
+  AlertCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { askSocraticAgent } from '../services/geminiService';
@@ -120,9 +126,25 @@ export function ProcessLog(_props?: { [key: string]: any }) {
   const [isSuggestingTheory, setIsSuggestingTheory] = useState(false);
   const [theorySuggestions, setTheorySuggestions] = useState<string | null>(null);
 
+  // Mobil-spesifikk state
+  const [mobileSearchQuery, setMobileSearchQuery] = useState('');
+  const [mobileCategoryFilter, setMobileCategoryFilter] = useState('Alle');
+  const [mobileIsEditing, setMobileIsEditing] = useState(false);
+  const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
+
   const situationTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeLog = logs.find(l => l.id === activeLogId) || logs[0];
+
+  const filteredMobileLogs = logs.filter(log => {
+    const matchesFilter = mobileCategoryFilter === 'Alle' || log.category === mobileCategoryFilter;
+    const matchesSearch = !mobileSearchQuery.trim() || 
+      (log.title || '').toLowerCase().includes(mobileSearchQuery.toLowerCase()) ||
+      (log.situation || '').toLowerCase().includes(mobileSearchQuery.toLowerCase()) ||
+      (log.reflection || '').toLowerCase().includes(mobileSearchQuery.toLowerCase()) ||
+      (log.theoryLinks || '').toLowerCase().includes(mobileSearchQuery.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   // Save to localStorage
   useEffect(() => {
@@ -423,7 +445,10 @@ Foreslå:
   };
 
   return (
-    <WorkspaceLayout
+    <>
+      {/* DESKTOP VISNING (Uendret og bevart for skjermstørrelse md: og større) */}
+      <div className="hidden md:block w-full h-full">
+        <WorkspaceLayout
       title="Prosesslogg"
       subtitle="Dokumenter praksis og refleksjon"
       icon={<BookOpen className="w-6 h-6" />}
@@ -725,6 +750,350 @@ Foreslå:
         </>
       )}
     </WorkspaceLayout>
+      </div>
+
+      {/* MOBIL VISNING (Kun på mobil - samme rene kortstil som Kladdebok i felt) */}
+      <div className="md:hidden w-full max-w-xl mx-auto pb-24 px-3 sm:px-4 space-y-4">
+        {/* Header Banner */}
+        <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-5 rounded-3xl text-white shadow-sm relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="p-1.5 bg-white/20 rounded-xl backdrop-blur-xs">
+                <BookOpen className="w-4 h-4 text-white" />
+              </span>
+              <span className="text-xs font-bold tracking-wider uppercase text-amber-100">
+                Praksisdokumentasjon
+              </span>
+            </div>
+            <h1 className="text-xl font-black tracking-tight text-white">
+              Prosesslogg
+            </h1>
+            <p className="text-xs text-amber-100/90 mt-1 max-w-sm">
+              Strukturerte praksisfortellinger, didaktisk refleksjon og Rammeplankoblinger.
+            </p>
+          </div>
+        </div>
+
+        {mobileIsEditing ? (
+          /* REDIGERING PÅ MOBIL */
+          <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <button
+                type="button"
+                onClick={() => setMobileIsEditing(false)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 py-1.5 px-3 rounded-xl transition-all cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Tilbake til oversikt
+              </button>
+
+              {saveStatus && (
+                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                  <Check className="w-3.5 h-3.5" /> {saveStatus}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Loggtittel
+                </label>
+                <input 
+                  type="text"
+                  value={activeLog?.title || ''}
+                  onChange={(e) => handleUpdateActiveLog({ title: e.target.value })}
+                  placeholder="F.eks. Konflikt i sandkassen..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Kategori
+                </label>
+                <select 
+                  value={activeLog?.category || 'Praksisfortelling'}
+                  onChange={(e) => handleUpdateActiveLog({ category: e.target.value })}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="Praksisfortelling">Praksisfortelling</option>
+                  <option value="Didaktisk refleksjon">Didaktisk refleksjon</option>
+                  <option value="Teorikobling">Teorikobling</option>
+                  <option value="Observasjon">Observasjon</option>
+                  <option value="Etisk dilemma">Etisk dilemma</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Situasjonsbeskrivelse
+                  </label>
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('Fet')}
+                      className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+                      title="Fet skrift"
+                    >
+                      <Bold className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('Kursiv')}
+                      className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+                      title="Kursiv skrift"
+                    >
+                      <Italic className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('Liste')}
+                      className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+                      title="Punktliste"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('Sitat')}
+                      className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+                      title="Sitat"
+                    >
+                      <Quote className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  ref={situationTextareaRef}
+                  rows={6}
+                  value={activeLog?.situation || ''}
+                  onChange={(e) => handleUpdateActiveLog({ situation: e.target.value })}
+                  placeholder="Beskriv situasjonen: Hva sa og gjorde barna? Hva gjorde du som voksen? (Bruk fiktive navn)..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Pedagogisk refleksjon
+                </label>
+                <textarea
+                  rows={4}
+                  value={activeLog?.reflection || ''}
+                  onChange={(e) => handleUpdateActiveLog({ reflection: e.target.value })}
+                  placeholder="Hva tenkte du underveis? Hvilke pedagogiske valg tok du, og hvorfor?..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Rammeplan & teorikobling
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGetTheorySuggestions}
+                    disabled={isSuggestingTheory || !activeLog?.situation?.trim()}
+                    className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {isSuggestingTheory ? 'Søker...' : 'Foreslå med KI'}
+                  </button>
+                </div>
+                <input 
+                  type="text"
+                  value={activeLog?.theoryLinks || ''}
+                  onChange={(e) => handleUpdateActiveLog({ theoryLinks: e.target.value })}
+                  placeholder="F.eks. Bae (2012) om medvirkning; Rammeplanen kap. 3..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              {theorySuggestions && (
+                <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                      <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                      Forslag fra veilederen:
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cur = activeLog?.theoryLinks ? `${activeLog.theoryLinks}; ` : '';
+                        handleUpdateActiveLog({ theoryLinks: cur + 'Rammeplanen & fagteori (se KI-notat)' });
+                      }}
+                      className="text-[11px] font-bold text-amber-800 underline cursor-pointer"
+                    >
+                      Bruk
+                    </button>
+                  </div>
+                  <div className="text-xs text-amber-950 prose prose-amber max-w-none">
+                    <ReactMarkdown>{theorySuggestions}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveLog}
+                  className="flex-1 py-3 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <Save className="w-4 h-4" /> Lagre logg
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileIsEditing(false)}
+                  className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                >
+                  Ferdig
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* OVERSIKT / KORTLISTE PÅ MOBIL */
+          <div className="space-y-3.5">
+            {/* Ny logg knapp */}
+            <button
+              onClick={() => {
+                handleNewLog();
+                setMobileIsEditing(true);
+              }}
+              className="w-full bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ny praksislogg</span>
+            </button>
+
+            {/* Søk */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text"
+                value={mobileSearchQuery}
+                onChange={(e) => setMobileSearchQuery(e.target.value)}
+                placeholder="Søk i praksisfortellinger & teori..."
+                className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+              />
+            </div>
+
+            {/* Kategori-filter */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              {['Alle', 'Praksisfortelling', 'Didaktisk refleksjon', 'Teorikobling', 'Observasjon', 'Etisk dilemma'].map((cat) => (
+                <button
+                  key={`filter-${cat}`}
+                  onClick={() => setMobileCategoryFilter(cat)}
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition-all cursor-pointer ${
+                    mobileCategoryFilter === cat
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Kortliste */}
+            {filteredMobileLogs.length === 0 ? (
+              <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-300 text-center space-y-2">
+                <BookOpen className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">Ingen logger funnet</p>
+                <p className="text-[11px] text-slate-400">
+                  {mobileSearchQuery ? 'Prøv et annet søkeord' : 'Trykk på «Ny praksislogg» for å skrive'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredMobileLogs.map((log) => (
+                  <div
+                    key={`mobile-log-${log.id}`}
+                    onClick={() => {
+                      setActiveLogId(log.id);
+                      setMobileIsEditing(true);
+                    }}
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs hover:border-amber-400/80 transition-all cursor-pointer relative group"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/50">
+                        {log.category || 'Praksisfortelling'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {new Date(log.updatedAt || log.createdAt).toLocaleDateString('no-NO', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-sm mb-1.5 line-clamp-1">
+                      {log.title || 'Uten tittel'}
+                    </h3>
+
+                    {log.situation && (
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-2">
+                        {log.situation}
+                      </p>
+                    )}
+
+                    {log.theoryLinks && (
+                      <div className="mb-2 px-2.5 py-1 bg-indigo-50/70 border border-indigo-100 rounded-lg text-[10px] text-indigo-800 flex items-center gap-1.5">
+                        <BookOpen className="w-3 h-3 text-indigo-500 shrink-0" />
+                        <span className="truncate">{log.theoryLinks}</span>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between mt-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveLogId(log.id);
+                          setMobileIsEditing(true);
+                        }}
+                        className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Rediger
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const copyText = `${log.title}\n\nSITUASJON:\n${log.situation}\n\nREFLEKSJON:\n${log.reflection}\n\nTEORI:\n${log.theoryLinks}`;
+                            navigator.clipboard.writeText(copyText);
+                            setCopiedLogId(log.id);
+                            setTimeout(() => setCopiedLogId(null), 2000);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                          title="Kopier"
+                        >
+                          {copiedLogId === log.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Er du sikker på at du vil slette «${log.title}»?`)) {
+                              handleDeleteItem(log.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg cursor-pointer"
+                          title="Slett"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

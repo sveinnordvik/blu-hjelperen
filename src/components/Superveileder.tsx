@@ -352,40 +352,44 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     }));
   };
 
-  const handleSendMessage = async (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string, isRetry: boolean = false) => {
     const userText = (textToSend || input).trim();
     if (!userText || isLoading || !activeChat) return;
 
     if (!textToSend) setInput('');
 
-    const userMsg: ChatMessage = {
-      id: 'usr-' + Date.now(),
-      role: 'user',
-      content: userText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      mode: activeMode
-    };
-
-    const isFirstUserMessage = activeChat.messages.filter(m => m.role === 'user').length === 0;
-    const newTitle = isFirstUserMessage 
-      ? (userText.length > 32 ? userText.substring(0, 32) + '...' : userText) 
-      : activeChat.title;
-
     let updatedSession: ChatSession | null = null;
 
-    setChats(prev => prev.map(c => {
-      if (c.id === activeChatId) {
-        updatedSession = {
-          ...c,
-          title: newTitle,
-          subtitle: `${activeMode} • Sist endret nå`,
-          updatedAt: new Date().toISOString(),
-          messages: [...c.messages, userMsg]
-        };
-        return updatedSession;
-      }
-      return c;
-    }));
+    if (!isRetry) {
+      const userMsg: ChatMessage = {
+        id: 'usr-' + Date.now(),
+        role: 'user',
+        content: userText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        mode: activeMode
+      };
+
+      const isFirstUserMessage = activeChat.messages.filter(m => m.role === 'user').length === 0;
+      const newTitle = isFirstUserMessage 
+        ? (userText.length > 32 ? userText.substring(0, 32) + '...' : userText) 
+        : activeChat.title;
+
+      setChats(prev => prev.map(c => {
+        if (c.id === activeChatId) {
+          updatedSession = {
+            ...c,
+            title: newTitle,
+            subtitle: `${activeMode} • Sist endret nå`,
+            updatedAt: new Date().toISOString(),
+            messages: [...c.messages, userMsg]
+          };
+          return updatedSession;
+        }
+        return c;
+      }));
+    } else {
+      updatedSession = activeChat;
+    }
 
     if (updatedSession) {
       saveChatToFirestore(updatedSession);
@@ -394,6 +398,14 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
     setIsLoading(true);
 
     try {
+      // Filtrer ut feilmeldinger og tomme meldinger fra historikken som sendes til Gemini
+      const cleanHistory = activeChat.messages
+        .filter(m => m.agent !== 'FEIL' && !String(m.content).startsWith('Feil:') && !String(m.content).includes('Kapasitetsgrensen'))
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          content: m.content
+        }));
+
       let aiResponseText = '';
       let agentTag = 'AUTO';
 
@@ -401,10 +413,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         agentTag = 'SOKRATISK';
         aiResponseText = await askSocraticAgent(
           [
-            ...activeChat.messages.map(m => ({
-              role: m.role === 'user' ? 'user' : 'model',
-              content: m.content
-            })),
+            ...cleanHistory,
             { role: 'user', content: userText }
           ],
           didacticProfile || { frameworkFocus: 'Sokratisk refleksjonsveiledning for barnehagelærer' }
@@ -413,10 +422,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         agentTag = 'RAG';
         aiResponseText = await askRagAgent(
           userText,
-          activeChat.messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            content: m.content
-          }))
+          cleanHistory
         );
       } else if (activeMode === 'APA') {
         agentTag = 'APA';
@@ -428,25 +434,22 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         agentTag = 'METODE';
         aiResponseText = await generateAcademicResponse(
           userText,
-          activeChat.messages.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            content: m.content
-          })),
+          cleanHistory,
           'balanced',
           { frameworkFocus: 'Modus: Metode & Forskningsdesign. Gi didaktisk og vitenskapsteoretisk veiledning for barnehagelærerutdanningen: problemstilling, kvalitativ/kvantitativ metode, observasjon, intervju, dokumentanalyse, litteraturstudie, etikk (NESH/samtykke) og pålitelighet/gyldighet (reliabilitet/validitet).' }
         );
       } else {
-        // AUTO Modus: Ruter intelligent med superAgentRouter
+        // AUTO Modus: Ruter intelligent og lokalt med superAgentRouter (0 ekstra API-nettverkskall!)
         const routeDecision = await superAgentRouter(userText);
         agentTag = routeDecision;
 
         if (agentTag === 'SOKRATISK') {
           aiResponseText = await askSocraticAgent(
-            [{ role: 'user', content: userText }],
+            [...cleanHistory, { role: 'user', content: userText }],
             didacticProfile || {}
           );
         } else if (agentTag === 'RAG') {
-          aiResponseText = await askRagAgent(userText, []);
+          aiResponseText = await askRagAgent(userText, cleanHistory);
         } else if (agentTag === 'APA') {
           aiResponseText = await askApaAgent(userText);
         } else if (agentTag === 'SPRAK') {
@@ -454,10 +457,7 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
         } else {
           aiResponseText = await generateAcademicResponse(
             userText,
-            activeChat.messages.map(m => ({
-              role: m.role === 'user' ? 'user' : 'model',
-              content: m.content
-            })),
+            cleanHistory,
             'balanced',
             didacticProfile || { frameworkFocus: 'Rammeplan for barnehagen og barnehageloven.' }
           );
@@ -1170,11 +1170,11 @@ export function Superveileder({ user, didacticProfile, initialMode, onSwitchToBl
                                 const prevUserMsg = activeChat.messages.slice(0, currentIdx).reverse().find(m => m.role === 'user');
                                 handleDeleteMessage(msg.id);
                                 if (prevUserMsg) {
-                                  handleSendMessage(prevUserMsg.content);
+                                  handleSendMessage(prevUserMsg.content, true);
                                 }
                               }}
                               className="px-2.5 py-1 bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                              title="Prøv på nytt med oppdatert modell og nøkkel"
+                              title="Prøv på nytt uten å duplisere meldingen"
                             >
                               <RotateCcw className="w-3 h-3 text-rose-600" />
                               <span>Prøv igjen</span>

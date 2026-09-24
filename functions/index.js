@@ -344,7 +344,8 @@ exports.api = onRequest(
         ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
         let lastErr = null;
-        for (const m of candidates) {
+        for (let i = 0; i < candidates.length; i++) {
+          const m = candidates[i];
           try {
             const response = await ai.models.generateContent({
               model: m,
@@ -357,6 +358,10 @@ exports.api = onRequest(
             const msg = mErr?.message || String(mErr);
             if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
               throw mErr;
+            }
+            if (i < candidates.length - 1) {
+              const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || mErr?.status === 429 || mErr?.status === 503;
+              await new Promise(r => setTimeout(r, isRateOrBusy ? 1400 : 500));
             }
           }
         }
