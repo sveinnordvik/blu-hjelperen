@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.1.4',
+    date: '2026-09-25',
+    title: 'Oppgradering til versjon 3.1.4',
+    changes: [
+      'Robust flermodell-fallback (veksler automatisk mellom gemini-2.5-flash og gemini-3.8-flash) ved kvotetopper.',
+      'Optimalisert beskyttelse mot hastighetsbegrensninger (TPM) ved lange utkast i Skriveverkstedet.',
+      'Forbedret direkte API-reserveløsning i frontend med umiddelbar prøv-på-nytt på alternative modeller.',
+      'Synlig versjonsindikator i bunnteksten (footer) for umiddelbar bekreftelse av oppdatert nettleserversjon.'
+    ]
+  },
+  {
     version: 'v3.1.3',
     date: '2026-09-25',
     title: 'Oppgradering til versjon 3.1.3',

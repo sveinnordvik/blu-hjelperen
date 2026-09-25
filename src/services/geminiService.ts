@@ -242,10 +242,9 @@ async function callDirectGeminiApi(model: string, contents: any, config?: any): 
 
   const modelCandidates = [
     preferred,
-    "gemini-3.8-flash",
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite"
+    preferred === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;
@@ -280,17 +279,22 @@ async function callDirectGeminiApi(model: string, contents: any, config?: any): 
         const errObj = await res.json().catch(() => ({}));
         const errMsg = errObj?.error?.message || `Google API feil: ${res.status}`;
         
-        // Kritiske feil som ikke løses ved å bytte modell (ugyldig nøkkel)
+        // Kritiske feil med API-nøkkelen kan ikke løses ved å bytte modell
         if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid")) {
           throw new Error("Ugyldig Gemini API-nøkkel satt opp. Sjekk at GEMINI_API_KEY i AI Studio / GitHub Secrets er gyldig og aktiv.");
         }
         
-        // Hvis kvote er brukt opp på denne nøkkelen
-        if (errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429") || errMsg.includes("prepayment credits")) {
-          throw new Error("Kapasitetsgrensen eller saldoen for denne API-nøkkelen er oppbrukt (429/Prepayment credits depleted). Opprett en ny gratis API-nøkkel på aistudio.google.com/apikey og legg den inn under Settings -> Secrets.");
+        if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted")) {
+          throw new Error("Kredittsaldoen for denne API-nøkkelen er oppbrukt (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på saldo.");
         }
 
+        console.warn(`Direkte API-kall feilet for modell ${candidate} (status ${res.status}): ${errMsg}. Prøver neste kandidat...`);
         lastError = new Error(errMsg);
+        
+        // Vent kort før neste forsøk ved rate limit
+        if (errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429") || res.status === 429) {
+          await new Promise(r => setTimeout(r, 1200));
+        }
         continue;
       }
 
@@ -299,7 +303,7 @@ async function callDirectGeminiApi(model: string, contents: any, config?: any): 
       return { text };
     } catch (callErr: any) {
       lastError = callErr;
-      if (callErr?.message?.includes("Ugyldig Gemini API-nøkkel") || callErr?.message?.includes("Kapasitetsgrensen")) {
+      if (callErr?.message?.includes("Ugyldig Gemini API-nøkkel") || callErr?.message?.includes("credits are depleted")) {
         throw callErr;
       }
     }
