@@ -104,6 +104,7 @@ export const RichTextEditor = React.memo(({ editorContext, initialNotes, onChang
           <div className="w-px h-5 bg-slate-300 mx-1"></div>
           <button onClick={() => handleFormat('formatBlock', 'H1')} className="p-1.5 hover:bg-slate-200 rounded text-slate-700 text-sm font-bold">H1</button>
           <button onClick={() => handleFormat('formatBlock', 'H2')} className="p-1.5 hover:bg-slate-200 rounded text-slate-700 text-sm font-bold">H2</button>
+          <button onClick={() => handleFormat('formatBlock', 'H3')} className="p-1.5 hover:bg-slate-200 rounded text-slate-700 text-sm font-bold">H3</button>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-1.5 hover:bg-slate-200 rounded text-slate-600">

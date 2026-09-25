@@ -6334,7 +6334,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               title="Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.1.4
+              v3.2.0
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

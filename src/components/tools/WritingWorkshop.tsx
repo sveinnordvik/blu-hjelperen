@@ -2,14 +2,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
-  FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, PanelRightClose, Send, Archive, User,
+  FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, PanelRightClose, Send, Archive, User,
   Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown // Nye ikoner for mapper og kapittelflytting
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
 import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../../firebase'; 
+import { DocumentExportModal } from './DocumentExportModal';
 
 // STEG 1: Nytt interface for mapper
 export interface FolderItem {
@@ -235,6 +237,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
 
   const [viewMode, setViewMode] = useState<'editor' | 'setup' | 'quality-check'>('editor');
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -578,8 +581,144 @@ ${activeDoc.content}`;
     }
   };
 
+  const [editorMode, setEditorMode] = useState<'wysiwyg' | 'markdown'>('wysiwyg');
+  const [activeHeading, setActiveHeading] = useState<'h1' | 'h2' | 'h3' | 'p' | null>(null);
+  const [activeStyles, setActiveStyles] = useState<{
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    ul: boolean;
+    ol: boolean;
+    quote: boolean;
+  }>({
+    bold: false,
+    italic: false,
+    underline: false,
+    ul: false,
+    ol: false,
+    quote: false
+  });
+
+  const wysiwygRef = useRef<HTMLDivElement>(null);
+  const isUserTypingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sjekker aktiv formatering for verktøylinje-knapper i sanntid
+  const checkActiveFormatting = () => {
+    if (editorMode !== 'wysiwyg' || !wysiwygRef.current) return;
+    const selection = window.getSelection();
+    if (!selection || !selection.anchorNode) return;
+
+    let node: Node | null = selection.anchorNode;
+    let foundHeading: 'h1' | 'h2' | 'h3' | 'p' | null = null;
+    let isQuote = false;
+
+    while (node && node !== wysiwygRef.current) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName.toLowerCase();
+        if (tag === 'h1') foundHeading = 'h1';
+        else if (tag === 'h2') foundHeading = 'h2';
+        else if (tag === 'h3') foundHeading = 'h3';
+        else if (tag === 'blockquote') isQuote = true;
+      }
+      node = node.parentNode;
+    }
+
+    setActiveHeading(foundHeading);
+    setActiveStyles({
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
+      ul: document.queryCommandState('insertUnorderedList'),
+      ol: document.queryCommandState('insertOrderedList'),
+      quote: isQuote
+    });
+  };
+
+  // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes eller oppdateres eksternt
+  useEffect(() => {
+    if (!wysiwygRef.current) return;
+    if (isUserTypingRef.current) return;
+
+    const currentDocContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+    const targetHtml = markdownToHtml(currentDocContent);
+
+    if (wysiwygRef.current.innerHTML !== targetHtml) {
+      wysiwygRef.current.innerHTML = targetHtml;
+    }
+  }, [activeDoc.id, activeDoc.content, editorMode]);
+
+  // Håndterer endringer i WYSIWYG uten å miste markørposisjon
+  const handleWysiwygInput = () => {
+    if (!wysiwygRef.current) return;
+    isUserTypingRef.current = true;
+    const html = wysiwygRef.current.innerHTML;
+    const md = htmlToMarkdown(html);
+    handleUpdateActiveDoc({ content: md });
+    checkActiveFormatting();
+    setTimeout(() => {
+      isUserTypingRef.current = false;
+    }, 150);
+  };
+
   const applyFormatting = (type: string) => {
+    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+      wysiwygRef.current.focus();
+
+      switch (type) {
+        case 'bold':
+          document.execCommand('bold', false);
+          break;
+        case 'italic':
+          document.execCommand('italic', false);
+          break;
+        case 'underline':
+          document.execCommand('underline', false);
+          break;
+        case 'h1':
+          if (activeHeading === 'h1') {
+            document.execCommand('formatBlock', false, '<p>');
+          } else {
+            document.execCommand('formatBlock', false, '<h1>');
+          }
+          break;
+        case 'h2':
+          if (activeHeading === 'h2') {
+            document.execCommand('formatBlock', false, '<p>');
+          } else {
+            document.execCommand('formatBlock', false, '<h2>');
+          }
+          break;
+        case 'h3':
+          if (activeHeading === 'h3') {
+            document.execCommand('formatBlock', false, '<p>');
+          } else {
+            document.execCommand('formatBlock', false, '<h3>');
+          }
+          break;
+        case 'list':
+          document.execCommand('insertUnorderedList', false);
+          break;
+        case 'orderedList':
+          document.execCommand('insertOrderedList', false);
+          break;
+        case 'quote':
+          if (activeStyles.quote) {
+            document.execCommand('formatBlock', false, '<p>');
+          } else {
+            document.execCommand('formatBlock', false, '<blockquote>');
+          }
+          break;
+        default:
+          break;
+      }
+
+      handleWysiwygInput();
+      checkActiveFormatting();
+      return;
+    }
+
+    // Markdown textarea fallback (hvis studenten har valgt råtekst-modus)
     const textarea = textareaRef.current;
     if (!textarea) return;
     const start = textarea.selectionStart;
@@ -596,6 +735,7 @@ ${activeDoc.content}`;
       case 'underline': replacement = `<u>${selectedText || 'understreket'}</u>`; newStart = start + 3; newEnd = selectedText ? end + 3 : start + 15; break;
       case 'h1': replacement = `\n# ${selectedText || 'Overskrift 1'}\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'h2': replacement = `\n## ${selectedText || 'Overskrift 2'}\n`; newStart = start + replacement.length; newEnd = newStart; break;
+      case 'h3': replacement = `\n### ${selectedText || 'Overskrift 3'}\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'list': replacement = `\n- ${selectedText || 'Punkt 1'}\n- Punkt 2\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'orderedList': replacement = `\n1. ${selectedText || 'Første punkt'}\n2. Andre punkt\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'quote': replacement = `\n> ${selectedText || 'Sitat'}\n`; newStart = start + replacement.length; newEnd = newStart; break;
@@ -744,6 +884,18 @@ ${activeDoc.content}`;
               <div className="w-px h-6 bg-slate-200 mx-1" />
               
               <button 
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-700 hover:text-indigo-600 text-xs cursor-pointer"
+                title="Eksporter til Word (.docx) eller PDF (.pdf) med forside og innholdsfortegnelse"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Eksporter</span>
+              </button>
+
+              <div className="w-px h-6 bg-slate-200 mx-1" />
+              
+              <button 
                 onClick={() => {
                   setIsPanelOpen(!isPanelOpen);
                   if (!isPanelOpen && activePanelTab !== 'superveileder') setActivePanelTab('superveileder');
@@ -764,30 +916,180 @@ ${activeDoc.content}`;
           {viewMode === 'editor' && (
             <div className="flex-1 flex flex-col min-h-0">
               <div className="px-6 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
-                <div className="flex items-center gap-1 text-slate-600">
-                  <button onClick={() => applyFormatting('bold')} title="Fet (Ctrl+B)" className="p-1.5 hover:bg-slate-100 rounded-lg"><Bold className="w-4 h-4" /></button>
-                  <button onClick={() => applyFormatting('italic')} title="Kursiv (Ctrl+I)" className="p-1.5 hover:bg-slate-100 rounded-lg"><Italic className="w-4 h-4" /></button>
-                  <button onClick={() => applyFormatting('underline')} title="Understreket" className="p-1.5 hover:bg-slate-100 rounded-lg"><Underline className="w-4 h-4" /></button>
+                <div className="flex items-center gap-1 text-slate-700">
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('bold')} 
+                    title="Fet (Ctrl+B)" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <Bold className="w-4 h-4" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('italic')} 
+                    title="Kursiv (Ctrl+I)" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <Italic className="w-4 h-4" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('underline')} 
+                    title="Understreket" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <Underline className="w-4 h-4" />
+                  </button>
                   <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button onClick={() => applyFormatting('h1')} title="Overskrift 1" className="p-1.5 hover:bg-slate-100 rounded-lg"><Heading1 className="w-4 h-4" /></button>
-                  <button onClick={() => applyFormatting('h2')} title="Overskrift 2" className="p-1.5 hover:bg-slate-100 rounded-lg"><Heading2 className="w-4 h-4" /></button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('h1')} 
+                    title="Overskrift 1 (14 pt, starter alltid på ny side i Word/PDF)" 
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                      activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <Heading1 className="w-4 h-4" />
+                    <span className="text-[11px]">H1</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('h2')} 
+                    title="Overskrift 2 (12 pt, 12 pkt etter)" 
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                      activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <Heading2 className="w-4 h-4" />
+                    <span className="text-[11px]">H2</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('h3')} 
+                    title="Overskrift 3 (12 pt kursiv, 6 pkt etter)" 
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                      activeHeading === 'h3' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <Heading3 className="w-4 h-4" />
+                    <span className="text-[11px]">H3</span>
+                  </button>
                   <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button onClick={() => applyFormatting('list')} title="Punktliste" className="p-1.5 hover:bg-slate-100 rounded-lg"><List className="w-4 h-4" /></button>
-                  <button onClick={() => applyFormatting('orderedList')} title="Nummerert liste" className="p-1.5 hover:bg-slate-100 rounded-lg"><ListOrdered className="w-4 h-4" /></button>
-                  <button onClick={() => applyFormatting('quote')} title="Sitatblokk" className="p-1.5 hover:bg-slate-100 rounded-lg"><Quote className="w-4 h-4" /></button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('list')} 
+                    title="Punktliste" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('orderedList')} 
+                    title="Nummerert liste" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <ListOrdered className="w-4 h-4" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => applyFormatting('quote')} 
+                    title="Sitatblokk (1,27 cm innrykk for sitater over 40 ord)" 
+                    className={`p-1.5 rounded-lg transition-all ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                  >
+                    <Quote className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-semibold">
-                  <button onClick={() => setEditorTab('write')} className={`px-2.5 py-1 rounded-md transition-all ${editorTab === 'write' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600'}`}><Edit3 className="w-3 h-3 inline mr-1" /> Skriv</button>
-                  <button onClick={() => setEditorTab('preview')} className={`px-2.5 py-1 rounded-md transition-all ${editorTab === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600'}`}><Eye className="w-3 h-3 inline mr-1" /> Forhåndsvis</button>
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-semibold gap-0.5">
+                  <button 
+                    type="button"
+                    onClick={() => { setEditorTab('write'); setEditorMode('wysiwyg'); }} 
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+                      editorTab === 'write' && editorMode === 'wysiwyg' 
+                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Visuell redigering i Word-stil uten formateringskoder som #"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Visuell (Word)</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => { setEditorTab('write'); setEditorMode('markdown'); }} 
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                      editorTab === 'write' && editorMode === 'markdown' 
+                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Råtekst med Markdown-koder (#, ##, ###)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Markdown (#)</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    onClick={() => setEditorTab('preview')} 
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
+                      editorTab === 'preview' 
+                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Forhåndsvis ferdig formatert oppgave"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Forhåndsvis</span>
+                  </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100/50">
                 <div className="max-w-3xl mx-auto space-y-4">
-                  <input type="text" value={activeDoc.title} onChange={(e) => handleUpdateActiveDoc({ title: e.target.value })} placeholder="Oppgavetittel..." className="w-full text-2xl font-bold text-slate-900 border-none bg-transparent focus:outline-none placeholder:text-slate-300" />
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 px-6 py-4">
+                    <input 
+                      type="text" 
+                      value={activeDoc.title} 
+                      onChange={(e) => handleUpdateActiveDoc({ title: e.target.value })} 
+                      placeholder="Oppgavetittel..." 
+                      className="w-full text-2xl md:text-3xl font-bold text-slate-900 border-none bg-transparent focus:outline-none placeholder:text-slate-300" 
+                    />
+                  </div>
+
                   {editorTab === 'write' ? (
-                    <textarea ref={textareaRef} value={typeof activeDoc.content === 'string' ? activeDoc.content : ''} onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })} placeholder="Begynn å skrive oppgaven din her..." className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[500px]" />
+                    editorMode === 'wysiwyg' ? (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px] transition-all">
+                        <div
+                          ref={wysiwygRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={handleWysiwygInput}
+                          onKeyUp={checkActiveFormatting}
+                          onMouseUp={checkActiveFormatting}
+                          onSelect={checkActiveFormatting}
+                          className="academic-editor-surface w-full focus:outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-6 md:p-8 min-h-[650px]">
+                        <textarea 
+                          ref={textareaRef} 
+                          value={typeof activeDoc.content === 'string' ? activeDoc.content : ''} 
+                          onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })} 
+                          placeholder="Begynn å skrive oppgaven din her..." 
+                          className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[600px] font-mono" 
+                        />
+                      </div>
+                    )
                   ) : (
-                    <div className="prose prose-slate max-w-none min-h-[500px] text-slate-800 leading-relaxed py-2"><ReactMarkdown>{typeof activeDoc.content === 'string' ? (activeDoc.content || '*Ingen tekst skrevet enda.*') : '*Ingen tekst skrevet enda.*'}</ReactMarkdown></div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px]">
+                      <div className="prose prose-slate max-w-none text-slate-800 leading-relaxed">
+                        <ReactMarkdown>
+                          {typeof activeDoc.content === 'string' ? (activeDoc.content || '*Ingen tekst skrevet enda.*') : '*Ingen tekst skrevet enda.*'}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1057,6 +1359,81 @@ ${activeDoc.content}`;
                   )}
 
                   <button onClick={handleApplyOutline} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2"><Sparkles className="w-4 h-4" /> Sett inn struktur i oppgaveteksten</button>
+                </div>
+
+                {/* Innholdsfortegnelse under oppgavestrukturen (skille på hoved- og underkapittel) */}
+                <div className="pt-6 border-t border-slate-200 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <List className="w-4 h-4 text-indigo-600" /> 
+                        Innholdsfortegnelse for oppgaven
+                        <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                          Som i Word
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Automatisk oppsett basert på oppgavestrukturen din med tydelig skille mellom hovedkapitler og underkapitler.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsExportModalOpen(true)}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Eksporter oppgave (Word / PDF)
+                    </button>
+                  </div>
+
+                  {/* Forhåndsvisningskort for innholdsfortegnelsen */}
+                  <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-200/90 space-y-3">
+                    <div className="flex items-center justify-between pb-2.5 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      <span>Kapittelstruktur</span>
+                      <span>Formatert sidetall</span>
+                    </div>
+
+                    {getCurrentOutline().length === 0 ? (
+                      <p className="text-xs text-slate-400 py-4 text-center italic">
+                        Ingen kapitler er definert ennå. Velg en mal eller legg til kapitler ovenfor for å generere innholdsfortegnelse.
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5 py-1">
+                        {getCurrentOutline().map((ch, idx) => (
+                          <div key={ch.id || idx} className="space-y-1">
+                            {/* Hovedkapittel (Nivå 1 - Fet, tydelig markert) */}
+                            <div className="flex items-baseline justify-between text-xs font-bold text-slate-900 pt-1.5">
+                              <span className="flex-shrink-0">{idx + 1}. {ch.title}</span>
+                              <span className="flex-1 mx-2 border-b border-dotted border-slate-300 relative top-[-3px]" />
+                              <span className="flex-shrink-0 text-slate-500 font-semibold">Side {idx + 3}</span>
+                            </div>
+
+                            {/* Underkapitler (Nivå 2 - Innrykket med normal vekt, slik som i Word) */}
+                            {ch.subItems && ch.subItems.length > 0 && ch.subItems.map((sub, sIdx) => (
+                              <div key={sIdx} className="flex items-baseline justify-between text-xs font-normal text-slate-600 pl-6">
+                                <span className="flex-shrink-0 text-slate-700">{idx + 1}.{sIdx + 1} {sub}</span>
+                                <span className="flex-1 mx-2 border-b border-dotted border-slate-200 relative top-[-3px]" />
+                                <span className="flex-shrink-0 text-slate-400 font-normal">Side {idx + 3}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <p className="text-xs text-slate-500">
+                      💡 Ved eksport legges innholdsfortegnelsen inn som en egen dedikert side med ekte Word tab-stops og prikket lederlinje.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsExportModalOpen(true)}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:underline cursor-pointer"
+                    >
+                      Tilpass forside og eksporter <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1376,6 +1753,22 @@ ${activeDoc.content}`;
           </div>
         </div>
       )}
+      {/* DOKUMENT EKSPORT MODAL (WORD / PDF MED FORSIDE OG INNHOLDSFORTEGNELSE) */}
+      <DocumentExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        documentTitle={activeDoc.title}
+        documentContent={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
+        documentType={activeDoc.template || selectedTemplate || 'Refleksjonsnotat'}
+        taskPrompt={activeDoc.taskPrompt || ''}
+        targetWords={activeDoc.targetWords || 1500}
+        outline={getCurrentOutline()}
+        userProfile={{
+          name: _props?.user?.displayName || _props?.profile?.name || getAuth().currentUser?.displayName || '',
+          candidateId: _props?.profile?.candidateId || _props?.profile?.studentId || '',
+          institution: _props?.profile?.studiested || _props?.profile?.college || _props?.settings?.studiested || 'Høgskolen i Innlandet'
+        }}
+      />
     </WorkspaceLayout>
   );
 }

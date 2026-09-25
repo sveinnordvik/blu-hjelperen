@@ -430,6 +430,18 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.2.0',
+    date: '2026-09-25',
+    title: 'Oppgradering til versjon 3.2.0',
+    changes: [
+      'Ny eksportmotor for Microsoft Word (.docx) og profesjonell PDF (.pdf) med støtte for Google Dokumenter.',
+      '4 akademiske forsidetemaer på høyskolenivå: Klassisk Akademisk, Moderne Nordisk, Formell Eksamensrapport og Pedagogisk & Didaktisk Praksis.',
+      'Automatisk innholdsfortegnelse med hierarkisk struktur (hovedkapitler og underkapitler) og prikkede lederlinjer (dot-leaders).',
+      'Akademisk formatering iht. APA 7: 14pt fet for Overskrift 1 (starter alltid på ny side), 12pt for Overskrift 2 og 3, 1,5 linjeavstand, 2,54 cm marger, blokksitater med 1,27 cm innrykk og litteraturliste med hengende innrykk.',
+      'Løpende topp- og bunntekst med tilpasset sidenummerering («Side X av Y») og unummerert forside.'
+    ]
+  },
+  {
     version: 'v3.1.4',
     date: '2026-09-25',
     title: 'Oppgradering til versjon 3.1.4',
