@@ -104,11 +104,11 @@ export async function callGoogleAIProxy(params: {
       // Ved gjentatte forsøk ved 429 eller 503 prøver vi alternative modell-pooler med egen kvote
       let modelForAttempt = targetModel;
       if (attempt === 1) {
-        modelForAttempt = "gemini-3.1-flash-lite";
+        modelForAttempt = targetModel === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash";
       } else if (attempt === 2) {
-        modelForAttempt = "gemini-flash-latest";
+        modelForAttempt = "gemini-3.1-flash-lite";
       } else if (attempt >= 3) {
-        modelForAttempt = "gemini-2.5-flash";
+        modelForAttempt = "gemini-flash-latest";
       }
 
       const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
@@ -2213,6 +2213,10 @@ export const chatWithSuperveileder = async (context: ChatContext): Promise<strin
       modeSpecificDirective = '- Fokus: Helhetlig didaktisk veiledning tilpasset studentens oppgave og problemstilling.';
   }
 
+  const trimmedDoc = typeof context.docContent === 'string' && context.docContent.length > 25000 
+    ? `[Utdrag av de siste 25 000 tegnene i utkastet]:\n...${context.docContent.slice(-25000)}` 
+    : (context.docContent || 'Ingen tekst skrevet enda.');
+
   const systemInstruction = `Du er 'Superveilederen', en erfaren og faglig støttende KI-veileder for barnehagelærerstudenter (BLU/DMMH).
 Modus valgt av studenten: ${context.mode} (Aktivt agentfokus: ${detectedAgent})
 Dokumenttittel: ${context.docTitle || 'Uten tittel'}
@@ -2220,7 +2224,7 @@ Problemstilling: ${context.taskPrompt || 'Ikke oppgitt'}
 
 Studentens nåværende utkast:
 """
-${context.docContent || 'Ingen tekst skrevet enda.'}
+${trimmedDoc}
 """
 
 Retningslinje for denne responsen:

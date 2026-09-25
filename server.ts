@@ -75,10 +75,9 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   // gemini-3.1-flash-lite har separat kvotepool og er lynrask, ideell som umiddelbar fallback ved rate limit
   const modelCandidates = [
     initial,
+    initial === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-flash-latest",
-    "gemini-3.8-flash",
-    "gemini-2.5-flash"
+    "gemini-flash-latest"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;

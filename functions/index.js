@@ -324,7 +324,7 @@ exports.api = onRequest(
         const ai = new GoogleGenAI({ apiKey });
 
         let requestedModel = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
-        if (requestedModel.includes("2.5") || requestedModel.includes("1.5") || requestedModel.includes("2.0")) {
+        if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel === "gemini-pro") {
           requestedModel = "gemini-3.8-flash";
         }
 
@@ -336,11 +336,12 @@ exports.api = onRequest(
           }
         }
 
+        // Kandidater med uavhengige kvoter
         const candidates = [
           requestedModel,
+          requestedModel === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
           "gemini-3.1-flash-lite",
-          "gemini-flash-latest",
-          "gemini-2.5-flash"
+          "gemini-flash-latest"
         ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
         let lastErr = null;
