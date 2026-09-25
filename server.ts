@@ -223,12 +223,12 @@ Når du svarer, følg disse retningslinjene:
       }
       if (isRateLimit) {
         return res.status(429).json({ 
-          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio." 
+          error: "Superveilederen opplever stor pågang akkurat nå (mange studenter bruker tjenesten samtidig). Vent 10–15 sekunder og prøv igjen." 
         });
       }
       if (isUnavailable) {
         return res.status(503).json({
-          error: "KI-modellen opplever stor pågang akkurat nå (503 High Demand). Vent noen sekunder og prøv igjen."
+          error: "KI-modellen opplever midlertidig stor pågang (503). Vent noen sekunder og prøv igjen."
         });
       }
       res.status(error?.status || 500).json({ error: errMsg || "Klarte ikke å hente svar fra KI-modellen." });
@@ -283,12 +283,12 @@ Når du svarer, følg disse retningslinjene:
       }
       if (isRateLimit) {
         return res.status(429).json({
-          error: "Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit). Vent litt og prøv igjen, eller sjekk kvoten i Google AI Studio."
+          error: "Superveilederen opplever stor pågang akkurat nå (mange studenter bruker tjenesten samtidig). Vent 10–15 sekunder og prøv igjen."
         });
       }
       if (isUnavailable) {
         return res.status(503).json({
-          error: "KI-modellen opplever stor pågang akkurat nå (503 High Demand). Vent noen sekunder og prøv igjen."
+          error: "KI-modellen opplever midlertidig stor pågang (503). Vent noen sekunder og prøv igjen."
         });
       }
 

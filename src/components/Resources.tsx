@@ -546,11 +546,11 @@ export function Resources({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <div className="flex flex-wrap items-center gap-1.5 py-0.5">
                   <button
                     onClick={() => setSelectedNoteCategory('Alle')}
                     className={cn(
-                      "px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border",
+                      "px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0",
                       selectedNoteCategory === 'Alle'
                         ? "bg-slate-900 text-white border-slate-900 shadow-xs"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -566,7 +566,7 @@ export function Resources({
                         key={`archive-cat-${cat}`}
                         onClick={() => setSelectedNoteCategory(cat)}
                         className={cn(
-                          "px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border",
+                          "px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0",
                           selectedNoteCategory === cat
                             ? `${CATEGORY_COLORS[cat].bg} ${CATEGORY_COLORS[cat].text} ${CATEGORY_COLORS[cat].border} shadow-xs`
                             : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"

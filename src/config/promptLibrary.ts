@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.1.3',
+    date: '2026-09-25',
+    title: 'Oppgradering til versjon 3.1.3',
+    changes: [
+      'Brukervennlig håndtering ved stor pågang på KI-assistenten med direkte «Prøv igjen nå»-knapp i Skriveverkstedet.',
+      'Fjerning av kryptisk teknisk feilmelding (429 / Quota) til fordel for studentvennlig veiledning.',
+      'Forbedret mobilvisning i Basen (kollokvie i lomma) med ryddig bunnmeny og null sideveis scrolling.',
+      'Automatisk rensing av feilmeldinger fra samtalehistorikken mot Gemini.'
+    ]
+  },
+  {
     version: 'v3.1.2',
     date: '2026-09-24',
     title: 'Oppgradering til versjon 3.1.2',

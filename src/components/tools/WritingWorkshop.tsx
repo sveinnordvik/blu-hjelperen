@@ -37,6 +37,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  isError?: boolean;
 }
 
 const STORAGE_KEY = 'blu_writing_workshop_docs_v2';
@@ -493,14 +494,23 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     setViewMode('editor');
   };
 
-  const handleSendMessage = async () => {
-    if (!chatInput.trim() || isChatLoading) return;
+  const handleSendMessage = async (textOverride?: string) => {
+    const userText = (textOverride || chatInput).trim();
+    if (!userText || isChatLoading) return;
 
-    const userText = chatInput.trim();
-    setChatInput(''); 
+    if (!textOverride) {
+      setChatInput(''); 
+    }
 
-    const newUserMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: userText };
-    const currentMessages = [...messages, newUserMsg];
+    // Filtrer ut feilmeldinger fra samtalen så de ikke forurenser konteksten
+    const cleanHistory = messages.filter(m => !m.isError && !(typeof m.content === 'string' && (m.content.includes("stor pågang") || m.content.includes("Kapasitetsgrensen") || m.content.includes("429 Rate limit"))));
+
+    const isRetry = Boolean(textOverride);
+    const lastIsSameUser = isRetry && cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user';
+
+    const currentMessages: ChatMessage[] = lastIsSameUser 
+      ? cleanHistory 
+      : [...cleanHistory, { id: Date.now().toString(), role: 'user', content: userText }];
     
     setMessages(currentMessages);
     setIsChatLoading(true);
@@ -521,17 +531,18 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         content: responseText
       };
       
-      setMessages(prev => [...prev, aiResponse]);
+      setMessages(prev => [...prev.filter(m => !m.isError), aiResponse]);
     } catch (error: any) {
       console.error("Feil ved kommunikasjon med Gemini:", error);
       const errMsg = error?.message || (typeof error === 'string' ? error : '');
       const displayMsg = errMsg 
         ? errMsg 
-        : "Kunne ikke hente svar fra veilederen akkurat nå. Vennligst prøv å sende meldingen på nytt om et øyeblikk.";
+        : "Superveilederen opplever stor pågang akkurat nå. Vent noen sekunder og prøv igjen.";
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: displayMsg
+        content: displayMsg,
+        isError: true
       }]);
     } finally {
       setIsChatLoading(false);
@@ -1114,33 +1125,82 @@ ${activeDoc.content}`;
                     ))}
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {msg.role === 'assistant' && (
-                          <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                          </div>
-                        )}
-                        <div
-                          className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed ${
-                            msg.role === 'user'
-                              ? 'bg-indigo-600 text-white rounded-tr-none shadow-xs'
-                              : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-xs'
-                          }`}
-                        >
-                          {msg.role === 'assistant' ? (
-                            <div className="prose prose-slate prose-sm max-w-none">
-                              <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : ''}</ReactMarkdown>
+                    {messages.map((msg) => {
+                      const isErrorMsg = msg.isError || (msg.role === 'assistant' && typeof msg.content === 'string' && (
+                        msg.content.includes("Kapasitetsgrensen for forespørsler er midlertidig nådd") ||
+                        msg.content.includes("429 Rate limit") ||
+                        msg.content.includes("stor pågang") ||
+                        msg.content.includes("opplever stor pågang")
+                      ));
+
+                      if (isErrorMsg) {
+                        return (
+                          <div key={msg.id} className="flex gap-2.5 justify-start">
+                            <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <AlertCircle className="w-4 h-4 text-amber-600" />
                             </div>
-                          ) : (
-                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                            <div className="max-w-[88%] bg-amber-50/90 border border-amber-200 text-amber-950 p-3.5 rounded-2xl rounded-tl-none text-xs space-y-2 shadow-2xs">
+                              <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs">
+                                <span>Midlertidig pause / stor pågang</span>
+                              </div>
+                              <p className="text-amber-800 leading-relaxed font-normal">
+                                Superveilederen er opptatt akkurat nå fordi mange studenter skriver samtidig. Prøv igjen om et øyeblikk.
+                              </p>
+                              <div className="flex items-center gap-2 pt-1 border-t border-amber-200/60">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                                    if (lastUserMsg) {
+                                      handleSendMessage(lastUserMsg.content);
+                                    }
+                                  }}
+                                  disabled={isChatLoading}
+                                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer text-xs shadow-2xs transition-colors"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> Prøv igjen nå
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setMessages(prev => prev.filter(m => m.id !== msg.id))}
+                                  className="px-2.5 py-1.5 text-amber-800 hover:bg-amber-100 rounded-xl font-semibold cursor-pointer text-xs transition-colors"
+                                >
+                                  Lukk
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {msg.role === 'assistant' && (
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                            </div>
                           )}
+                          <div
+                            className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed ${
+                              msg.role === 'user'
+                                ? 'bg-indigo-600 text-white rounded-tr-none shadow-xs'
+                                : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-xs'
+                            }`}
+                          >
+                            {msg.role === 'assistant' ? (
+                              <div className="prose prose-slate prose-sm max-w-none">
+                                <ReactMarkdown>{typeof msg.content === 'string' ? msg.content : ''}</ReactMarkdown>
+                              </div>
+                            ) : (
+                              <p className="whitespace-pre-wrap">{msg.content}</p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {isChatLoading && (
                       <div className="flex gap-2.5 justify-start">

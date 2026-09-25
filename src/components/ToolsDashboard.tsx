@@ -13,10 +13,12 @@ import {
   X,
   CreditCard,
   AlertTriangle,
+  ArrowLeft,
   Library
 } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
 import { isUnlimitedUser, STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL } from '../config/accessConfig';
+import { MobileEncyclopedia } from './mobile/MobileEncyclopedia';
 
 interface ToolsDashboardProps {
   pricingTier?: string;
@@ -49,6 +51,7 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
 
   const [showHumanizerModal, setShowHumanizerModal] = useState(false);
   const [mobileCategoryFilter, setMobileCategoryFilter] = useState<'all' | 'analyse' | 'trening' | 'kilder'>('all');
+  const [showDesktopToolsOnMobile, setShowDesktopToolsOnMobile] = useState(false);
 
   const handleBuyCredits = (count: number) => {
     if (onBuyCredits) {
@@ -418,10 +421,27 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
         </div>
       </div>
 
-      {/* MOBIL-VISNING (Egen ren, responsiv opplevelse for mobilskjermer - under Verktøy-fanen) */}
-      <div className="md:hidden w-full max-w-xl mx-auto pb-28 px-3 sm:px-4 space-y-4">
-        {/* Mobil Header Banner */}
-        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
+      {/* MOBIL-VISNING: Rent, lynraskt faglig oppslagsverk (pedagogiske begreper, Rammeplan-definisjoner og nøkkelteorier) */}
+      {!showDesktopToolsOnMobile ? (
+        <div className="md:hidden">
+          <MobileEncyclopedia 
+            onOpenDesktopTools={() => setShowDesktopToolsOnMobile(true)} 
+          />
+        </div>
+      ) : (
+        <div className="md:hidden w-full max-w-xl mx-auto pb-28 px-3 sm:px-4 space-y-4">
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowDesktopToolsOnMobile(false)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 py-2 px-3.5 rounded-xl hover:bg-slate-50 shadow-2xs cursor-pointer mb-1"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-emerald-600" />
+              <span>← Tilbake til oppslagsverk & begreper</span>
+            </button>
+          </div>
+          {/* Mobil Header Banner */}
+          <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-purple-800 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
@@ -693,16 +713,17 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => onSelectTool('dictionary')}
-                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={() => setShowDesktopToolsOnMobile(false)}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <span>Åpne oppslagsverk</span>
+                <span>Åpne oppslagsverk & begreper</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
         </div>
       </div>
+    )}
 
       {/* Humanizer Unlock Modal */}
       {showHumanizerModal && (

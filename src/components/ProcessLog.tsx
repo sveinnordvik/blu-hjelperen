@@ -1268,12 +1268,12 @@ Foreslå:
             </div>
 
             {/* Kategori-filter */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+            <div className="flex flex-wrap items-center gap-1.5 py-1">
               {['Alle', 'Praksisfortelling', 'Didaktisk refleksjon', 'Teorikobling', 'Observasjon', 'Etisk dilemma'].map((cat) => (
                 <button
                   key={`filter-${cat}`}
                   onClick={() => setMobileCategoryFilter(cat)}
-                  className={`text-[11px] font-bold px-3 py-1.5 rounded-full whitespace-nowrap transition-all cursor-pointer ${
+                  className={`text-[11px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap transition-all cursor-pointer shrink-0 ${
                     mobileCategoryFilter === cat
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'

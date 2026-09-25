@@ -1086,10 +1086,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.1.2 (September 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.1.3 (September 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Mulighet for å flytte kapitler opp og ned i oppgaveoppsettet, forbedret lagring og feilhåndtering i Skriveverkstedet.</span>
+                        <span className="text-slate-600">Brukervennlig håndtering ved stor pågang på KI-assistenten med «Prøv igjen nå»-knapp, studentvennlig feilvarsling og forbedret Basen-mobilvisning.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1101,7 +1101,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.1.1, v3.0.0, v2.0.0, v1.0.0)</span>
+                            <span>Tidligere versjoner (v3.1.2, v3.1.1, v3.0.0, v2.0.0)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />

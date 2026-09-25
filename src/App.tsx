@@ -3555,7 +3555,8 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             mainData.pedagogicalProfile = data.pedagogicalProfile;
           }
           if (data.lowStressMode !== undefined) { setLowStressMode(data.lowStressMode); mainData.lowStressMode = data.lowStressMode; }
-          if (data.activeTab) { setActiveTab(data.activeTab); mainData.activeTab = data.activeTab; }
+          // Brukeren skal alltid møtes med forsiden ('home') når appen åpnes
+          mainData.activeTab = 'home';
           if (data.writingStep !== undefined) { setWritingStep(data.writingStep); mainData.writingStep = data.writingStep; }
           if (data.selectedReferenceStyle) { setSelectedReferenceStyle(data.selectedReferenceStyle); mainData.selectedReferenceStyle = data.selectedReferenceStyle; }
           if (data.aiTerms) { setAiTerms(data.aiTerms); mainData.aiTerms = data.aiTerms; }

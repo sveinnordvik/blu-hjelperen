@@ -38,6 +38,7 @@ import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { CollabRoom } from './CollabRoom';
 import { RichTextEditor } from './tools/RichTextEditor';
+import { MobileBasen } from './mobile/MobileBasen';
 
 enum OperationType {
   CREATE = 'create',
@@ -92,7 +93,7 @@ const categoryConfig: Record<string, { label: string; color: string; icon: any }
   social: { label: 'Sosialt', color: 'bg-emerald-100 border-emerald-200 text-emerald-700 hover:bg-emerald-200', icon: CheckSquare }
 };
 
-interface GroupFile {
+export interface GroupFile {
   id: string;
   name: string;
   type: 'file' | 'folder';
@@ -100,7 +101,7 @@ interface GroupFile {
   size?: string;
 }
 
-interface Message {
+export interface Message {
   id: string;
   user: string;
   content: string;
@@ -113,7 +114,7 @@ interface Message {
   timestamp?: string;
 }
 
-interface Todo {
+export interface Todo {
   id: string;
   task: string;
   assignee: string;
@@ -121,7 +122,7 @@ interface Todo {
   completed: boolean;
 }
 
-interface Member {
+export interface Member {
   name: string;
   role: string;
   color: string;
@@ -129,11 +130,24 @@ interface Member {
   id?: string;
 }
 
-interface Activity {
+export interface Activity {
   id: string;
   user: string;
   action: string;
   time: string;
+}
+
+export interface GroupEvent {
+  id: string;
+  title: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  allDay?: boolean;
+  type?: 'meeting' | 'guidance' | 'deadline' | 'lecture' | 'social' | string;
+  category?: string;
+  location?: string;
+  description?: string;
 }
 
 export interface Group {
@@ -173,10 +187,10 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
     notes: '# Felles notater for Bachelor 2027\n\nHer samler vi drøftinger, observasjoner fra praksis og kildehenvisninger.',
     sharedRagContext: 'Bacheloroppgave om barns medvirkning og demokratisk praksis i barnehagen.',
     members: [
-      { name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
-      { name: 'Kristin Berg', role: 'Medlem', color: 'bg-emerald-600', isOnline: true },
-      { name: 'Lars Holm', role: 'Medlem', color: 'bg-amber-600', isOnline: false },
-      { name: 'Praksis-agenten (AI)', role: 'KI-veileder', color: 'bg-blue-600', isOnline: true }
+      { id: 'mem-1', name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
+      { id: 'mem-2', name: 'Kristin Berg', role: 'Medlem', color: 'bg-emerald-600', isOnline: true },
+      { id: 'mem-3', name: 'Lars Holm', role: 'Medlem', color: 'bg-amber-600', isOnline: false },
+      { id: 'mem-4', name: 'Praksis-agenten (AI)', role: 'KI-veileder', color: 'bg-blue-600', isOnline: true }
     ],
     messages: [
       {
@@ -232,9 +246,9 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
     notes: 'Observasjonsfokus: Barns utforsking i ulendt terreng og risikolek.',
     sharedRagContext: 'Praksisperiode 2: Natur, helse og bevegelse.',
     members: [
-      { name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
-      { name: 'Maria Sund', role: 'Medlem', color: 'bg-rose-600', isOnline: false },
-      { name: 'Henrik Vang', role: 'Medlem', color: 'bg-teal-600', isOnline: true }
+      { id: 'mem-k1', name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
+      { id: 'mem-k2', name: 'Maria Sund', role: 'Medlem', color: 'bg-rose-600', isOnline: false },
+      { id: 'mem-k3', name: 'Henrik Vang', role: 'Medlem', color: 'bg-teal-600', isOnline: true }
     ],
     messages: [
       {
@@ -404,7 +418,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
       todos: [],
       files: [],
       events: [],
-      members: [{ name: myName, role: 'Oppretter', color: 'bg-indigo-600', isOnline: true }],
+      members: [{ id: 'mem-' + Date.now(), name: myName, role: 'Oppretter', color: 'bg-indigo-600', isOnline: true }],
       activity: [{ id: Date.now().toString(), user: myName, action: 'opprettet gruppen', time: 'Akkurat nå' }],
       meetingLink: ''
     };
@@ -681,11 +695,11 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
             </span>
           </div>
           <div className="space-y-1 mt-1 flex-1 overflow-y-auto max-h-16 custom-scrollbar">
-            {dayEvents.map((ev: any) => {
+            {dayEvents.map((ev: any, idx: number) => {
               const conf = categoryConfig[ev.type || 'meeting'] || categoryConfig.meeting;
               return (
                 <button
-                  key={ev.id}
+                  key={ev.id || `day-ev-${idx}`}
                   onClick={() => setSelectedEvent(ev)}
                   className={cn(
                     'w-full text-left text-[10px] font-bold py-1 px-1.5 rounded-lg truncate flex items-center gap-1 border transition-all cursor-pointer',
@@ -740,10 +754,10 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
   ] as const;
 
   // History items formatted for WorkspaceLayout
-  const historyItems: HistoryItem[] = groups.map(g => ({
-    id: g.id,
+  const historyItems: HistoryItem[] = groups.map((g, idx) => ({
+    id: g.id || `grp-${idx}`,
     title: g.name,
-    subtitle: `ID: ${g.id} • ${g.members?.length || 1} medlemmer`,
+    subtitle: `ID: ${g.id || ''} • ${g.members?.length || 1} medlemmer`,
     isPinned: g.isPinned || false
   }));
 
@@ -944,7 +958,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                         </div>
                         <div className="space-y-2.5">
                           {(activeGroup.members || []).map((m, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                            <div key={m.id || `member-ov-${m.name}-${idx}`} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
                               <div className="flex items-center gap-3">
                                 <div className={cn("w-8 h-8 rounded-full text-xs font-bold text-white flex items-center justify-center relative shrink-0", m.color || "bg-indigo-600")}>
                                   {m.name.charAt(0)}
@@ -974,8 +988,8 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                           {(activeGroup.activity || []).length === 0 ? (
                             <p className="text-xs text-slate-400 italic">Ingen nylig aktivitet registrert.</p>
                           ) : (
-                            activeGroup.activity.map(act => (
-                              <div key={act.id} className="flex items-start gap-3 text-xs">
+                            activeGroup.activity.map((act, idx) => (
+                              <div key={act.id || `act-${idx}`} className="flex items-start gap-3 text-xs">
                                 <div className="w-2 h-2 mt-1.5 rounded-full bg-slate-300 shrink-0" />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-slate-700">
@@ -1054,8 +1068,8 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                           <span className="text-sm font-medium">Ingen meldinger i gruppen enda. Bli den første til å skrive!</span>
                         </div>
                       ) : (
-                        activeGroup.messages.map((msg) => (
-                          <div key={msg.id} className={cn("flex gap-3", msg.isMe ? "flex-row-reverse" : "flex-row")}>
+                        activeGroup.messages.map((msg, idx) => (
+                          <div key={msg.id || `msg-${idx}`} className={cn("flex gap-3", msg.isMe ? "flex-row-reverse" : "flex-row")}>
                             <div className={cn(
                               "w-8 h-8 rounded-full flex items-center justify-center text-[10px] text-white font-bold flex-shrink-0",
                               msg.color === 'emerald' ? "bg-emerald-500" : 
@@ -1291,8 +1305,8 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                           </div>
                         ) : (
                           <div className="divide-y divide-slate-100 max-h-[360px] overflow-y-auto custom-scrollbar">
-                            {activeGroup.files.map(f => (
-                              <div key={f.id} className="p-3.5 flex items-center justify-between hover:bg-white transition-colors bg-slate-50/30">
+                            {activeGroup.files.map((f, idx) => (
+                              <div key={f.id || `file-${f.name}-${idx}`} className="p-3.5 flex items-center justify-between hover:bg-white transition-colors bg-slate-50/30">
                                 <div className="flex items-center gap-3 min-w-0">
                                   <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 shrink-0">
                                     <FileIcon className="w-4 h-4" />
@@ -1334,8 +1348,8 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                             <span className="text-xs">Ingen oppgaver lagt til.</span>
                           </div>
                         ) : (
-                          activeGroup.todos.map(todo => (
-                            <div key={todo.id} className="flex items-center gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-primary/30 transition-all">
+                          activeGroup.todos.map((todo, idx) => (
+                            <div key={todo.id || `todo-${idx}`} className="flex items-center gap-3 p-3 bg-slate-50/80 rounded-xl border border-slate-100 hover:border-primary/30 transition-all">
                               <button 
                                 onClick={() => handleToggleTodo(todo.id)}
                                 className={cn(
@@ -1705,8 +1719,8 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                         {/* Valgte filer */}
                         {newEventFiles.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-2.5">
-                            {newEventFiles.map(fn => (
-                              <span key={fn} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700">
+                            {newEventFiles.map((fn, idx) => (
+                              <span key={`nef-${fn}-${idx}`} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700">
                                 <FileIcon className="w-3.5 h-3.5 text-indigo-500" />
                                 <span className="max-w-[180px] truncate">{fn}</span>
                                 <button 
@@ -1734,11 +1748,11 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                             {activeGroup.files.length === 0 ? (
                               <p className="text-xs text-slate-400 p-2 italic">Ingen filer i Basen enda. Last opp i "Filer & Oppgaver"-fanen.</p>
                             ) : (
-                              activeGroup.files.map(f => {
+                              activeGroup.files.map((f, idx) => {
                                 const isSelected = newEventFiles.includes(f.name);
                                 return (
                                   <div 
-                                    key={f.id}
+                                    key={f.id || `ev-fp-${f.name}-${idx}`}
                                     onClick={() => {
                                       if (isSelected) {
                                         setNewEventFiles(prev => prev.filter(name => name !== f.name));
@@ -1812,496 +1826,21 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
     </WorkspaceLayout>
       </div>
 
-      {/* MOBIL VISNING (Dedikert, responsiv kollokvieopplevelse for mobil) */}
-      <div className="md:hidden w-full max-w-xl mx-auto pb-28 px-3 sm:px-4 space-y-4">
-        {/* Mobil Header Banner */}
-        <div className="bg-gradient-to-r from-violet-700 via-purple-700 to-indigo-800 text-white rounded-3xl p-5 shadow-sm relative overflow-hidden">
-          <div className="relative z-10">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
-                <Users className="w-3.5 h-3.5 text-purple-200" /> Basen (Kollokvie)
-              </span>
-              <button
-                onClick={handleNewGroup}
-                className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" /> Ny gruppe
-              </button>
-            </div>
-
-            <h2 className="text-xl font-black tracking-tight text-white">
-              {activeGroup ? activeGroup.name : 'Dine kollokviegrupper'}
-            </h2>
-            <p className="text-xs text-purple-100 mt-1 leading-relaxed">
-              {activeGroup 
-                ? `${activeGroup.members?.length || 1} medlemmer • ${activeGroup.todos?.filter(t => !t.completed).length || 0} åpne gjøremål` 
-                : 'Samarbeid om oppgaver, fellesnotater og møter.'}
-            </p>
-
-            {/* Hurtig-knapp: Inviteringslenke */}
-            {activeGroup && (
-              <button 
-                onClick={handleCopyInvite}
-                className="mt-3.5 w-full py-2 px-3 bg-white/15 hover:bg-white/25 rounded-xl text-xs font-bold flex items-center justify-between text-white transition-colors cursor-pointer"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-purple-200" />
-                  <span>Inviter medstudenter</span>
-                </span>
-                <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-md font-semibold">
-                  {copiedInvite ? '✓ Lenke kopiert!' : 'Kopier lenke'}
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Gruppevelger-piller */}
-        {groups.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-            {groups.map(g => (
-              <button
-                key={`m-grp-${g.id}`}
-                onClick={() => {
-                  setActiveGroupId(g.id);
-                  setActiveTab('oversikt');
-                }}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  activeGroupId === g.id
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {g.name}
-              </button>
-            ))}
-            <button
-              onClick={handleNewGroup}
-              className="px-2.5 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1 shrink-0 hover:bg-purple-100 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Ny
-            </button>
-          </div>
-        )}
-
-        {/* Innhold når ingen gruppe er valgt */}
-        {!activeGroup ? (
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 text-center space-y-3">
-            <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto">
-              <Users className="w-7 h-7" />
-            </div>
-            <h3 className="font-extrabold text-slate-900 text-base">Ingen gruppe valgt</h3>
-            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-              Opprett en ny kollokviegruppe for studievennene dine, eller velg en gruppe ovenfor.
-            </p>
-            <button
-              onClick={handleNewGroup}
-              className="w-full py-3 px-4 bg-primary text-white rounded-2xl font-bold text-sm shadow-md hover:bg-primary-hover transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Opprett kollokviegruppe
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Undernavigasjon for aktiv gruppe på mobil */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-              {[
-                { id: 'chat', label: 'Chat', icon: MessageSquare, badge: activeGroup.unreadChat ? '•' : null },
-                { id: 'oversikt', label: 'Oversikt', icon: Users },
-                { id: 'kalender', label: 'Kalender', icon: Calendar, badge: activeGroup.events?.length ? activeGroup.events.length : null },
-                { id: 'notater', label: 'Notater', icon: FileText },
-                { id: 'filer', label: 'Filer & Todo', icon: Folder, badge: activeGroup.todos?.filter(t => !t.completed).length ? activeGroup.todos.filter(t => !t.completed).length : null },
-                { id: 'ki', label: 'KI-støtte', icon: Sparkles }
-              ].map(t => {
-                const Icon = t.icon;
-                const isActive = activeTab === t.id;
-                return (
-                  <button
-                    key={`mobile-tab-${t.id}`}
-                    onClick={() => setActiveTab(t.id as any)}
-                    className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                      isActive
-                        ? 'bg-primary text-white shadow-xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{t.label}</span>
-                    {t.badge && (
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                        isActive ? 'bg-white text-primary' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {t.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* FANEVIST INNHOLD */}
-
-            {/* 1. CHAT */}
-            {activeTab === 'chat' && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3.5 shadow-xs">
-                {activeGroup.meetingLink && (
-                  <a
-                    href={activeGroup.meetingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs font-bold text-indigo-900 hover:bg-indigo-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Video className="w-4 h-4 text-indigo-600 shrink-0" />
-                      <span>Fast videomøterom</span>
-                    </div>
-                    <span className="text-[11px] bg-indigo-600 text-white px-2 py-0.5 rounded-md font-extrabold">
-                      Bli med
-                    </span>
-                  </a>
-                )}
-
-                {/* Meldingsstrøm */}
-                <div className="max-h-[380px] min-h-[220px] overflow-y-auto space-y-3 p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80">
-                  {(!activeGroup.messages || activeGroup.messages.length === 0) ? (
-                    <div className="text-center py-8 text-slate-400 text-xs">
-                      Ingen meldinger enda. Si hei til kollokviet!
-                    </div>
-                  ) : (
-                    activeGroup.messages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-2.5 ${msg.isMe ? 'flex-row-reverse' : ''}`}
-                      >
-                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold text-white shrink-0 ${
-                          msg.color === 'emerald' ? 'bg-emerald-600' :
-                          msg.color === 'amber' ? 'bg-amber-600' :
-                          msg.color === 'rose' ? 'bg-rose-600' :
-                          msg.color === 'blue' ? 'bg-blue-600' : 'bg-indigo-600'
-                        }`}>
-                          {msg.user[0]}
-                        </div>
-                        <div className={`max-w-[80%] ${msg.isMe ? 'items-end' : 'items-start'}`}>
-                          <div className={`flex items-center gap-1.5 mb-1 text-[10px] text-slate-400 ${msg.isMe ? 'justify-end' : ''}`}>
-                            <span className="font-bold text-slate-700">{msg.user}</span>
-                            <span>{msg.time}</span>
-                          </div>
-                          <div className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                            msg.isMe 
-                              ? 'bg-primary text-white rounded-tr-xs' 
-                              : 'bg-white border border-slate-200 text-slate-800 rounded-tl-xs shadow-2xs'
-                          }`}>
-                            {msg.content}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Hurtig-prompts */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
-                  {[
-                    'Oppsummer hva vi har diskutert',
-                    'Foreslå neste møteagenda',
-                    '3 didaktiske problemstillinger'
-                  ].map(prompt => (
-                    <button
-                      key={prompt}
-                      onClick={() => setGroupInput(prompt)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap font-medium transition-colors cursor-pointer"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Meldingsinput */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={groupInput}
-                    onChange={e => setGroupInput(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSendGroupMessage()}
-                    placeholder="Skriv til gruppen..."
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none focus:border-primary"
-                  />
-                  <button
-                    onClick={handleSendGroupMessage}
-                    disabled={!groupInput.trim()}
-                    className="p-2.5 bg-primary text-white rounded-xl disabled:opacity-50 hover:bg-primary-hover transition-colors cursor-pointer"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 2. OVERSIKT */}
-            {activeTab === 'oversikt' && (
-              <div className="space-y-3.5">
-                {/* Videomøterom */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2.5 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <Video className="w-4 h-4 text-indigo-600" /> Videomøte (Teams / Meet)
-                    </span>
-                    {activeGroup.meetingLink && (
-                      <a
-                        href={activeGroup.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] font-bold text-indigo-600 hover:underline"
-                      >
-                        Åpne rom
-                      </a>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    value={activeGroup.meetingLink || ''}
-                    onChange={e => updateActiveGroup({ meetingLink: e.target.value })}
-                    placeholder="Lim inn Teams-, Zoom- eller Meet-lenke..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                {/* Medlemmer */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-primary" /> Medlemmer ({activeGroup.members?.length || 1})
-                    </span>
-                    <button
-                      onClick={handleCopyInvite}
-                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" /> Inviter
-                    </button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {activeGroup.members?.map(m => (
-                      <div key={m.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-white ${
-                            m.color === 'emerald' ? 'bg-emerald-600' :
-                            m.color === 'amber' ? 'bg-amber-600' :
-                            m.color === 'rose' ? 'bg-rose-600' :
-                            m.color === 'blue' ? 'bg-blue-600' : 'bg-indigo-600'
-                          }`}>
-                            {m.name[0]}
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-900">{m.name}</p>
-                            <p className="text-[10px] text-slate-400 capitalize">{m.role || 'Medlem'}</p>
-                          </div>
-                        </div>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Online" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gruppeinnstillinger-knapp */}
-                <button
-                  onClick={() => setShowSettingsModal(true)}
-                  className="w-full py-2.5 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Settings className="w-4 h-4 text-slate-500" /> Gruppeinnstillinger
-                </button>
-              </div>
-            )}
-
-            {/* 3. KALENDER */}
-            {activeTab === 'kalender' && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3.5 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-primary" /> Planlagte hendelser
-                  </h3>
-                  <button
-                    onClick={() => setShowEventModal(true)}
-                    className="px-2.5 py-1.5 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-hover transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Ny hendelse
-                  </button>
-                </div>
-
-                <div className="space-y-2.5">
-                  {(!activeGroup.events || activeGroup.events.length === 0) ? (
-                    <div className="text-center py-8 text-slate-400 text-xs">
-                      Ingen planlagte hendelser enda. Trykk på "+ Ny hendelse" for å opprette et møte eller en frist.
-                    </div>
-                  ) : (
-                    activeGroup.events.map(ev => {
-                      const cat = categoryConfig[ev.category || 'meeting'] || categoryConfig['meeting'];
-                      return (
-                        <div key={ev.id} className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${cat.color}`}>
-                              {cat.label}
-                            </span>
-                            <span className="text-[11px] font-bold text-slate-500">{ev.date}</span>
-                          </div>
-                          <h4 className="text-xs font-bold text-slate-900">{ev.title}</h4>
-                          {ev.description && (
-                            <p className="text-[11px] text-slate-600 leading-relaxed">{ev.description}</p>
-                          )}
-                          <div className="flex items-center gap-3 text-[10px] text-slate-400 pt-1">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> {ev.allDay ? 'Hele dagen' : `${ev.startTime || '09:00'} - ${ev.endTime || '10:00'}`}
-                            </span>
-                            {ev.location && (
-                              <span>• {ev.location}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 4. NOTATER */}
-            {activeTab === 'notater' && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-primary" /> Fellesnotater
-                  </h3>
-                  <button
-                    onClick={handleExportNotes}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Word (.docx)
-                  </button>
-                </div>
-                <textarea
-                  value={activeGroup.notes || ''}
-                  onChange={e => updateActiveGroup({ notes: e.target.value })}
-                  placeholder="Skriv felles kollokvienotater, oppgavedisposisjon, møtereferat..."
-                  className="w-full min-h-[300px] p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:border-primary leading-relaxed resize-y"
-                />
-              </div>
-            )}
-
-            {/* 5. FILER & TODO */}
-            {activeTab === 'filer' && (
-              <div className="space-y-3.5">
-                {/* Gjøremål */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <CheckSquare className="w-4 h-4 text-primary" /> Gjøremål ({activeGroup.todos?.filter(t => !t.completed).length || 0})
-                  </h3>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newTodoInput}
-                      onChange={e => setNewTodoInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAddTodo()}
-                      placeholder="Ny oppgave for gruppen..."
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none focus:border-primary"
-                    />
-                    <button
-                      onClick={handleAddTodo}
-                      disabled={!newTodoInput.trim()}
-                      className="p-2 bg-primary text-white rounded-xl disabled:opacity-50 hover:bg-primary-hover cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {(!activeGroup.todos || activeGroup.todos.length === 0) ? (
-                      <p className="text-[11px] text-slate-400 text-center py-2">Ingen gjøremål registrert.</p>
-                    ) : (
-                      activeGroup.todos.map(t => (
-                        <div
-                          key={t.id}
-                          onClick={() => handleToggleTodo(t.id)}
-                          className={`flex items-center gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
-                            t.completed 
-                              ? 'bg-slate-50 border-slate-100 text-slate-400 line-through' 
-                              : 'bg-white border-slate-200 text-slate-800 hover:border-primary/40'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={t.completed}
-                            onChange={() => {}}
-                            className="rounded-md text-primary pointer-events-none"
-                          />
-                          <span className="flex-1 font-medium">{t.task}</span>
-                          {t.assignee && (
-                            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-md text-slate-500 font-semibold">
-                              {t.assignee}
-                            </span>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Delte filer */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <Folder className="w-4 h-4 text-primary" /> Gruppefiler ({activeGroup.files?.length || 0})
-                    </h3>
-                    <label className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer">
-                      <Upload className="w-3.5 h-3.5" /> Last opp
-                      <input type="file" onChange={handleFileUpload} className="hidden" multiple />
-                    </label>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {(!activeGroup.files || activeGroup.files.length === 0) ? (
-                      <p className="text-[11px] text-slate-400 text-center py-2">Ingen filer lastet opp enda.</p>
-                    ) : (
-                      activeGroup.files.map(f => (
-                        <div key={f.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                          <div className="flex items-center gap-2 truncate">
-                            <FileIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="font-medium text-slate-700 truncate">{f.name}</span>
-                          </div>
-                          <span className="text-[10px] text-slate-400 shrink-0 ml-2">{f.size}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 6. KI-STØTTE */}
-            {activeTab === 'ki' && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-5 space-y-3 shadow-xs">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <h3 className="font-extrabold text-slate-900 text-base">Kollokvie-sparring & Flashcards</h3>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Bruk kollokviet til å drøfte vanskelige faglige begreper fra pensum og Rammeplanen. Still spørsmål i chatten for felles didaktisk analyse.
-                </p>
-                <div className="pt-2">
-                  <button
-                    onClick={() => {
-                      setActiveTab('chat');
-                      setGroupInput('Hva er de viktigste didaktiske prinsippene i Rammeplanen for barnehagen?');
-                    }}
-                    className="w-full py-2.5 px-4 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" /> Start KI-sparring i chatten
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+      {/* MOBIL VISNING (Forenklet kollokvieopplevelse ihht BLU-planen) */}
+      <div className="md:hidden">
+        <MobileBasen
+          groups={groups}
+          activeGroup={activeGroup}
+          activeGroupId={activeGroupId}
+          setActiveGroupId={setActiveGroupId}
+          onNewGroup={handleNewGroup}
+          updateActiveGroup={updateActiveGroup}
+          user={user}
+          onCopyInvite={handleCopyInvite}
+          copiedInvite={copiedInvite}
+          pricingTier={pricingTier}
+          setParentActiveTab={setParentActiveTab}
+        />
       </div>
 
       {/* MOBIL MODAL: OPPRETT NY GRUPPE */}

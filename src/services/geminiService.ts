@@ -205,10 +205,10 @@ export async function callGoogleAIProxy(params: {
 
       if (attempt >= maxRetries) {
         if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || error?.status === 429) {
-          throw new Error("Kapasitetsgrensen for forespørsler er midlertidig nådd (429 Rate limit / Quota). Vent 15-20 sekunder og prøv igjen, eller sjekk kvoten i Google AI Studio.");
+          throw new Error("Superveilederen opplever stor pågang akkurat nå (mange studenter bruker tjenesten samtidig). Vent 10–15 sekunder og prøv igjen.");
         }
         if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE") || error?.status === 503) {
-          throw new Error("KI-modellen opplever stor pågang akkurat nå (503). Prøv igjen om et lite øyeblikk.");
+          throw new Error("KI-modellen opplever midlertidig stor pågang (503). Prøv igjen om et lite øyeblikk.");
         }
         throw new Error(msg || `${UIfriendlyError} (Siste feilmelding: ${msg})`);
       }
