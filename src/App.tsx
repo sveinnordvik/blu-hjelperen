@@ -1671,8 +1671,11 @@ export default function App() {
 
     setIsSavingProfile(true);
     try {
-      // Sørg for at alle felter er inkludert
+      const studiestedVal = (profile.studiested || profile.college || settings?.studiested || '').trim();
+
+      // Sørg for at alle felter er inkludert, og at studiested og college holdes synkronisert
       const profileData = {
+        ...profile,
         name: profile.name || '',
         email: profile.email || '',
         studentId: profile.studentId || '',
@@ -1683,14 +1686,28 @@ export default function App() {
         studyModel: profile.studyModel || '',
         courses: profile.courses || '',
         deadline: profile.deadline || '',
-        college: profile.college || '',
+        studiested: studiestedVal,
+        college: studiestedVal,
         updatedAt: Timestamp.now()
       };
+
+      // Oppdater lokal profil umiddelbart
+      setProfile(profileData);
+      localStorage.setItem('blu_profile_guest', JSON.stringify(profileData));
+
+      // Synkroniser også settings med studiested
+      const updatedSettings = {
+        ...(settings || {}),
+        studiested: studiestedVal
+      };
+      setSettings(updatedSettings);
+      localStorage.setItem('dmmh_settings', JSON.stringify(updatedSettings));
 
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid,
         email: user.email || profile.email || 'unknown@example.com',
-        profile: profileData 
+        profile: profileData,
+        settings: updatedSettings
       }, { merge: true });
       
       setGlobalSuccess("Profilen din er nå lagret i skyen!");
@@ -3442,9 +3459,25 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           }
           if (data.profile) {
             setProfile(prev => {
+              const studiestedFromDb = data.profile.studiested || data.profile.college || prev?.studiested || prev?.college || '';
+              const normalized = {
+                ...data.profile,
+                studiested: studiestedFromDb,
+                college: studiestedFromDb
+              };
               // Bare oppdater hvis det faktisk er endringer for å unngå unødvendige re-renders
-              if (JSON.stringify(prev) !== JSON.stringify(data.profile)) {
-                return data.profile;
+              if (JSON.stringify(prev) !== JSON.stringify(normalized)) {
+                return normalized;
+              }
+              return prev;
+            });
+          }
+          if (data.settings) {
+            setSettings((prev: any) => {
+              const studiestedFromDb = data.settings.studiested || data.profile?.studiested || data.profile?.college || prev?.studiested || '';
+              const normalized = { ...data.settings, studiested: studiestedFromDb };
+              if (JSON.stringify(prev) !== JSON.stringify(normalized)) {
+                return normalized;
               }
               return prev;
             });
@@ -3474,8 +3507,14 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             const data = snap.data();
             if (data.profile) {
               setProfile(prev => {
-                if (JSON.stringify(prev) !== JSON.stringify(data.profile)) {
-                  return data.profile;
+                const studiestedFromDb = data.profile.studiested || data.profile.college || prev?.studiested || prev?.college || '';
+                const normalized = {
+                  ...data.profile,
+                  studiested: studiestedFromDb,
+                  college: studiestedFromDb
+                };
+                if (JSON.stringify(prev) !== JSON.stringify(normalized)) {
+                  return normalized;
                 }
                 return prev;
               });
@@ -3532,7 +3571,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           const data = userSnap.data();
           if (data.pricingTier) { setPricingTier(data.pricingTier); mainData.pricingTier = data.pricingTier; }
           if (data.humanizerCredits !== undefined) { setHumanizerCredits(data.humanizerCredits); }
-          if (data.profile) { setProfile(data.profile); mainData.profile = data.profile; }
+          if (data.profile) { 
+            const studiestedFromDb = data.profile.studiested || data.profile.college || '';
+            const normalized = {
+              ...data.profile,
+              studiested: studiestedFromDb,
+              college: studiestedFromDb
+            };
+            setProfile(normalized); 
+            mainData.profile = normalized; 
+          }
           if (data.notificationSettings) { setNotificationSettings(data.notificationSettings); mainData.notificationSettings = data.notificationSettings; }
           if (data.documents) { setDocuments(data.documents); mainData.documents = data.documents; }
           if (data.folders) { setFolders(data.folders); mainData.folders = data.folders; }

@@ -135,22 +135,34 @@ export function Profile({
     { 
       id: 'profile', 
       title: 'Min Profil', 
+      shortTitle: 'Min Profil',
       subtitle: 'Personalia og studieløp', 
       icon: <User className="w-4 h-4" />,
+      activeColor: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/30 font-black',
+      iconColor: 'text-indigo-600',
+      badgeColor: 'bg-indigo-50 border-indigo-200/60 text-indigo-700',
       hideActions: true 
     },
     { 
       id: 'settings', 
       title: 'Innstillinger', 
+      shortTitle: 'Innstillinger',
       subtitle: 'App, tema og sikkerhet', 
       icon: <SettingsIcon className="w-4 h-4" />,
+      activeColor: 'bg-violet-600 text-white shadow-sm ring-1 ring-violet-500/30 font-black',
+      iconColor: 'text-violet-600',
+      badgeColor: 'bg-violet-50 border-violet-200/60 text-violet-700',
       hideActions: true 
     },
     { 
       id: 'about', 
       title: 'Om BLU-Hjelperen', 
+      shortTitle: 'Om appen',
       subtitle: 'Versjon og vilkår', 
       icon: <Info className="w-4 h-4" />,
+      activeColor: 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500/30 font-black',
+      iconColor: 'text-emerald-600',
+      badgeColor: 'bg-emerald-50 border-emerald-200/60 text-emerald-700',
       hideActions: true 
     }
   ];
@@ -176,24 +188,41 @@ export function Profile({
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-10 bg-slate-50 flex justify-center custom-scrollbar">
         <div className="max-w-4xl w-full">
 
-          {/* Mobil Tommelvennlig Hurtigmeny (Sticky faner for rask tommel-navigasjon) */}
-          <div className="md:hidden sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md pb-3.5 pt-1 mb-4">
-            <div className="flex items-center bg-slate-200/80 p-1 rounded-2xl gap-1 border border-slate-300/40 shadow-xs">
-              {menuItems.map((item) => (
-                <button
-                  key={`mobile-tab-${item.id}`}
-                  onClick={() => setActiveMenu(item.id)}
-                  className={cn(
-                    "flex-1 py-3 px-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all min-h-[46px] cursor-pointer active:scale-95",
-                    activeMenu === item.id 
-                      ? "bg-white text-slate-900 shadow-sm font-black" 
-                      : "text-slate-600 hover:text-slate-900"
-                  )}
-                >
-                  {item.icon}
-                  <span className="truncate">{item.title}</span>
-                </button>
-              ))}
+          {/* Mobil Tommelvennlig Hurtigmeny (Fargekodede piller for rask og tydelig navigasjon) */}
+          <div className="md:hidden sticky top-0 z-20 bg-slate-50/95 backdrop-blur-md pb-3 pt-1 mb-4">
+            <div className="grid grid-cols-3 p-1.5 bg-slate-200/80 rounded-2xl gap-1.5 border border-slate-300/50 shadow-xs">
+              {menuItems.map((item) => {
+                const isActive = activeMenu === item.id;
+                return (
+                  <button
+                    key={`mobile-tab-${item.id}`}
+                    onClick={() => setActiveMenu(item.id)}
+                    className={cn(
+                      "py-2.5 px-1.5 rounded-xl text-xs font-bold flex flex-col min-[390px]:flex-row items-center justify-center gap-1 min-[390px]:gap-1.5 transition-all min-h-[48px] cursor-pointer active:scale-95 text-center leading-tight select-none",
+                      isActive 
+                        ? item.activeColor 
+                        : "bg-white/85 text-slate-700 hover:text-slate-900 hover:bg-white border border-slate-200/70 shadow-2xs"
+                    )}
+                  >
+                    <span className={cn(
+                      "shrink-0",
+                      isActive ? "text-white" : item.iconColor
+                    )}>
+                      {item.icon}
+                    </span>
+                    <span className="whitespace-normal leading-tight">
+                      {item.id === 'about' ? (
+                        <>
+                          <span className="hidden min-[410px]:inline">Om BLU-Hjelperen</span>
+                          <span className="min-[410px]:hidden">Om BLU</span>
+                        </>
+                      ) : (
+                        item.title
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -210,6 +239,10 @@ export function Profile({
               {/* Toppseksjon med tittel og Lagre-knapp */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/60 text-indigo-700 text-xs font-bold mb-2">
+                    <User className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Brukerprofil & Studieløp</span>
+                  </div>
                   <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Min Profil</h2>
                   <p className="text-slate-500 text-sm mt-1">Dine opplysninger og studieinformasjon.</p>
                 </div>
@@ -273,6 +306,11 @@ export function Profile({
                     <h3 className="text-xl md:text-2xl font-black text-slate-900">{profile?.name || user?.displayName || 'Studentprofil'}</h3>
                     <p className="text-xs text-slate-400 font-medium mt-0.5">{profile?.email || user?.email || 'Ikke oppgitt e-post'}</p>
                     <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
+                      {(profile?.studiested || profile?.college) && (
+                        <span className="px-3 py-1 bg-indigo-50 border border-indigo-200/60 text-indigo-700 rounded-lg text-xs font-bold">
+                          {profile?.studiested || profile?.college}
+                        </span>
+                      )}
                       <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold">
                         {profile?.studyProgram || 'Ingen studieprogram valgt'}
                       </span>
@@ -354,8 +392,12 @@ export function Profile({
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Studiested (Høyskole/Uni)</label>
                     <input 
                       type="text" 
-                      value={profile?.studiested || ''} 
-                      onChange={(e) => setProfile({ ...profile, studiested: e.target.value })}
+                      value={profile?.studiested || profile?.college || ''} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setProfile({ ...profile, studiested: val, college: val });
+                        if (setSettings) setSettings({ ...settings, studiested: val });
+                      }}
                       placeholder="F.eks. DMMH, OsloMet, NTNU..."
                       className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
@@ -689,6 +731,10 @@ export function Profile({
               className="space-y-6 pb-16"
             >
               <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-50 border border-violet-200/60 text-violet-700 text-xs font-bold mb-2">
+                  <SettingsIcon className="w-3.5 h-3.5 text-violet-600" />
+                  <span>Preferanser & System</span>
+                </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Innstillinger</h2>
                 <p className="text-slate-500 text-sm mt-1">Applikasjon, tema, varslinger og datasikkerhet.</p>
               </div>
@@ -834,9 +880,13 @@ export function Profile({
                       <label className="text-xs font-bold text-slate-700">Mitt studiested</label>
                       <input 
                         type="text"
-                        placeholder="F.eks. DMMH, NTNU, OsloMet..."
-                        value={settings?.studiested || ''}
-                        onChange={(e) => setSettings && setSettings({ ...settings, studiested: e.target.value })}
+                        placeholder="F.eks. DMMH, NTNU, OsloMet, NORD..."
+                        value={settings?.studiested || profile?.studiested || profile?.college || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (setSettings) setSettings({ ...settings, studiested: val });
+                          setProfile({ ...profile, studiested: val, college: val });
+                        }}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
                       <p className="text-[10px] text-slate-400">Brukes til å tilpasse litteratursøk og referanser.</p>
@@ -1032,6 +1082,10 @@ export function Profile({
               className="space-y-6 pb-16"
             >
               <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
+                  <Info className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>BLU-Hjelperen v3.1.4</span>
+                </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
               </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Users, 
   MessageSquare, 
@@ -69,6 +69,7 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
 
   // Chat state
   const [chatInput, setChatInput] = useState('');
+  const chatInputRef = useRef<HTMLInputElement>(null);
 
   // Notes state
   const [notesCopied, setNotesCopied] = useState(false);
@@ -425,9 +426,9 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                 </div>
 
                 {nextEvent ? (
-                  <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
+                  <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100 flex items-center justify-between gap-2.5 overflow-hidden">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                           nextEvent.type === 'guidance' 
                             ? 'bg-purple-200/70 text-purple-900' 
@@ -439,17 +440,25 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                         </span>
                         <span className="text-[11px] font-semibold text-slate-500">{nextEvent.date}</span>
                       </div>
-                      <h4 className="text-xs font-bold text-slate-900 mt-1">{nextEvent.title}</h4>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                        <span>{nextEvent.allDay ? 'Hele dagen' : `${nextEvent.startTime || '10:00'} - ${nextEvent.endTime || '11:00'}`}</span>
-                        {nextEvent.location && <span>• {nextEvent.location}</span>}
+                      <h4 className="text-xs font-bold text-slate-900 mt-1 truncate">{nextEvent.title}</h4>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 min-w-0">
+                        <span className="shrink-0">{nextEvent.allDay ? 'Hele dagen' : `${nextEvent.startTime || '10:00'} - ${nextEvent.endTime || '11:00'}`}</span>
+                        {nextEvent.location && (
+                          <span 
+                            className="truncate text-slate-400 font-medium min-w-0" 
+                            title={nextEvent.location}
+                          >
+                            • {nextEvent.location.startsWith('http') ? (nextEvent.location.includes('zoom') ? 'Zoom-møte' : nextEvent.location.includes('teams') ? 'Teams-møte' : 'Digital møtelenke') : nextEvent.location}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <button
                       onClick={() => setActiveTab('kalender')}
-                      className="text-xs text-purple-700 font-bold bg-white px-2 py-1 rounded-lg border border-purple-200 shadow-2xs hover:bg-purple-50 cursor-pointer shrink-0"
+                      className="text-xs text-purple-700 font-bold bg-white px-2.5 py-1.5 rounded-xl border border-purple-200 shadow-2xs hover:bg-purple-50 active:scale-95 cursor-pointer shrink-0 transition-all flex items-center gap-0.5 ml-2"
                     >
-                      Vis
+                      <span>Vis</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
@@ -606,19 +615,47 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                 )}
               </div>
 
-              {/* Faglige hurtig-prompts */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+              {/* Faglige hurtig-prompts (100% synlig – ingen sideveis scrolling) */}
+              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
                 {[
-                  'Oppsummer hva vi har diskutert',
-                  'Foreslå neste møteagenda',
-                  '3 didaktiske problemstillinger'
-                ].map((prompt, idx) => (
+                  {
+                    icon: FileText,
+                    label: 'Oppsummer',
+                    fullPrompt: 'Oppsummer hva vi har diskutert',
+                  },
+                  {
+                    icon: Calendar,
+                    label: 'Møteagenda',
+                    fullPrompt: 'Foreslå neste møteagenda',
+                  },
+                  {
+                    icon: Sparkles,
+                    label: '3 spørsmål',
+                    desktopLabel: '3 problemstillinger',
+                    fullPrompt: '3 didaktiske problemstillinger',
+                  }
+                ].map((item, idx) => (
                   <button
                     key={`prompt-${idx}`}
-                    onClick={() => setChatInput(prompt)}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg whitespace-nowrap font-medium transition-colors cursor-pointer shrink-0"
+                    type="button"
+                    onClick={() => {
+                      setChatInput(item.fullPrompt);
+                      chatInputRef.current?.focus();
+                    }}
+                    title={item.fullPrompt}
+                    className="py-1.5 px-1.5 bg-slate-100/90 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 border border-slate-200/80 active:scale-95 text-slate-700 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs select-none min-w-0"
                   >
-                    {prompt}
+                    <item.icon className="w-3 h-3 text-purple-600 shrink-0" />
+                    <span className="truncate">
+                      {item.desktopLabel ? (
+                        <>
+                          <span className="hidden min-[380px]:inline">{item.desktopLabel}</span>
+                          <span className="min-[380px]:hidden">{item.label}</span>
+                        </>
+                      ) : (
+                        item.label
+                      )}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -626,6 +663,7 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
               {/* Input og send-knapp */}
               <div className="flex items-center gap-2">
                 <input
+                  ref={chatInputRef}
                   type="text"
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
@@ -668,23 +706,26 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                 </button>
               </div>
 
-              {/* Hurtig-innsetting av maler */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
-                <span className="text-slate-400 text-[10px] font-bold shrink-0">Hurtigmal:</span>
-                {[
-                  { label: '+ Didaktisk idé', text: '### Didaktisk idé\n- **Mål:** \n- **Målgruppe:** \n- **Gjennomføring:** ' },
-                  { label: '+ Observasjon', text: '### Observasjon i felt\n- **Kontekst:** \n- **Hva barna gjorde/sa:** \n- **Refleksjon:** ' },
-                  { label: '+ Teori & Rammeplan', text: '### Teori & Rammeplan\n- **Kapittel:** \n- **Fagbegrep:** \n- **Didaktisk analyse:** ' },
-                  { label: '+ Møteagenda', text: '### Agenda for neste møte\n1. Gjennomgang av arbeidskrav\n2. Fordeling av oppgaver\n3. Eventuelt' }
-                ].map((tmpl, idx) => (
-                  <button
-                    key={`tmpl-${idx}`}
-                    onClick={() => handleInsertTemplate(tmpl.text)}
-                    className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-lg whitespace-nowrap font-medium transition-colors cursor-pointer shrink-0 border border-purple-200/60"
-                  >
-                    {tmpl.label}
-                  </button>
-                ))}
+              {/* Hurtig-innsetting av maler (Ingen sideveis scrolling) */}
+              <div>
+                <span className="text-slate-400 text-[10px] font-bold block mb-1">Hurtigmal for notater:</span>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                  {[
+                    { label: '+ Didaktisk idé', text: '### Didaktisk idé\n- **Mål:** \n- **Målgruppe:** \n- **Gjennomføring:** ' },
+                    { label: '+ Observasjon', text: '### Observasjon i felt\n- **Kontekst:** \n- **Hva barna gjorde/sa:** \n- **Refleksjon:** ' },
+                    { label: '+ Teori & Rammeplan', text: '### Teori & Rammeplan\n- **Kapittel:** \n- **Fagbegrep:** \n- **Didaktisk analyse:** ' },
+                    { label: '+ Møteagenda', text: '### Agenda for neste møte\n1. Gjennomgang av arbeidskrav\n2. Fordeling av oppgaver\n3. Eventuelt' }
+                  ].map((tmpl, idx) => (
+                    <button
+                      key={`tmpl-${idx}`}
+                      type="button"
+                      onClick={() => handleInsertTemplate(tmpl.text)}
+                      className="px-2 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-xl font-semibold transition-colors cursor-pointer border border-purple-200/60 text-center truncate shadow-2xs active:scale-95"
+                    >
+                      {tmpl.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Notat-tekstområde */}

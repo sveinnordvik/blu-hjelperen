@@ -419,17 +419,7 @@ export function WorkspaceLayout({
               </span>
             </div>
           </div>
-        ) : (
-          isCollapsed && (
-            <button
-              onClick={() => setIsCollapsed(false)}
-              className="absolute top-3.5 md:top-4 left-3.5 md:left-4 z-20 h-9 px-3 bg-white/95 backdrop-blur-sm border border-slate-200 shadow-xs rounded-xl text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer select-none"
-            >
-              <PanelLeftOpen className="w-4 h-4 text-primary" />
-              <span className="hidden sm:inline">Vis meny</span>
-            </button>
-          )
-        )}
+        ) : null}
         {typeof children === 'function' ? children({ isCollapsed, toggleCollapsed, openMobileArchive }) : children}
       </main>
 
