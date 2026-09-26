@@ -401,9 +401,67 @@
         "title",
         "content"
       ]
+    },
+    "SharedReview": {
+      "title": "SharedReview",
+      "description": "Shared document for peer review with comments in margin",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "docId": {
+          "type": "string"
+        },
+        "authorId": {
+          "type": "string"
+        },
+        "authorName": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        },
+        "taskPrompt": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "allowComments": {
+          "type": "boolean"
+        },
+        "isClosed": {
+          "type": "boolean"
+        },
+        "comments": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authorId",
+        "title",
+        "content"
+      ]
     }
   },
   "firestore": {
+    "/shared_reviews/{reviewId}": {
+      "schema": "SharedReview",
+      "description": "Shared peer review documents and margin comments"
+    },
     "/fieldNotes/{noteId}": {
       "schema": "FieldNote",
       "description": "User field notes and kladdablokk entries"

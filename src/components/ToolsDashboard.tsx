@@ -14,7 +14,8 @@ import {
   CreditCard,
   AlertTriangle,
   ArrowLeft,
-  Library
+  Library,
+  CalendarRange
 } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
 import { isUnlimitedUser, STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL } from '../config/accessConfig';
@@ -413,6 +414,51 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                 className="w-full py-3.5 px-5 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Åpne oppslagsverk</span>
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+          </div>
+
+          {/* KORT 6: Didaktisk Planlegger */}
+          <div 
+            id="tool-card-didaktisk"
+            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
+                  <CalendarRange className="w-6 h-6" />
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Praksis & Planlegging
+                </span>
+              </div>
+
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">
+                Didaktisk Planlegger
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                Skap didaktiske periode-, måneds- og ukesplaner forankret i barnehagens rammebetingelser. Eksporter til Word eller overfør direkte til Skriveverkstedet for pedagogisk drøfting.
+              </p>
+
+              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Strukturerte didaktiske kategorier (mål, innhold, arbeidsmåter, vurdering)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Sømløs overføring til Skriveverkstedet som praksisoppgave</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => onSelectTool('didaktisk-planlegger')}
+                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+              >
+                <span>Åpne planlegger</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>

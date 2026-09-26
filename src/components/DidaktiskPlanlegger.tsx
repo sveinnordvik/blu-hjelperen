@@ -22,7 +22,12 @@ import {
   Save,
   Download,
   Loader2,
-  Bot
+  Bot,
+  FileEdit,
+  Send,
+  Check,
+  X,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -34,6 +39,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { generateDidaktiskPlan } from '../services/geminiService';
 import AIWarning from './AIWarning';
+import { htmlToMarkdown } from '../lib/wysiwygConverter';
 
 // Sorteringsrekkefølge for barnehageåret
 const YEAR_ORDER = [
@@ -52,9 +58,14 @@ interface Plan {
   period: string; // Navnet som brukes for sortering (f.eks. 'August' eller 'Høst')
 }
 
-export const DidaktiskPlanlegger: React.FC = () => {
+interface DidaktiskPlanleggerProps {
+  onOpenWritingWorkshop?: (initialDoc?: { title: string; content: string; template: string }) => void;
+}
+
+export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpenWritingWorkshop }) => {
   const [activeSubTab, setActiveSubTab] = useState<'plans' | 'settings'>('plans');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [transferSuccess, setTransferSuccess] = useState(false);
   
   // AI Generator State
   const [showGenerator, setShowGenerator] = useState(false);
@@ -63,16 +74,39 @@ export const DidaktiskPlanlegger: React.FC = () => {
   const [genTema, setGenTema] = useState('');
   const [genTillegg, setGenTillegg] = useState('');
 
-  // 1. Innstillinger ("Vår barnehage")
-  const [settings, setSettings] = useState({
-    tursteder: 'Eventyrskogen, Gapahuken ved vannet, Biblioteket, Den røde lekeplassen',
-    pedagogiskSaerpreg: 'Skoggruppemetoden, PLAGG/Gjenkalling, Barns medvirkning',
-    satsingsomraader: 'Språkutvikling, Sosial kompetanse, Bærekraftig utvikling',
-    prinsipper: 'Vi tror på det kompetente barnet som lærer gjennom lek, utforskning og samspill med andre. Vårt pedagogiske arbeid skal alltid ta utgangspunkt i barnas interesser og behov...'
+  // 1. Innstillinger ("Vår barnehage") med lokal lagring
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('didaktisk_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      tursteder: 'Eventyrskogen, Gapahuken ved vannet, Biblioteket, Den røde lekeplassen',
+      pedagogiskSaerpreg: 'Skoggruppemetoden, PLAGG/Gjenkalling, Barns medvirkning',
+      satsingsomraader: 'Språkutvikling, Sosial kompetanse, Bærekraftig utvikling',
+      prinsipper: 'Vi tror på det kompetente barnet som lærer gjennom lek, utforskning og samspill med andre. Vårt pedagogiske arbeid skal alltid ta utgangspunkt i barnas interesser og behov...'
+    };
   });
 
-  // 2. Pre-utfylt database (Mock data)
-  const [plans, setPlans] = useState<Plan[]>([
+  const [settingsSavedNotice, setSettingsSavedNotice] = useState(false);
+
+  // Modal for ny plan
+  const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+  const [newPlanTitle, setNewPlanTitle] = useState('');
+  const [newPlanType, setNewPlanType] = useState<'sesong' | 'måned'>('måned');
+  const [newPlanPeriod, setNewPlanPeriod] = useState('August');
+
+  // 2. Pre-utfylt database med lokal lagring
+  const [plans, setPlans] = useState<Plan[]>(() => {
+    try {
+      const saved = localStorage.getItem('didaktisk_plans');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [
     {
       id: 'plan-aug',
       title: 'Oppstart og fellesskap',
@@ -158,7 +192,8 @@ export const DidaktiskPlanlegger: React.FC = () => {
 <li><strong>Gjenkalling (PLAGG):</strong> Langsiktig dokumentasjon og refleksjon.</li>
 </ul>`
     }))
-  ]);
+  ];
+  });
 
   // 3. Sorteringslogikk
   const sortedPlans = React.useMemo(() => {
@@ -227,6 +262,17 @@ export const DidaktiskPlanlegger: React.FC = () => {
       if (editor) {
         editor.commands.setContent(generatedHtml);
       }
+      if (selectedPlanId) {
+        setPlans(prev => {
+          const updated = prev.map(p => p.id === selectedPlanId ? { ...p, content: generatedHtml } : p);
+          try {
+            localStorage.setItem('didaktisk_plans', JSON.stringify(updated));
+          } catch (err) {
+            console.error(err);
+          }
+          return updated;
+        });
+      }
       setShowGenerator(false);
     } catch (e: any) {
       alert("Det oppstod en feil under genereringen: " + e.message);
@@ -238,9 +284,118 @@ export const DidaktiskPlanlegger: React.FC = () => {
   const handleSave = () => {
     if (!editor || !selectedPlanId) return;
     const newContent = editor.getHTML();
-    setPlans(prev => prev.map(p => p.id === selectedPlanId ? { ...p, content: newContent } : p));
-    // Her kunne man også lagret til Firebase hvis det var satt opp
+    setPlans(prev => {
+      const updated = prev.map(p => p.id === selectedPlanId ? { ...p, content: newContent } : p);
+      try {
+        localStorage.setItem('didaktisk_plans', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
     alert('Planen er lagret!');
+  };
+
+  const handleSaveSettings = () => {
+    try {
+      localStorage.setItem('didaktisk_settings', JSON.stringify(settings));
+      setSettingsSavedNotice(true);
+      setTimeout(() => setSettingsSavedNotice(false), 3000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateNewPlan = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newPlanTitle.trim()) {
+      alert('Vennligst oppgi en tittel for planen.');
+      return;
+    }
+
+    const newId = `plan-custom-${Date.now()}`;
+    const initialContent = `<h2>Tema: ${newPlanTitle}</h2>
+<h3>Aktiviteter</h3>
+<ul>
+<li><strong>Hva:</strong> [Beskriv aktivitetens innhold og mål for barna]</li>
+<li><strong>Hvordan:</strong> [Beskriv organisering, materiell og pedagogisk ledelse]</li>
+<li><strong>Gjennomføring:</strong> [Tidspunkt, gruppedeling og voksenrolle]</li>
+<li><strong>Gjenkalling (PLAGG):</strong> [Hvordan barna skal reflektere, gjenkalle og bearbeide erfaringene sine]</li>
+</ul>`;
+
+    const newPlan: Plan = {
+      id: newId,
+      title: newPlanTitle.trim(),
+      type: newPlanType,
+      period: newPlanPeriod,
+      content: initialContent
+    };
+
+    setPlans(prev => {
+      const updated = [newPlan, ...prev];
+      try {
+        localStorage.setItem('didaktisk_plans', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+      return updated;
+    });
+
+    setSelectedPlanId(newId);
+    setNewPlanTitle('');
+    setShowNewPlanModal(false);
+  };
+
+  const handleDeletePlan = (planId: string, planTitle: string) => {
+    if (confirm(`Er du sikker på at du vil slette planen «${planTitle}»?`)) {
+      setPlans(prev => {
+        const updated = prev.filter(p => p.id !== planId);
+        try {
+          localStorage.setItem('didaktisk_plans', JSON.stringify(updated));
+        } catch (err) {
+          console.error(err);
+        }
+        return updated;
+      });
+      if (selectedPlanId === planId) {
+        setSelectedPlanId(null);
+      }
+    }
+  };
+
+  /**
+   * Overfører den didaktiske planen rett til Skriveverkstedet som et akademisk oppgaveutkast
+   */
+  const handleTransferToWorkshop = () => {
+    if (!selectedPlan || !editor) return;
+
+    const htmlContent = editor.getHTML();
+    const markdownContent = htmlToMarkdown(htmlContent);
+
+    const docTitle = `Didaktisk analyse: ${selectedPlan.title}`;
+    const initialContent = `# ${docTitle}\n\n*Pedagogisk analyse og didaktisk refleksjon basert på ${selectedPlan.period.toLowerCase()}splan i praksis.*\n\n## 1. Didaktisk plan og rammebetingelser\n\n${markdownContent}\n\n## 2. Teoretisk forankring og Rammeplanen\n\nI henhold til Rammeplan for barnehagen (Kunnskapsdepartementet, 2017) skal personalet planlegge og vurdere barnehagens innhold med utgangspunkt i barnas interesser, lek og medvirkning (Bae, 2012).\n\n## 3. Didaktisk refleksjon og drøfting\n\n[Drøft hvordan gjennomføringen av opplegget ivaretar relasjonen mellom mål, innhold, arbeidsmåter og vurdering i den didaktiske relasjonsmodellen...]\n\n## 4. Evaluering og videre pedagogisk arbeid\n\n[Hva lærte barna? Hva oppdaget du i din rolle som barnehagelærerstudent?]\n\n## Litteraturliste\n\nBae, B. (Red.). (2012). *Medvirkning i barnehagen: Potensialer i det uforutsette*. Fagbokforlaget.\n\nKunnskapsdepartementet. (2017). *Rammeplan for barnehagen: Forskrift om rammeplan for barnehagens innhold og oppgaver*. Utdanningsdirektoratet.\n`;
+
+    const pendingPayload = {
+      title: docTitle,
+      content: initialContent,
+      template: 'Praksisfortelling/Praksisoppgave',
+      taskPrompt: `Didaktisk analyse av opplegget «${selectedPlan.title}» (${selectedPlan.period}) med drøfting mot Rammeplanen og didaktisk relasjonsmodell.`,
+      targetWords: 1500,
+      timestamp: Date.now()
+    };
+
+    localStorage.setItem('blu_pending_workshop_import', JSON.stringify(pendingPayload));
+    setTransferSuccess(true);
+
+    if (onOpenWritingWorkshop) {
+      onOpenWritingWorkshop(pendingPayload);
+    } else {
+      setTimeout(() => {
+        window.location.hash = '#writing-workshop';
+      }, 800);
+    }
+
+    setTimeout(() => setTransferSuccess(false), 3000);
   };
 
   const handleDownloadWord = async () => {
@@ -459,8 +614,16 @@ export const DidaktiskPlanlegger: React.FC = () => {
                           >
                             <Bot className="w-4 h-4" /> AI Assistent
                           </button>
+                          <button
+                            onClick={() => handleDeletePlan(selectedPlan.id, selectedPlan.title)}
+                            title="Slett denne planen"
+                            className="p-2.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-all border border-transparent hover:border-red-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={() => setSelectedPlanId(null)}
+                            title="Lukk plan"
                             className="p-2.5 hover:bg-white text-slate-400 hover:text-slate-900 rounded-xl transition-all border border-transparent hover:border-slate-100"
                           >
                             <ChevronLeft className="w-5 h-5" />
@@ -547,18 +710,38 @@ export const DidaktiskPlanlegger: React.FC = () => {
                     </div>
                     <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
                       <p className="text-[10px] text-slate-400 font-bold italic">Sist lagret lokalt: {new Date().toLocaleTimeString()}</p>
-                      <div className="flex gap-3 w-full md:w-auto">
+                      <div className="flex flex-wrap gap-2.5 w-full md:w-auto">
+                        <button 
+                          onClick={handleTransferToWorkshop}
+                          title="Opprett et akademisk oppgaveutkast i Skriveverkstedet basert på denne didaktiske planen"
+                          className={cn(
+                            "flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm border",
+                            transferSuccess 
+                              ? "bg-emerald-600 text-white border-emerald-600" 
+                              : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                          )}
+                        >
+                          {transferSuccess ? (
+                            <>
+                              <Check className="w-4 h-4" /> Overført til Skriveverksted!
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4 text-indigo-600" /> Overfør til Skriveverksted
+                            </>
+                          )}
+                        </button>
                         <button 
                           onClick={handleDownloadWord}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
                         >
                           <Download className="w-4 h-4" /> Word (.docx)
                         </button>
                         <button 
                           onClick={handleSave}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-8 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
                         >
-                          <Save className="w-4 h-4" /> Lagre endringer
+                          <Save className="w-4 h-4" /> Lagre
                         </button>
                       </div>
                     </div>
@@ -646,8 +829,18 @@ export const DidaktiskPlanlegger: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-end">
-                  <button className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
+                <div className="pt-4 flex items-center justify-between">
+                  <div>
+                    {settingsSavedNotice && (
+                      <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 animate-in fade-in">
+                        <Check className="w-4 h-4" /> Barnehage-innstillinger lagret!
+                      </span>
+                    )}
+                  </div>
+                  <button 
+                    onClick={handleSaveSettings}
+                    className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 cursor-pointer"
+                  >
                     <CheckCircle2 className="w-4 h-4" /> Lagre konfigurasjon
                   </button>
                 </div>
@@ -707,10 +900,10 @@ export const DidaktiskPlanlegger: React.FC = () => {
 
             <div className="p-4 bg-slate-50 border-t border-slate-50">
               <button 
-                disabled
-                className="w-full py-3 bg-white border border-slate-200 text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-not-allowed opacity-50 flex items-center justify-center gap-2"
+                onClick={() => setShowNewPlanModal(true)}
+                className="w-full py-3 bg-white border border-slate-200 text-slate-700 hover:text-primary hover:border-primary/40 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xs hover:shadow-sm flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Plus className="w-3 h-3" /> Ny didaktisk plan
+                <Plus className="w-3.5 h-3.5 text-primary" /> Ny didaktisk plan
               </button>
             </div>
           </div>
@@ -729,6 +922,95 @@ export const DidaktiskPlanlegger: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal: Opprett ny didaktisk plan */}
+      <AnimatePresence>
+        {showNewPlanModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl max-w-lg w-full border border-slate-100 shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                    <Plus className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-tight">Ny Didaktisk Plan</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Opprett periode- eller månedsplan</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowNewPlanModal(false)}
+                  className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateNewPlan} className="p-6 md:p-8 space-y-5">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Plan-tittel</label>
+                  <input
+                    type="text"
+                    required
+                    value={newPlanTitle}
+                    onChange={(e) => setNewPlanTitle(e.target.value)}
+                    placeholder="F.eks: Vinterleker og sanseopplevelser i snøen"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Type</label>
+                    <select
+                      value={newPlanType}
+                      onChange={(e) => setNewPlanType(e.target.value as 'sesong' | 'måned')}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                    >
+                      <option value="måned">Månedsplan</option>
+                      <option value="sesong">Sesongplan</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Periode / Måned</label>
+                    <select
+                      value={newPlanPeriod}
+                      onChange={(e) => setNewPlanPeriod(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                    >
+                      {YEAR_ORDER.map(period => (
+                        <option key={period} value={period}>{period}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPlanModal(false)}
+                    className="px-5 py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Avbryt
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Opprett plan
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

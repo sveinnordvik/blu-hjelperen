@@ -136,6 +136,17 @@ service cloud.firestore {
              (!('tags' in data) || data.tags is list);
     }
 
+    function isValidSharedReview(data) {
+      return data.keys().hasAll(['id', 'authorId', 'title', 'content']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.authorId is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 500 &&
+             data.content is string && data.content.size() <= 100000 &&
+             (!('comments' in data) || data.comments is list) &&
+             (!('allowComments' in data) || data.allowComments is bool) &&
+             (!('isClosed' in data) || data.isClosed is bool);
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -226,10 +237,10 @@ service cloud.firestore {
     }
 
     match /groups/{groupId} {
-      allow read: if isVerified();
-      allow create: if isVerified() && isValidGroup(incoming());
-      allow update: if isVerified() && isValidGroup(incoming());
-      allow delete: if isVerified() || isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidGroup(incoming());
+      allow update: if isSignedIn() && isValidGroup(incoming());
+      allow delete: if isSignedIn() || isAdmin();
     }
 
     match /processLogs/{logId} {
@@ -262,6 +273,16 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidFieldNote(incoming());
       allow update: if isSignedIn() && isValidFieldNote(incoming()) && incoming().userId == existing().userId;
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /shared_reviews/{reviewId} {
+      // Anyone with the share link can read the shared peer review document
+      allow get: if true;
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidSharedReview(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if (isSignedIn() && existing().authorId == request.auth.uid && isValidSharedReview(incoming())) ||
+                    (existing().allowComments == true && (!('isClosed' in existing()) || existing().isClosed == false) && isValidSharedReview(incoming()));
+      allow delete: if (isSignedIn() && existing().authorId == request.auth.uid) || isAdmin();
     }
   }
 }

@@ -1,22 +1,44 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getMessaging } from 'firebase/messaging';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Initialize Firestore - robustness for missing or invalid database ID
+// Initialize Firestore with robust long-polling detection to prevent timeout errors
 let dbInstance;
+const dbId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== ""
+  ? firebaseConfig.firestoreDatabaseId
+  : undefined;
+
 try {
-  // Try with databaseId from config
-  const dbId = firebaseConfig.firestoreDatabaseId;
-  dbInstance = getFirestore(app, dbId && dbId !== "" ? dbId : undefined);
+  dbInstance = initializeFirestore(
+    app,
+    {
+      experimentalAutoDetectLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    },
+    dbId
+  );
 } catch (e) {
-  console.warn("Could not initialize with named databaseId, falling back to default:", e);
-  dbInstance = getFirestore(app);
+  try {
+    dbInstance = initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true
+      },
+      dbId
+    );
+  } catch (e2) {
+    console.warn("Could not initialize with long-polling settings, falling back:", e2);
+    dbInstance = getFirestore(app, dbId);
+  }
 }
+
 export const db = dbInstance;
 export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
 export const googleProvider = new GoogleAuthProvider();

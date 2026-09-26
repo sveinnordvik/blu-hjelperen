@@ -3,15 +3,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
   FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, PanelRightClose, Send, Archive, User,
-  Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown // Nye ikoner for mapper og kapittelflytting
+  Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown, BookMarked, Users, Share2, MessageSquare, Clock, ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
+import { CitationAssistantModal } from './CitationAssistantModal';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
-import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../../firebase'; 
 import { DocumentExportModal } from './DocumentExportModal';
+import { ShareToCollabModal } from './ShareToCollabModal';
+import { PeerReviewShareModal } from './PeerReviewShareModal';
+import { DocumentHistoryModal } from './DocumentHistoryModal';
+import { saveDocumentSnapshot } from '../../lib/documentBackup';
+import { MarginComment, SharedReviewData } from '../PeerReviewReader';
 
 // STEG 1: Nytt interface for mapper
 export interface FolderItem {
@@ -172,6 +178,35 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     return () => unsubscribe();
   }, []);
 
+  // Sjekker om det ligger et importert utkast fra Didaktisk Planlegger (eller andre moduler)
+  useEffect(() => {
+    try {
+      const pendingRaw = localStorage.getItem('blu_pending_workshop_import');
+      if (pendingRaw) {
+        const payload = JSON.parse(pendingRaw);
+        if (payload && payload.title) {
+          localStorage.removeItem('blu_pending_workshop_import');
+          const newDocId = 'imported_' + Date.now();
+          const newDoc: DocumentItem = {
+            id: newDocId,
+            title: payload.title,
+            content: payload.content || '',
+            template: payload.template || 'Praksisfortelling/Praksisoppgave',
+            taskPrompt: payload.taskPrompt || '',
+            targetWords: payload.targetWords || 1500,
+            updatedAt: new Date().toISOString()
+          };
+
+          setDocuments(prev => [newDoc, ...prev.filter(d => d.id !== newDocId)]);
+          setActiveDocId(newDocId);
+          saveDocToFirebase(newDoc);
+        }
+      }
+    } catch (err) {
+      console.error('Feil ved lesing av importert dokument i Skriveverksted:', err);
+    }
+  }, []);
+
   // Hjelpefunksjon for å lagre et spesifikt dokument til skyen
   const saveDocToFirebase = async (docToSave: DocumentItem) => {
     try {
@@ -238,6 +273,16 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
   const [viewMode, setViewMode] = useState<'editor' | 'setup' | 'quality-check'>('editor');
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isPeerReviewShareModalOpen, setIsPeerReviewShareModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(() => new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
+  const [lastLocalSyncTime, setLastLocalSyncTime] = useState<string | null>(() => new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
+  const [syncState, setSyncState] = useState<'synced' | 'saving' | 'offline'>('synced');
+
+  const [peerComments, setPeerComments] = useState<MarginComment[]>([]);
+  const [peerReviewData, setPeerReviewData] = useState<SharedReviewData | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -248,7 +293,54 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
 
   // State for sidepanel
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [activePanelTab, setActivePanelTab] = useState<'superveileder' | 'prosesslogg'>('superveileder');
+  const [activePanelTab, setActivePanelTab] = useState<'superveileder' | 'prosesslogg' | 'respons'>('superveileder');
+
+  // Lytt til kommentarer og respons fra medstudenter for det aktive dokumentet i sanntid
+  useEffect(() => {
+    if (!activeDocId) {
+      setPeerComments([]);
+      return;
+    }
+
+    const reviewId = `rev_${activeDocId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const docRef = doc(db, 'shared_reviews', reviewId);
+
+    const unsubscribe = onSnapshot(
+      docRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data() as SharedReviewData;
+          setPeerReviewData(data);
+          setPeerComments(Array.isArray(data.comments) ? data.comments : []);
+        } else {
+          // Fallback til lokal lagring
+          const cached = localStorage.getItem(`blu_shared_review_${reviewId}`);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              setPeerReviewData(parsed);
+              setPeerComments(Array.isArray(parsed.comments) ? parsed.comments : []);
+            } catch {}
+          } else {
+            setPeerReviewData(null);
+            setPeerComments([]);
+          }
+        }
+      },
+      () => {
+        const cached = localStorage.getItem(`blu_shared_review_${reviewId}`);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setPeerReviewData(parsed);
+            setPeerComments(Array.isArray(parsed.comments) ? parsed.comments : []);
+          } catch {}
+        }
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeDocId]);
   
   // State for Superveileder Chat
   const [chatMode, setChatMode] = useState('Auto');
@@ -352,29 +444,74 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     updatedAt: new Date().toISOString()
   };
 
+  // Offline-deteksjon og automatisk gjenoppretting av nettkobling (Punkt 5)
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setSyncState('saving');
+      if (activeDoc) {
+        saveDocToFirebase(activeDoc)
+          .then(() => {
+            setSyncState('synced');
+            setLastCloudSyncTime(new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
+          })
+          .catch(() => setSyncState('synced'));
+      } else {
+        setSyncState('synced');
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setSyncState('offline');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [activeDoc]);
+
   const handleUpdateActiveDoc = (fields: Partial<DocumentItem>) => {
     setDocuments(prev => {
       const updatedDocs = prev.map(d => {
         if (d.id === activeDocId) {
           const updatedDoc = { ...d, ...fields, updatedAt: new Date().toISOString() };
           
-          // 1. Visuell tilbakemelding om at teksten er sikret lokalt i nettleseren
-          setSaveStatus('Lagret lokalt');
-          
-          // 2. Avbryt forrige nedtelling hvis studenten fortsatt skriver
+          // 1. Alltid umiddelbar lokal backup og øyeblikksbilde i nettleseren (Punkt 5)
+          const localTime = new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+          setLastLocalSyncTime(localTime);
+          saveDocumentSnapshot(
+            updatedDoc.id, 
+            updatedDoc.title, 
+            typeof updatedDoc.content === 'string' ? updatedDoc.content : '', 
+            'autosave'
+          );
+
+          if (!navigator.onLine) {
+            setSyncState('offline');
+            return updatedDoc;
+          }
+
+          // 2. Skysynkronisering (debounced)
+          setSyncState('saving');
           if (saveTimerRef.current) {
             clearTimeout(saveTimerRef.current);
           }
           
-          // 3. Start ny nedtelling: Lagre til skyen etter 10 sekunders inaktivitet
           saveTimerRef.current = setTimeout(async () => {
-            setSaveStatus('Lagrer i skyen...');
-            await saveDocToFirebase(updatedDoc);
-            setSaveStatus('Lagret i skyen');
-            
-            // Fjern statusmeldingen etter 3 sekunder
-            setTimeout(() => setSaveStatus(null), 3000);
-          }, 10000); // Endre 10000 til 30000 hvis du vil ha 30 sekunder
+            try {
+              await saveDocToFirebase(updatedDoc);
+              setSyncState('synced');
+              setLastCloudSyncTime(new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
+            } catch (e) {
+              console.warn('Kunne ikke synkronisere til Firestore akkurat nå, lokal kopi er sikret:', e);
+              setSyncState('offline');
+            }
+          }, 3500);
           
           return updatedDoc;
         }
@@ -582,6 +719,7 @@ ${activeDoc.content}`;
   };
 
   const [editorMode, setEditorMode] = useState<'wysiwyg' | 'markdown'>('wysiwyg');
+  const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
   const [activeHeading, setActiveHeading] = useState<'h1' | 'h2' | 'h3' | 'p' | null>(null);
   const [activeStyles, setActiveStyles] = useState<{
     bold: boolean;
@@ -747,6 +885,62 @@ ${activeDoc.content}`;
     setTimeout(() => { textarea.focus(); textarea.setSelectionRange(newStart, newEnd); }, 10);
   };
 
+  /**
+   * KILDEASSISTENT:
+   * 1. Setter inn inTextCitation ved markøren (f.eks. "(Bae, 2012)")
+   * 2. Legger fullReference automatisk til under "## Litteraturliste" bakerst i dokumentet
+   */
+  const handleInsertCitation = (inTextCitation: string, fullReference: string) => {
+    // 1. Sett inn in-text citation i teksten
+    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+      wysiwygRef.current.focus();
+      // Sett inn som fet eller markert henvisning
+      document.execCommand('insertText', false, `${inTextCitation} `);
+    } else if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+      const newText = text.substring(0, start) + `${inTextCitation} ` + text.substring(end);
+      handleUpdateActiveDoc({ content: newText });
+    }
+
+    // 2. Oppdater / legg til i litteraturlisten bakerst i oppgaven
+    setTimeout(() => {
+      let currentContent = '';
+      if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+        currentContent = htmlToMarkdown(wysiwygRef.current.innerHTML);
+      } else {
+        currentContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+      }
+
+      const hasRefHeading = /(?:^|\n)(?:#{1,3}\s+)?(?:Litteraturliste|Kildeliste|Referanser|Referanseliste)/i.test(currentContent);
+      
+      // Sjekk om referansen allerede finnes i teksten
+      const authorPart = fullReference.split('(')[0].trim();
+      const alreadyInList = currentContent.toLowerCase().includes(authorPart.toLowerCase());
+
+      let updatedContent = currentContent;
+
+      if (!alreadyInList) {
+        if (hasRefHeading) {
+          // Finn litteraturliste-overskriften og legg kilden til under den
+          const refHeadingRegex = /((?:^|\n)(?:#{1,3}\s+)?(?:Litteraturliste|Kildeliste|Referanser|Referanseliste)[^\n]*\n)/i;
+          updatedContent = currentContent.replace(refHeadingRegex, `$1${fullReference}\n\n`);
+        } else {
+          // Legg til litteraturliste bakerst i dokumentet
+          updatedContent = `${currentContent.trim()}\n\n## Litteraturliste\n\n${fullReference}\n`;
+        }
+
+        handleUpdateActiveDoc({ content: updatedContent });
+
+        if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+          wysiwygRef.current.innerHTML = markdownToHtml(updatedContent);
+        }
+      }
+    }, 100);
+  };
+
   const handleSaveProcessLog = async () => {
     // Sjekk at de viktigste feltene er fylt ut
     if (!logSituation.trim() || !logReflection.trim()) {
@@ -875,7 +1069,37 @@ ${activeDoc.content}`;
             </div>
 
             <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-              {saveStatus && <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" />{saveStatus}</span>}
+              {/* SIKKERHET OG SYNKRONISERINGSINDIKATOR (PUNKT 5) */}
+              <div 
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200/90 transition-all cursor-pointer select-none group"
+                title="Klikk for å se versjonshistorikk og gjenopprette tidligere utkast"
+              >
+                {syncState === 'saving' ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-[11px] font-medium text-slate-700">
+                      Lagrer til skyen... · Lokal kopi OK
+                    </span>
+                  </>
+                ) : !isOnline || syncState === 'offline' ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-[11px] font-semibold text-amber-800">
+                      Frakoblet nett · Lokal kopi sikret {lastLocalSyncTime ? `(kl. ${lastLocalSyncTime})` : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-[11px] font-medium text-slate-700">
+                      Lagret i skyen {lastCloudSyncTime ? `(kl. ${lastCloudSyncTime})` : (lastLocalSyncTime ? `(kl. ${lastLocalSyncTime})` : '')} · Lokal kopi OK
+                    </span>
+                  </>
+                )}
+
+                <RotateCcw className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors ml-0.5" />
+              </div>
               <div className="flex items-center gap-2">
                 <span>{wordCount} / {activeDoc.targetWords || 1500} ord ({wordProgress}%)</span>
                 <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${wordProgress}%` }} /></div>
@@ -891,6 +1115,31 @@ ${activeDoc.content}`;
               >
                 <Download className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Eksporter</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700 text-xs cursor-pointer"
+                title="Del utkast til kollokviegruppe i Basen for hverandrevurdering eller felles RAG-kunnskapsbase"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Del til kollokvie</span>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setIsPeerReviewShareModalOpen(true)}
+                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-slate-700 hover:text-purple-700 text-xs cursor-pointer relative"
+                title="Generer og administrer leselenke for hverandrevurdering med margkommentarer"
+              >
+                <Share2 className="w-3.5 h-3.5 text-purple-600" />
+                <span>Leselenke</span>
+                {peerComments.length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded-full text-[10px] font-bold">
+                    {peerComments.length}
+                  </span>
+                )}
               </button>
 
               <div className="w-px h-6 bg-slate-200 mx-1" />
@@ -999,6 +1248,16 @@ ${activeDoc.content}`;
                     className={`p-1.5 rounded-lg transition-all ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
                   >
                     <Quote className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 mx-1" />
+                  <button
+                    type="button"
+                    onClick={() => setIsCitationModalOpen(true)}
+                    title="Kildeassistent & Litteraturliste (APA 7)"
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>+ Sett inn kilde</span>
                   </button>
                 </div>
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-semibold gap-0.5">
@@ -1445,7 +1704,16 @@ ${activeDoc.content}`;
               <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                   <div><h3 className="text-lg font-bold text-slate-900 mb-1">Akademisk kvalitetssjekk</h3><p className="text-sm text-slate-500">Automatisk analyse basert på barnehagefaglige vurderingskriterier.</p></div>
-                  <button onClick={handleRunAnalysis} disabled={isAnalyzing} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2"><Sparkles className="w-4 h-4" /> {isAnalyzing ? 'Analyserer tekst...' : 'Kjør ny analyse'}</button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setIsShareModalOpen(true)}
+                      className="px-3.5 py-2 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-600" /> Del til kollokviet
+                    </button>
+                    <button onClick={handleRunAnalysis} disabled={isAnalyzing} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-2"><Sparkles className="w-4 h-4" /> {isAnalyzing ? 'Analyserer tekst...' : 'Kjør ny analyse'}</button>
+                  </div>
                 </div>
                 {isAnalyzing && <div className="p-12 text-center space-y-4 bg-slate-50 rounded-2xl border border-slate-200"><div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" /><p className="text-sm font-medium text-slate-600">Leser gjennom oppgaven, sjekker rød tråd og teoretisk forankring...</p></div>}
                 {!isAnalyzing && analysisResult && <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-4"><div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Analyse fullført</div><div className="prose prose-slate max-w-none text-sm leading-relaxed"><ReactMarkdown>{typeof analysisResult === 'string' ? analysisResult : JSON.stringify(analysisResult, null, 2)}</ReactMarkdown></div></div>}
@@ -1462,7 +1730,7 @@ ${activeDoc.content}`;
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button 
                 onClick={() => setActivePanelTab('superveileder')}
-                className={`flex-1 py-3 px-4 text-sm font-semibold text-center border-b-2 transition-colors ${
+                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors ${
                   activePanelTab === 'superveileder' 
                     ? 'text-indigo-600 border-indigo-600 bg-white' 
                     : 'text-slate-500 border-transparent hover:text-slate-700'
@@ -1472,13 +1740,28 @@ ${activeDoc.content}`;
               </button>
               <button 
                 onClick={() => setActivePanelTab('prosesslogg')}
-                className={`flex-1 py-3 px-4 text-sm font-semibold text-center border-b-2 transition-colors ${
+                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors ${
                   activePanelTab === 'prosesslogg' 
                     ? 'text-indigo-600 border-indigo-600 bg-white' 
                     : 'text-slate-500 border-transparent hover:text-slate-700'
                 }`}
               >
                 Prosesslogg
+              </button>
+              <button 
+                onClick={() => setActivePanelTab('respons')}
+                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors flex items-center justify-center gap-1 ${
+                  activePanelTab === 'respons' 
+                    ? 'text-purple-600 border-purple-600 bg-white' 
+                    : 'text-slate-500 border-transparent hover:text-slate-700'
+                }`}
+              >
+                <span>Respons</span>
+                {peerComments.length > 0 && (
+                  <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">
+                    {peerComments.length}
+                  </span>
+                )}
               </button>
             </div>
             
@@ -1612,7 +1895,7 @@ ${activeDoc.content}`;
                       />
                       <button 
                         type="button"
-                        onClick={handleSendMessage}
+                        onClick={() => handleSendMessage()}
                         disabled={!chatInput.trim() || isChatLoading}
                         className="absolute right-2 bottom-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-colors"
                       >
@@ -1622,7 +1905,7 @@ ${activeDoc.content}`;
                   </div>
                 </div>
 
-              ) : (
+              ) : activePanelTab === 'prosesslogg' ? (
                 // STEG 5: PROSESSLOGG SKJEMA UI
                 <div className="flex flex-col h-full overflow-y-auto p-5 space-y-6">
                   {logSaveNotice && (
@@ -1701,6 +1984,148 @@ ${activeDoc.content}`;
                   </button>
 
                 </div>
+              ) : (
+                // STEG 6: MEDSTUDENT-RESPONS / MARGINKOMMENTARER
+                <div className="flex flex-col h-full overflow-hidden bg-slate-50/40">
+                  <div className="p-3.5 bg-white border-b border-slate-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Users className="w-4 h-4 text-purple-600" />
+                        <span>Medstudent-respons i margen</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                        {peerComments.length} innspill
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reviewId = `rev_${activeDoc.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                          const url = `${window.location.origin}${window.location.pathname}?review=${reviewId}`;
+                          navigator.clipboard.writeText(url);
+                          setSaveStatus('Leselenke kopiert!');
+                          setTimeout(() => setSaveStatus(null), 2500);
+                        }}
+                        className="flex-1 py-1.5 px-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        title="Kopier leselenke for medstudenter"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Kopier leselenke</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsPeerReviewShareModalOpen(true)}
+                        className="py-1.5 px-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Innstillinger for leselenken"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Innstillinger</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Comments list */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    {peerComments.length === 0 ? (
+                      <div className="p-8 text-center space-y-3">
+                        <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto">
+                          <MessageSquare className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-800">Ingen tilbakemeldinger ennå</h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+                          Kopier leselenken ovenfor og send den til en medstudent eller i kollokviegruppa for å få respons direkte i margen.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setIsPeerReviewShareModalOpen(true)}
+                          className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Share2 className="w-3.5 h-3.5" /> Del leselenke nå
+                        </button>
+                      </div>
+                    ) : (
+                      peerComments.map(c => (
+                        <div
+                          key={c.id}
+                          className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                            c.resolved 
+                              ? 'bg-slate-50/70 border-slate-200 opacity-60' 
+                              : 'bg-white border-slate-200 shadow-2xs hover:border-purple-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">
+                                {c.authorName.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-bold text-slate-800 text-[11px]">{c.authorName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {c.tag && (
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                  c.tag === 'rammeplan'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : c.tag === 'teori'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : c.tag === 'ros'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {c.tag}
+                                </span>
+                              )}
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(c.createdAt).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {c.selectedText && (
+                            <div className="p-2 bg-slate-50 border-l-2 border-purple-400 rounded text-[11px] text-slate-600 italic">
+                              «{c.selectedText}»
+                            </div>
+                          )}
+
+                          <p className={`text-slate-800 text-xs leading-relaxed ${c.resolved ? 'line-through text-slate-500' : ''}`}>
+                            {c.text}
+                          </p>
+
+                          <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                            {c.paragraphIndex !== undefined ? (
+                              <span className="text-slate-400">Avsnitt #{c.paragraphIndex + 1}</span>
+                            ) : <span />}
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reviewId = `rev_${activeDoc.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                const updated = peerComments.map(item => item.id === c.id ? { ...item, resolved: !item.resolved } : item);
+                                setPeerComments(updated);
+                                try {
+                                  await updateDoc(doc(db, 'shared_reviews', reviewId), {
+                                    comments: updated,
+                                    updatedAt: new Date().toISOString()
+                                  });
+                                } catch {}
+                              }}
+                              className={`flex items-center gap-1 font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                                c.resolved 
+                                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' 
+                                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>{c.resolved ? 'Innarbeidet' : 'Merk som innarbeidet'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </aside>
@@ -1753,7 +2178,7 @@ ${activeDoc.content}`;
           </div>
         </div>
       )}
-      {/* DOKUMENT EKSPORT MODAL (WORD / PDF MED FORSIDE OG INNHOLDSFORTEGNELSE) */}
+      {/* DOKUMENT EKSPORT MODAL (WORD / PDF MED FORSIDE, INNHOLDSFORTEGNELSE OG FORMELL SJEKKLISTE) */}
       <DocumentExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
@@ -1768,6 +2193,59 @@ ${activeDoc.content}`;
           candidateId: _props?.profile?.candidateId || _props?.profile?.studentId || '',
           institution: _props?.profile?.studiested || _props?.profile?.college || _props?.settings?.studiested || 'Høgskolen i Innlandet'
         }}
+        onUpdateDocument={(fields) => handleUpdateActiveDoc(fields)}
+      />
+
+      {/* KILDEASSISTENT & LITTERATURLISTE MODAL (APA 7) */}
+      <CitationAssistantModal
+        isOpen={isCitationModalOpen}
+        onClose={() => setIsCitationModalOpen(false)}
+        onInsertCitation={handleInsertCitation}
+        existingText={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
+      />
+
+      {/* DEL TIL KOLLOKVIEGRUPPE / BASEN MODAL */}
+      <ShareToCollabModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        document={activeDoc}
+        currentUser={_props?.user || getAuth().currentUser}
+        onNavigateToBasen={() => {
+          if (typeof _props?.setActiveTab === 'function') {
+            _props.setActiveTab('collaboration');
+          }
+        }}
+      />
+
+      {/* HVERANDREVURDERING & LESELENKE MODAL */}
+      <PeerReviewShareModal
+        isOpen={isPeerReviewShareModalOpen}
+        onClose={() => setIsPeerReviewShareModalOpen(false)}
+        document={activeDoc}
+        currentUser={_props?.user || getAuth().currentUser}
+        onOpenReader={(revId) => {
+          if (typeof _props?.setActiveTab === 'function') {
+            localStorage.setItem('blu_active_review_id', revId);
+            _props.setActiveTab('peer-review');
+          } else {
+            window.location.href = `?review=${revId}`;
+          }
+        }}
+      />
+
+      {/* VERSJONSHISTORIKK & ANGRE MODAL (PUNKT 5) */}
+      <DocumentHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        docId={activeDoc.id}
+        currentTitle={activeDoc.title}
+        currentContent={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
+        onRestoreVersion={(title, content) => {
+          handleUpdateActiveDoc({ title, content });
+          setSaveStatus('Tidligere versjon gjenopprettet!');
+        }}
+        lastCloudSyncTime={lastCloudSyncTime}
+        isOnline={isOnline}
       />
     </WorkspaceLayout>
   );

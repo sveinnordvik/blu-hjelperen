@@ -99,6 +99,8 @@ export interface GroupFile {
   type: 'file' | 'folder';
   date: string;
   size?: string;
+  content?: string;
+  sharedBy?: string;
 }
 
 export interface Message {
@@ -1316,13 +1318,40 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                                     <p className="text-[10px] text-slate-400 mt-0.5">{f.date} {f.size && `• ${f.size}`}</p>
                                   </div>
                                 </div>
-                                <button 
-                                  onClick={() => exportSingleFile(f.name)}
-                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
-                                  title="Last ned"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  {f.content && (
+                                    <button 
+                                      onClick={() => {
+                                        const reviewId = `rev_${f.id || f.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                        try {
+                                          const reviewObj = {
+                                            id: reviewId,
+                                            title: f.name.replace(/\.[^/.]+$/, ''),
+                                            authorName: f.sharedBy || 'Medstudent',
+                                            authorId: user?.uid || 'peer',
+                                            content: f.content,
+                                            allowComments: true,
+                                            createdAt: new Date().toISOString()
+                                          };
+                                          localStorage.setItem(`blu_shared_review_${reviewId}`, JSON.stringify(reviewObj));
+                                          localStorage.setItem('blu_active_review_id', reviewId);
+                                        } catch {}
+                                        if (setParentActiveTab) setParentActiveTab('peer-review');
+                                      }}
+                                      className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer"
+                                      title="Åpne for hverandrevurdering og margkommentarer"
+                                    >
+                                      <MessageSquare className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => exportSingleFile(f.name)}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Last ned"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>

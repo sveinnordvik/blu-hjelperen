@@ -1074,8 +1074,7 @@ export async function exportToDocx(config: ExportConfig): Promise<Blob> {
           run: { size: 28, bold: true, font, color: '000000' }, // 14pt fet
           paragraph: { 
             alignment: AlignmentType.LEFT,
-            spacing: { before: 240, after: 360, line: 360 }, // 18 pkt etter = 360 twips
-            pageBreakBefore: true // ALLTID ny side for Overskrift 1
+            spacing: { before: 240, after: 360, line: 360 } // 18 pkt etter = 360 twips
           }
         },
         heading2: {

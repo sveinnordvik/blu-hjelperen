@@ -19,7 +19,14 @@ import {
   Sparkles,
   AlignLeft,
   AlignCenter,
-  AlignRight
+  AlignRight,
+  AlertCircle,
+  ShieldCheck,
+  Quote,
+  HelpCircle,
+  ArrowRight,
+  Edit3,
+  ChevronRight
 } from 'lucide-react';
 import { 
   exportToDocx, 
@@ -32,6 +39,11 @@ import {
   extractTocEntries,
   OutlineItem
 } from '../../lib/exportDocument';
+import { 
+  evaluateSubmissionChecklist, 
+  SubmissionChecklistEvaluation 
+} from '../../lib/submissionChecklist';
+import { saveDocumentSnapshot } from '../../lib/documentBackup';
 
 export interface DocumentExportModalProps {
   isOpen: boolean;
@@ -51,6 +63,7 @@ export interface DocumentExportModalProps {
     studiested?: string;
     studyProgram?: string;
   };
+  onUpdateDocument?: (fields: { title?: string; content?: string; candidateNumber?: string }) => void;
 }
 
 export function DocumentExportModal({
@@ -62,15 +75,20 @@ export function DocumentExportModal({
   taskPrompt = '',
   targetWords = 1500,
   outline = [],
-  userProfile = {}
+  userProfile = {},
+  onUpdateDocument
 }: DocumentExportModalProps) {
   // Formatvalg
   const [selectedFormat, setSelectedFormat] = useState<'docx' | 'pdf'>('docx');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
 
-  // Aktiv fane i innstillingspanelet
-  const [activeTab, setActiveTab] = useState<'cover' | 'toc' | 'headerFooter'>('cover');
+  // Mål for ordantall (kan justeres i sjekklisten)
+  const [customTargetWords, setCustomTargetWords] = useState<number>(targetWords || 1500);
+
+  // Aktiv fane i innstillingspanelet - standard på sjekklisten for maksimal trygghet før eksport!
+  const [activeTab, setActiveTab] = useState<'checklist' | 'cover' | 'toc' | 'headerFooter'>('checklist');
+  const [quoteConvertNotice, setQuoteConvertNotice] = useState<string | null>(null);
 
   // Forside-innstillinger
   const [includeCoverPage, setIncludeCoverPage] = useState(true);
@@ -131,12 +149,58 @@ export function DocumentExportModal({
     return extractTocEntries(documentContent, outline);
   }, [documentContent, outline]);
 
+  // Beregn 3-punkts sjekkliste før innlevering (Punkt 4)
+  const checklistEvaluation: SubmissionChecklistEvaluation = useMemo(() => {
+    return evaluateSubmissionChecklist(
+      metadata.title,
+      metadata.candidateNumber || '',
+      documentContent,
+      customTargetWords
+    );
+  }, [metadata.title, metadata.candidateNumber, documentContent, customTargetWords]);
+
+  // Håndter 1-klikks konvertering av lange sitater (> 40 ord) til blokksitat
+  const handleConvertQuoteToBlockQuote = (quoteText: string) => {
+    if (!quoteText || !onUpdateDocument) return;
+
+    const patterns = [
+      `«${quoteText}»`,
+      `"${quoteText}"`,
+      `“${quoteText}”`
+    ];
+
+    let newContent = documentContent;
+    let replaced = false;
+
+    for (const p of patterns) {
+      if (newContent.includes(p)) {
+        newContent = newContent.replace(p, `\n\n> ${quoteText}\n\n`);
+        replaced = true;
+        break;
+      }
+    }
+
+    if (!replaced && newContent.includes(quoteText)) {
+      newContent = newContent.replace(quoteText, `\n\n> ${quoteText}\n\n`);
+      replaced = true;
+    }
+
+    if (replaced) {
+      onUpdateDocument({ content: newContent });
+      setQuoteConvertNotice('Sitatet er automatisk omgjort til et formelt innrykket blokksitat!');
+      setTimeout(() => setQuoteConvertNotice(null), 3000);
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleRunExport = async (formatOverride?: 'docx' | 'pdf') => {
     const format = formatOverride || selectedFormat;
     setIsExporting(true);
     setExportSuccess(null);
+
+    // Automatisk sikkerhetskopi i historikken før eksport (Punkt 5)
+    saveDocumentSnapshot(metadata.title || 'oppgave', metadata.title, documentContent, 'pre_export');
 
     try {
       const config = {
@@ -299,8 +363,71 @@ export function DocumentExportModal({
               </div>
             </div>
 
+            {/* 3-PUNKTS FORMELL SJEKKLISTE-BANNER (PUNKT 4) */}
+            <div 
+              onClick={() => setActiveTab('checklist')}
+              className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                checklistEvaluation.isReadyForSubmission 
+                  ? 'bg-emerald-50/70 border-emerald-200 hover:bg-emerald-50 text-emerald-950 shadow-2xs' 
+                  : 'bg-amber-50/70 border-amber-200 hover:bg-amber-50 text-amber-950 shadow-2xs'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-2 rounded-xl flex-shrink-0 ${
+                    checklistEvaluation.isReadyForSubmission ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {checklistEvaluation.isReadyForSubmission ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black">Sjekkliste før innlevering</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        checklistEvaluation.isReadyForSubmission 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {checklistEvaluation.totalPassed}/3 formelle krav oppfylt
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      {checklistEvaluation.isReadyForSubmission 
+                        ? 'Tittel, anonymt kandidatnummer, ordantall og APA 7 sitatregler er kvalitetssikret.'
+                        : 'Noen formelle krav bør ses over før du laster ned. Klikk her for å se sjekklisten.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 text-xs font-bold text-indigo-600 pl-2">
+                  <span>{activeTab === 'checklist' ? 'Valgt' : 'Åpne'}</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+
             {/* FANER FOR TILPASNING */}
             <div className="border-b border-slate-200 flex gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab('checklist')}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+                  activeTab === 'checklist' 
+                    ? 'border-indigo-600 text-indigo-600' 
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" /> 
+                <span>Sjekkliste før innlevering</span>
+                <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                  checklistEvaluation.isReadyForSubmission ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {checklistEvaluation.totalPassed}/3
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('cover')}
@@ -335,6 +462,243 @@ export function DocumentExportModal({
                 <Sliders className="w-3.5 h-3.5" /> Topp, bunn & sidetall
               </button>
             </div>
+
+            {/* FANE 0: SJEKKLISTE FØR INNLEVERING (PUNKT 4) */}
+            {activeTab === 'checklist' && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between pb-1">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      De 3 formelle høgskolekravene
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Automatisert sjekk for å fjerne eksamensstress og sikre at formelle krav er ivaretatt før eksport.
+                    </p>
+                  </div>
+                </div>
+
+                {quoteConvertNotice && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>{quoteConvertNotice}</span>
+                  </div>
+                )}
+
+                {/* SJEKKPUNKT 1: TITTEL OG KANDIDATNUMMER */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  checklistEvaluation.titleCheck.passed
+                    ? 'bg-white border-emerald-200 shadow-2xs'
+                    : 'bg-white border-amber-200 shadow-2xs'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+                        checklistEvaluation.titleCheck.passed ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {checklistEvaluation.titleCheck.passed ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900">1. Tittel og kandidatnummer</h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
+                            checklistEvaluation.titleCheck.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {checklistEvaluation.titleCheck.passed ? 'Oppfylt' : 'Mangler data'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {checklistEvaluation.titleCheck.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inline justering */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Oppgavetittel</label>
+                      <input
+                        type="text"
+                        value={metadata.title}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMetadata({ ...metadata, title: val });
+                          if (onUpdateDocument) onUpdateDocument({ title: val });
+                        }}
+                        placeholder="Skriv tittel her..."
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Kandidatnummer (for anonym sensur)
+                      </label>
+                      <input
+                        type="text"
+                        value={metadata.candidateNumber || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMetadata({ ...metadata, candidateNumber: val });
+                          if (onUpdateDocument) onUpdateDocument({ candidateNumber: val });
+                        }}
+                        placeholder="F.eks. 104"
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SJEKKPUNKT 2: ORDANTALL (MÅL ± 10%) */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  checklistEvaluation.wordCountCheck.passed
+                    ? 'bg-white border-emerald-200 shadow-2xs'
+                    : 'bg-white border-amber-200 shadow-2xs'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+                        checklistEvaluation.wordCountCheck.passed ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {checklistEvaluation.wordCountCheck.passed ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900">2. Ordantall innenfor rammen (± 10 %)</h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
+                            checklistEvaluation.wordCountCheck.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {checklistEvaluation.wordCountCheck.actualWords.toLocaleString('nb-NO')} ord ({checklistEvaluation.wordCountCheck.deviationPercentage > 0 ? `+${checklistEvaluation.wordCountCheck.deviationPercentage}` : checklistEvaluation.wordCountCheck.deviationPercentage}%)
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {checklistEvaluation.wordCountCheck.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hurtigvalg for oppgavens målord */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Oppgavens krav til omfang:</span>
+                      <span className="font-bold text-slate-800">
+                        Tillatt ramme: {checklistEvaluation.wordCountCheck.minAllowed.toLocaleString('nb-NO')} – {checklistEvaluation.wordCountCheck.maxAllowed.toLocaleString('nb-NO')} ord
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[1000, 1200, 1500, 2000, 2500, 3000, 4000].map(cnt => (
+                        <button
+                          key={cnt}
+                          type="button"
+                          onClick={() => setCustomTargetWords(cnt)}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                            customTargetWords === cnt
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {cnt.toLocaleString('nb-NO')} ord
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Visuell meter */}
+                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden relative mt-1">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          checklistEvaluation.wordCountCheck.passed ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                        style={{ 
+                          width: `${Math.min(100, Math.round((checklistEvaluation.wordCountCheck.actualWords / (checklistEvaluation.wordCountCheck.maxAllowed * 1.05)) * 100))}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SJEKKPUNKT 3: BLOKKSITAT-SJEKK (SITATER OVER 40 ORD / APA 7) */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  checklistEvaluation.blockQuoteCheck.passed
+                    ? 'bg-white border-emerald-200 shadow-2xs'
+                    : 'bg-white border-amber-200 shadow-2xs'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${
+                        checklistEvaluation.blockQuoteCheck.passed ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {checklistEvaluation.blockQuoteCheck.passed ? <CheckCircle2 className="w-5 h-5" /> : <Quote className="w-5 h-5" />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900">3. Sitater over 40 ord (Blokksitat etter APA 7)</h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${
+                            checklistEvaluation.blockQuoteCheck.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {checklistEvaluation.blockQuoteCheck.passed ? 'Korrekt formatert' : `${checklistEvaluation.blockQuoteCheck.longInlineQuotes.length} sitat bør rettes`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                          {checklistEvaluation.blockQuoteCheck.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hvis det er funnet inline sitater på over 40 ord */}
+                  {checklistEvaluation.blockQuoteCheck.longInlineQuotes.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
+                      <div className="text-[11px] font-bold text-amber-900">
+                        Følgende sitat er på 40+ ord og står i løpende tekst med hermetegn:
+                      </div>
+                      {checklistEvaluation.blockQuoteCheck.longInlineQuotes.map((issue, i) => (
+                        <div key={i} className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-amber-950">Sitat #{i + 1} ({issue.wordCount} ord)</span>
+                            <span className="text-[10px] text-amber-800 font-medium">Krav: Skal være blokksitat uten hermetegn</span>
+                          </div>
+                          <p className="text-xs text-slate-700 italic bg-white p-2.5 rounded-lg border border-amber-200">
+                            «{issue.snippet}»
+                          </p>
+                          {onUpdateDocument && (
+                            <button
+                              type="button"
+                              onClick={() => handleConvertQuoteToBlockQuote(issue.quoteText)}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Gjør automatisk om til blokksitat med innrykk</span>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Informasjon om blokksitatregler i APA 7 */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
+                    <Info className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                    <span>APA 7-regelen: Sitater under 40 ord skrives i løpende tekst med «...». Sitater på 40 ord eller mer skilles ut som eget innrykket avsnitt uten hermetegn.</span>
+                  </div>
+                </div>
+
+                {/* BONUS: LITTERATURLISTE */}
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    {checklistEvaluation.bibliographyCheck.passed ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-amber-500" />
+                    )}
+                    <span className="font-semibold text-slate-800">Litteraturliste / Kildeavsnitt</span>
+                  </div>
+                  <span className={`text-[11px] font-bold ${checklistEvaluation.bibliographyCheck.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {checklistEvaluation.bibliographyCheck.passed ? 'Funnet på slutten av teksten' : 'Ikke registrert ennå'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* FANE 1: FORSIDE & DE 4 TEMAENE */}
             {activeTab === 'cover' && (
@@ -855,12 +1219,34 @@ export function DocumentExportModal({
 
         {/* BUNNBAR MED HANDLINGSKNAPPER */}
         <div className="p-4 px-6 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-3 text-xs text-slate-500">
             <span className="font-semibold text-slate-700">{documentTitle || 'Oppgavedokument'}</span>
             <span>•</span>
             <span>{documentType}</span>
             <span>•</span>
             <span>{metadata.wordCount} ord</span>
+
+            {/* STATUSPILLE FOR SJEKKLISTE */}
+            <div 
+              onClick={() => setActiveTab('checklist')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all ${
+                checklistEvaluation.isReadyForSubmission
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
+                  : 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
+              }`}
+              title="Klikk for å åpne sjekklisten"
+            >
+              {checklistEvaluation.isReadyForSubmission ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+              )}
+              <span>
+                {checklistEvaluation.isReadyForSubmission 
+                  ? '3/3 krav godkjent' 
+                  : `${3 - checklistEvaluation.totalPassed} krav gjenstår`}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">

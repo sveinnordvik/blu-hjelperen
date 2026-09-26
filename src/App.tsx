@@ -166,6 +166,7 @@ import { Encyclopedia } from './components/Encyclopedia';
 import { AiTextRewriter } from './components/AiTextRewriter';
 import { ToolsDashboard } from './components/ToolsDashboard';
 import { Basen } from './components/Basen';
+import { PeerReviewReader } from './components/PeerReviewReader';
 import WelcomeGuide, { PedagogicalProfile } from './components/WelcomeGuide';
 
 interface AppDocument {
@@ -359,8 +360,16 @@ if (typeof window !== 'undefined' && window.location?.search) {
 }
 
 export default function App() {
-  // Steg 1: Fang opp vervesporet (App.tsx)
-  // Når en student trykker på en vervelenke (f.eks. blu-hjelperen.no/?ref=12345), må vi huske hvem som vervet dem.
+  // Steg 1: Fang opp vervesporet og hverandrevurdering (App.tsx)
+  const [peerReviewId, setPeerReviewId] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('review') || params.get('reviewId') || '';
+    } catch {
+      return '';
+    }
+  });
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -370,12 +379,24 @@ export default function App() {
         localStorage.setItem('referredBy', cleanRef);
         console.log('[Vervesystem] Vervespor lagret i localStorage:', cleanRef);
       }
+
+      const revParam = params.get('review') || params.get('reviewId');
+      if (revParam && revParam.trim()) {
+        setPeerReviewId(revParam.trim());
+        setActiveTab('peer-review');
+      }
     } catch (err) {
-      console.error('Feil ved lesing av ref fra URL:', err);
+      console.error('Feil ved lesing av ref/review fra URL:', err);
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools' | 'field-notes' | 'field-assistant'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools' | 'field-notes' | 'field-assistant' | 'peer-review'>(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('review') || p.get('reviewId')) return 'peer-review';
+    } catch {}
+    return 'home';
+  });
   const [fieldAssistantPrompt, setFieldAssistantPrompt] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('tools-overview');
   const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
@@ -4566,8 +4587,11 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             />
           )}
 
-          {activeTab === 'didaktisk-planlegger' && isAdminUser(user?.email || profile.email) && (
-            <DidaktiskPlanlegger key="didaktisk-planlegger" />
+          {activeTab === 'didaktisk-planlegger' && (
+            <DidaktiskPlanlegger 
+              key="didaktisk-planlegger" 
+              onOpenWritingWorkshop={() => setActiveTab('writing-workshop')}
+            />
           )}
 
           {activeTab === 'field-notes' && (
@@ -4934,6 +4958,18 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               isSaving={isSaving}
               lastSaved={lastSaved}
               onManualSave={handleSaveAll}
+            />
+          )}
+
+          {activeTab === 'peer-review' && (
+            <PeerReviewReader
+              key="peer-review"
+              reviewId={peerReviewId || localStorage.getItem('blu_active_review_id') || ''}
+              currentUser={user}
+              onBack={() => setActiveTab('writing-workshop')}
+              onOpenInWorkshop={(content, title) => {
+                setActiveTab('writing-workshop');
+              }}
             />
           )}
 
