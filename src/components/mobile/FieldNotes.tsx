@@ -227,7 +227,7 @@ export const FieldNotes: React.FC<FieldNotesProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
-                <BookOpen className="w-3.5 h-3.5" /> Kladdablokk i felt
+                <BookOpen className="w-3.5 h-3.5" /> Kladdeblokk i felt
               </span>
               <span className="text-[11px] font-semibold text-emerald-100 flex items-center gap-1 bg-emerald-800/40 px-2.5 py-1 rounded-full">
                 {user ? (

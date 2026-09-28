@@ -14,6 +14,7 @@ import { Profile as ProfileComponent } from './components/Profile';
 import { isUnlimitedUser, isAdminUser } from './config/accessConfig';
 import { FieldNotes } from './components/mobile/FieldNotes';
 import { FieldAssistant } from './components/mobile/FieldAssistant';
+import { ProjectorDisplayScreen } from './components/presentation/ProjectorDisplayScreen';
 
 /**
  * @license
@@ -360,6 +361,20 @@ if (typeof window !== 'undefined' && window.location?.search) {
 }
 
 export default function App() {
+  // Sjekk om dette vinduet er åpnet som storskjerm / projektor-visning (Fase 4)
+  const isProjectorMode = typeof window !== 'undefined' && (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'projector' || params.get('display') === 'presentation';
+    } catch {
+      return false;
+    }
+  })();
+
+  if (isProjectorMode) {
+    return <ProjectorDisplayScreen />;
+  }
+
   // Steg 1: Fang opp vervesporet og hverandrevurdering (App.tsx)
   const [peerReviewId, setPeerReviewId] = useState<string>(() => {
     try {

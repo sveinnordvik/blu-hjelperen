@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
-  FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, PanelRightClose, Send, Archive, User,
+  FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, ChevronLeft, PanelRightClose, Send, Archive, User,
   Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown, BookMarked, Users, Share2, MessageSquare, Clock, ShieldCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -1061,79 +1061,119 @@ ${activeDoc.content}`;
         
         {/* SENTER: Skriveflaten */}
         <div className="flex-1 flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden min-w-0 transition-all duration-300">
-          <div className="pr-6 pl-32 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
-            <div className="flex items-center gap-1.5 p-1 bg-slate-200/50 rounded-xl">
-              <button onClick={() => setViewMode('editor')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${viewMode === 'editor' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}><FileEdit className="w-3.5 h-3.5 inline mr-1.5" />Skriveflate</button>
-              <button onClick={() => setViewMode('setup')} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${viewMode === 'setup' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}><Settings className="w-3.5 h-3.5 inline mr-1.5" />Oppgaveoppsett</button>
-              <button onClick={() => { setViewMode('quality-check'); if (!analysisResult) handleRunAnalysis(); }} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${viewMode === 'quality-check' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}><Sparkles className="w-3.5 h-3.5 inline mr-1.5 text-amber-500" />Kvalitetssjekk</button>
+          <div className="px-4 sm:px-6 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+            <div className="flex items-center gap-1 p-1 bg-slate-200/60 rounded-xl shrink-0">
+              <button 
+                type="button"
+                onClick={() => setViewMode('editor')} 
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'editor' 
+                    ? 'bg-white text-indigo-600 shadow-2xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FileEdit className="w-3.5 h-3.5 inline mr-1.5" />
+                <span>Skriveflate</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => setViewMode('setup')} 
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'setup' 
+                    ? 'bg-white text-indigo-600 shadow-2xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5 inline mr-1.5" />
+                <span>Oppgaveoppsett</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => { setViewMode('quality-check'); if (!analysisResult) handleRunAnalysis(); }} 
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'quality-check' 
+                    ? 'bg-white text-indigo-600 shadow-2xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 inline mr-1.5 text-amber-500" />
+                <span>Kvalitetssjekk</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-500">
-              {/* SIKKERHET OG SYNKRONISERINGSINDIKATOR (PUNKT 5) */}
+            <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 flex-wrap">
+              {/* SIKKERHET OG SYNKRONISERINGSINDIKATOR (KOMPAKT & DEFORMASJONSFRI) */}
               <div 
                 onClick={() => setIsHistoryModalOpen(true)}
-                className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200/90 transition-all cursor-pointer select-none group"
-                title="Klikk for å se versjonshistorikk og gjenopprette tidligere utkast"
+                className="h-8 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 border border-slate-200/90 transition-all cursor-pointer select-none group shrink-0 whitespace-nowrap shadow-2xs"
+                title={`Lagret i skyen og lokal kopi OK (kl. ${lastCloudSyncTime || lastLocalSyncTime || 'nylig'}). Klikk for versjonshistorikk og gjenoppretting.`}
               >
                 {syncState === 'saving' ? (
                   <>
-                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span className="text-[11px] font-medium text-slate-700">
-                      Lagrer til skyen... · Lokal kopi OK
+                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    <span className="text-[11px] font-semibold text-amber-800 whitespace-nowrap">
+                      Lagrer...
                     </span>
                   </>
                 ) : !isOnline || syncState === 'offline' ? (
                   <>
-                    <div className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-[11px] font-semibold text-amber-800">
-                      Frakoblet nett · Lokal kopi sikret {lastLocalSyncTime ? `(kl. ${lastLocalSyncTime})` : ''}
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-[11px] font-semibold text-amber-800 whitespace-nowrap">
+                      Frakoblet (lokal OK)
                     </span>
                   </>
                 ) : (
                   <>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="text-[11px] font-medium text-slate-700">
-                      Lagret i skyen {lastCloudSyncTime ? `(kl. ${lastCloudSyncTime})` : (lastLocalSyncTime ? `(kl. ${lastLocalSyncTime})` : '')} · Lokal kopi OK
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 shadow-xs ring-2 ring-emerald-500/20" />
+                    <span className="text-[11px] font-semibold text-slate-700 whitespace-nowrap">
+                      Lagret {lastCloudSyncTime ? `kl. ${lastCloudSyncTime}` : (lastLocalSyncTime ? `kl. ${lastLocalSyncTime}` : '')}
                     </span>
                   </>
                 )}
 
-                <RotateCcw className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors ml-0.5" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span>{wordCount} / {activeDoc.targetWords || 1500} ord ({wordProgress}%)</span>
-                <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${wordProgress}%` }} /></div>
+                <RotateCcw className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors ml-0.5 shrink-0" />
               </div>
 
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+              {/* Ordteller & Fremdrift */}
+              <div className="h-8 inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white border border-slate-200/80 shrink-0 whitespace-nowrap shadow-2xs text-[11px] font-medium text-slate-600">
+                <span>{wordCount} / {activeDoc.targetWords || 1500} ord ({wordProgress}%)</span>
+                <div className="w-14 sm:w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                  <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${wordProgress}%` }} />
+                </div>
+              </div>
+
+              <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
               
+              {/* Eksport-pille */}
               <button 
                 type="button"
                 onClick={() => setIsExportModalOpen(true)}
-                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-700 hover:text-indigo-600 text-xs cursor-pointer"
+                className="h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-700 hover:text-indigo-600 text-xs cursor-pointer shrink-0 whitespace-nowrap"
                 title="Eksporter til Word (.docx) eller PDF (.pdf) med forside og innholdsfortegnelse"
               >
-                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <Download className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span>Eksporter</span>
               </button>
 
+              {/* Del til kollokvie-pille (Samme faste høyde, padding og utforming) */}
               <button 
                 type="button"
                 onClick={() => setIsShareModalOpen(true)}
-                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700 text-xs cursor-pointer"
+                className="h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-slate-700 hover:text-emerald-700 text-xs cursor-pointer shrink-0 whitespace-nowrap"
                 title="Del utkast til kollokviegruppe i Basen for hverandrevurdering eller felles RAG-kunnskapsbase"
               >
-                <Users className="w-3.5 h-3.5 text-emerald-600" />
+                <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Del til kollokvie</span>
               </button>
 
+              {/* Leselenke-pille */}
               <button 
                 type="button"
                 onClick={() => setIsPeerReviewShareModalOpen(true)}
-                className="px-3 py-1.5 font-bold rounded-lg transition-all shadow-2xs flex items-center gap-1.5 bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-slate-700 hover:text-purple-700 text-xs cursor-pointer relative"
+                className="h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs bg-white border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-slate-700 hover:text-purple-700 text-xs cursor-pointer shrink-0 whitespace-nowrap relative"
                 title="Generer og administrer leselenke for hverandrevurdering med margkommentarer"
               >
-                <Share2 className="w-3.5 h-3.5 text-purple-600" />
+                <Share2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <span>Leselenke</span>
                 {peerComments.length > 0 && (
                   <span className="px-1.5 py-0.2 bg-purple-100 text-purple-800 rounded-full text-[10px] font-bold">
@@ -1142,21 +1182,27 @@ ${activeDoc.content}`;
                 )}
               </button>
 
-              <div className="w-px h-6 bg-slate-200 mx-1" />
+              <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
               
+              {/* Vis / Skjul Superveileder-pille */}
               <button 
+                type="button"
                 onClick={() => {
                   setIsPanelOpen(!isPanelOpen);
                   if (!isPanelOpen && activePanelTab !== 'superveileder') setActivePanelTab('superveileder');
                 }} 
-                className={`px-3 py-1.5 font-semibold rounded-lg transition-all shadow-sm flex items-center gap-2 ${
+                className={`h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs text-xs shrink-0 whitespace-nowrap cursor-pointer ${
                   isPanelOpen 
-                    ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' 
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100/70' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                 }`}
+                title={isPanelOpen ? 'Skjul Superveileder' : 'Vis Superveileder'}
               >
-                {isPanelOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-                {isPanelOpen ? 'Skjul panel' : 'Vis Superveileder'}
+                <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isPanelOpen ? 'text-indigo-600' : 'text-white'}`} />
+                <span>{isPanelOpen ? 'Skjul veileder' : 'Vis Superveileder'}</span>
+                {isPanelOpen && (
+                  <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                )}
               </button>
             </div>
           </div>
@@ -1723,45 +1769,60 @@ ${activeDoc.content}`;
           )}
         </div>
 
-        {/* HØYRE SIDEPANEL */}
+        {/* HØYRE SIDEPANEL: SUPERVEILEDEREN */}
         {isPanelOpen && (
           <aside className="w-[420px] bg-white rounded-2xl border border-slate-200/80 shadow-sm flex flex-col flex-shrink-0 overflow-hidden animate-in slide-in-from-right-8 duration-300">
-            {/* Interne faner */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50">
-              <button 
-                onClick={() => setActivePanelTab('superveileder')}
-                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors ${
-                  activePanelTab === 'superveileder' 
-                    ? 'text-indigo-600 border-indigo-600 bg-white' 
-                    : 'text-slate-500 border-transparent hover:text-slate-700'
-                }`}
+            {/* Interne faner og lukkepil */}
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 pl-1 pr-2">
+              <div className="flex flex-1 min-w-0">
+                <button 
+                  type="button"
+                  onClick={() => setActivePanelTab('superveileder')}
+                  className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors truncate cursor-pointer ${
+                    activePanelTab === 'superveileder' 
+                      ? 'text-indigo-600 border-indigo-600 bg-white' 
+                      : 'text-slate-500 border-transparent hover:text-slate-700'
+                  }`}
+                >
+                  Superveilederen
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setActivePanelTab('prosesslogg')}
+                  className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors truncate cursor-pointer ${
+                    activePanelTab === 'prosesslogg' 
+                      ? 'text-indigo-600 border-indigo-600 bg-white' 
+                      : 'text-slate-500 border-transparent hover:text-slate-700'
+                  }`}
+                >
+                  Prosesslogg
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setActivePanelTab('respons')}
+                  className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors flex items-center justify-center gap-1 truncate cursor-pointer ${
+                    activePanelTab === 'respons' 
+                      ? 'text-purple-600 border-purple-600 bg-white' 
+                      : 'text-slate-500 border-transparent hover:text-slate-700'
+                  }`}
+                >
+                  <span>Respons</span>
+                  {peerComments.length > 0 && (
+                    <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">
+                      {peerComments.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Liten uttrekkspil-knapp i toppen av fanelinjen */}
+              <button
+                type="button"
+                onClick={() => setIsPanelOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 ml-1"
+                title="Skjul Superveilederen (Lukk uttrekksmeny)"
               >
-                Superveilederen
-              </button>
-              <button 
-                onClick={() => setActivePanelTab('prosesslogg')}
-                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors ${
-                  activePanelTab === 'prosesslogg' 
-                    ? 'text-indigo-600 border-indigo-600 bg-white' 
-                    : 'text-slate-500 border-transparent hover:text-slate-700'
-                }`}
-              >
-                Prosesslogg
-              </button>
-              <button 
-                onClick={() => setActivePanelTab('respons')}
-                className={`flex-1 py-3 px-2 text-xs font-semibold text-center border-b-2 transition-colors flex items-center justify-center gap-1 ${
-                  activePanelTab === 'respons' 
-                    ? 'text-purple-600 border-purple-600 bg-white' 
-                    : 'text-slate-500 border-transparent hover:text-slate-700'
-                }`}
-              >
-                <span>Respons</span>
-                {peerComments.length > 0 && (
-                  <span className="px-1.5 py-0.2 bg-purple-100 text-purple-700 rounded-full text-[10px] font-bold">
-                    {peerComments.length}
-                  </span>
-                )}
+                <ChevronRight className="w-5 h-5 text-slate-600" />
               </button>
             </div>
             

@@ -116,9 +116,17 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   throw lastError;
 }
 
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception thrown:", error);
+});
+
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Tillat kall fra eksterne klienter (som Firebase Hosting) til dette Cloud Run-backenhet
   app.use(cors());

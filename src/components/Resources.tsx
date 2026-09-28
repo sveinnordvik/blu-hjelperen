@@ -103,7 +103,7 @@ export function Resources({
     { id: 'files', title: 'Mitt Filarkiv', subtitle: 'Organiser dokumenter', icon: <Folder className="w-4 h-4" /> },
     { 
       id: 'field-notes-archive', 
-      title: 'Feltnotater & Kladdablokk', 
+      title: 'Feltnotater & Kladdeblokk', 
       subtitle: `${fieldNotes.length} notater fra felt & mobil`, 
       icon: <BookOpen className="w-4 h-4" /> 
     }
@@ -321,7 +321,7 @@ export function Resources({
                 </button>
               </div>
 
-              {/* Kladdablokk & Feltnotater integrasjonskort (Løsning 3) */}
+              {/* Kladdeblokk & Feltnotater integrasjonskort (Løsning 3) */}
               <div className="bg-gradient-to-r from-amber-50 via-emerald-50/50 to-amber-50/80 border border-amber-200/80 rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
                   <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
@@ -330,7 +330,7 @@ export function Resources({
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm sm:text-base font-black text-slate-900">
-                        Feltnotater & Kladdablokk
+                        Feltnotater & Kladdeblokk
                       </h3>
                       <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
                         {fieldNotes.length} notater
@@ -354,9 +354,9 @@ export function Resources({
                     <button
                       onClick={onNavigateToFieldNotes}
                       className="px-3 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                      title="Gå til Kladdablokk-verktøyet"
+                      title="Gå til Kladdeblokk-verktøyet"
                     >
-                      Kladdablokk
+                      Kladdeblokk
                     </button>
                   )}
                 </div>
@@ -409,7 +409,7 @@ export function Resources({
             </div>
           )}
 
-          {/* VISNING 3: FELTNOTATER & KLADDABLOKK ARKIV (Løsning 3) */}
+          {/* VISNING 3: FELTNOTATER & KLADDEBLOKK ARKIV (Løsning 3) */}
           {activeMenu === 'field-notes-archive' && (
             <div className="space-y-6 pb-12">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -422,7 +422,7 @@ export function Resources({
                       Synkronisert på mobil & desktop
                     </span>
                   </div>
-                  <h2 className="text-2xl font-black text-slate-800 mt-1">Feltnotater & Kladdablokk</h2>
+                  <h2 className="text-2xl font-black text-slate-800 mt-1">Feltnotater & Kladdeblokk</h2>
                   <p className="text-slate-500 text-sm mt-0.5">
                     Se, søk i, kopier og administrer alle notater registrert under praksis og feltarbeid.
                   </p>
@@ -442,7 +442,7 @@ export function Resources({
                       onClick={onNavigateToFieldNotes}
                       className="px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
-                      <span>Åpne Kladdablokk</span>
+                      <span>Åpne Kladdeblokk</span>
                       <ExternalLink className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -588,7 +588,7 @@ export function Resources({
                     <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
                       {notesSearchQuery || selectedNoteCategory !== 'Alle'
                         ? 'Prøv et annet søkeord eller endre kategorifilteret.'
-                        : 'Opprett et notat via «Nytt notat her» over eller fra Kladdablokk i mobilvisning.'}
+                        : 'Opprett et notat via «Nytt notat her» over eller fra Kladdeblokk i mobilvisning.'}
                     </p>
                   </div>
                 ) : (

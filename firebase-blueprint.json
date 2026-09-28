@@ -455,9 +455,40 @@
         "title",
         "content"
       ]
+    },
+    "Presentation": {
+      "title": "Presentation",
+      "description": "User presentations with slides, theme and script",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "sourceText": { "type": "string" },
+        "targetAudience": { "type": "string" },
+        "slideCountOption": { "type": "string" },
+        "folderId": { "type": "string" },
+        "slides": { "type": "array" },
+        "themeId": { "type": "string" },
+        "globalBackground": { "type": "string" },
+        "globalDim": { "type": "number" },
+        "globalBlur": { "type": "boolean" },
+        "brandingSettings": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "title"
+      ]
     }
   },
   "firestore": {
+    "/presentations/{presId}": {
+      "schema": "Presentation",
+      "description": "User presentations with slides and speaker notes"
+    },
     "/shared_reviews/{reviewId}": {
       "schema": "SharedReview",
       "description": "Shared peer review documents and margin comments"

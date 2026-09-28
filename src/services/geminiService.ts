@@ -2128,19 +2128,141 @@ REGLER:
   };
 }
 
+export type SlideLayout = 'title' | 'bullets' | 'two-column' | 'quote' | 'highlight';
+
 export interface PresentationSlide {
   slide: number;
   title: string;
   bullets: string[];
   script: string;
+  layout?: SlideLayout;
+  subtitle?: string;
+  quoteAuthor?: string;
+  bulletsRight?: string[];
+  highlightText?: string;
+  backgroundImage?: string;
+  backgroundDim?: number;
+  backgroundBlur?: boolean;
+}
+
+export interface CuratedSlideBackground {
+  id: string;
+  name: string;
+  category: 'natur' | 'pedagogikk' | 'kreativitet' | 'minimalistisk';
+  url: string;
+  description: string;
+}
+
+export const CURATED_SLIDE_BACKGROUNDS: CuratedSlideBackground[] = [
+  {
+    id: 'skog-natur',
+    name: 'Nordisk skog & mose',
+    category: 'natur',
+    url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80',
+    description: 'Frodig furu- og granskog med naturlig mose, ideell for uteliv og naturfag'
+  },
+  {
+    id: 'utelek-blader',
+    name: 'Høstskog & sansing',
+    category: 'natur',
+    url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=80',
+    description: 'Rolig kyst- og naturlandskap med naturlig lys'
+  },
+  {
+    id: 'vinter-leirbal',
+    name: 'Vinter & bålplass',
+    category: 'natur',
+    url: 'https://images.unsplash.com/photo-1482867996988-29ec3a0f1aac?auto=format&fit=crop&w=1920&q=80',
+    description: 'Stemningsfull bålvarme og lunt vinterlandskap'
+  },
+  {
+    id: 'boker-sprak',
+    name: 'Bøker, språk & eventyr',
+    category: 'pedagogikk',
+    url: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1920&q=80',
+    description: 'Lune bøker og lesekrok for språklig fordypning'
+  },
+  {
+    id: 'treleker-klosser',
+    name: 'Lek & byggeklosser',
+    category: 'pedagogikk',
+    url: 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?auto=format&fit=crop&w=1920&q=80',
+    description: 'Klassiske naturlige treklosser for konstruksjonslek'
+  },
+  {
+    id: 'lyst-barnehagerom',
+    name: 'Rommet som 3. pedagog',
+    category: 'pedagogikk',
+    url: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1920&q=80',
+    description: 'Lyst, estetisk rom med rene treflater og nordisk arkitektur'
+  },
+  {
+    id: 'kunst-leire',
+    name: 'Kreativt verksted & kunst',
+    category: 'kreativitet',
+    url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=1920&q=80',
+    description: 'Akvarell, farger og skapende prosesser'
+  },
+  {
+    id: 'akvarell-abstrakt',
+    name: 'Dempet akvarell-tekstur',
+    category: 'minimalistisk',
+    url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1920&q=80',
+    description: 'Myke pastelloverganger for rolig lesbarhet og fokus'
+  }
+];
+
+/**
+ * Genererer et KI-basert bakgrunnsbilde tilpasset presentasjonens pedagogiske tema
+ */
+export async function generateSlideBackgroundImage(topic: string): Promise<string> {
+  const prompt = `A tasteful, subtle, minimalist and artistic background wallpaper for an academic slide presentation in a Norwegian early childhood kindergarten education (barnehagelærer) context about: ${topic}. Soft diffused Nordic natural light, uncluttered center, gentle watercolor and subtle texture, muted earth or pastel tones, peaceful atmosphere, horizontal 16:9 widescreen composition without any text, letters, typography or human faces.`;
+
+  try {
+    const res = await fetch('/api/gemini/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, aspectRatio: '16:9' })
+    });
+    const data = await res.json();
+    if (data?.imageUrl) {
+      return data.imageUrl;
+    }
+  } catch (err) {
+    console.warn("Kunne ikke kalle /api/gemini/generate-image for lysbildebakgrunn:", err);
+  }
+
+  // Velg kuratert bakgrunn ved feil eller manglende bilde-respons
+  const t = topic.toLowerCase();
+  if (t.includes('skog') || t.includes('tur') || t.includes('natur') || t.includes('ute')) {
+    return CURATED_SLIDE_BACKGROUNDS[0].url;
+  }
+  if (t.includes('bok') || t.includes('språk') || t.includes('tekst') || t.includes('eventyr')) {
+    return CURATED_SLIDE_BACKGROUNDS[3].url;
+  }
+  if (t.includes('lek') || t.includes('bygg') || t.includes('samspill')) {
+    return CURATED_SLIDE_BACKGROUNDS[4].url;
+  }
+  if (t.includes('kunst') || t.includes('farge') || t.includes('tegne') || t.includes('kreativ')) {
+    return CURATED_SLIDE_BACKGROUNDS[6].url;
+  }
+  return CURATED_SLIDE_BACKGROUNDS[7].url;
 }
 
 /**
  * Generer strukturert presentasjon med talemanus for muntlig eksamen eller fremføring
  */
 export async function generatePresentationOutline(documentText: string): Promise<PresentationSlide[]> {
-  const systemInstruction = `Du er en ekspert på akademiske presentasjoner for barnehagelærerutdanningen.
-Oppgave: Lag en strukturert presentasjon (5-7 lysbilder) basert på teksten brukeren oppgir.
+  const systemInstruction = `Du er en ekspert på akademiske presentasjoner for barnehagelærerutdanningen (BLU).
+Oppgave: Lag en strukturert, visuelt tiltalende presentasjon (vanligvis 5-10 lysbilder) basert på teksten brukeren oppgir.
+
+Tilpass layouten på lysbildene variert og hensiktsmessig:
+- Slide 1 bør alltid ha "layout": "title" med en sterk "title" og gjerne en kort pedagogisk "subtitle".
+- Standard innholdsslides har "layout": "bullets" (3-4 konkrete, velformulerte kulepunkter).
+- Drøftinger, sammenligninger eller empiri vs teori kan bruke "layout": "two-column" med "bullets" for venstre kolonne og "bulletsRight" for høyre kolonne.
+- Viktige pedagogiske sitater (f.eks. fra Rammeplanen, Berit Bae, Vygotskij el.l.) bør bruke "layout": "quote" med sitatet i "highlightText" og opphav i "quoteAuthor".
+- Nøkkelkonklusjoner eller didaktiske kjernebegrep kan bruke "layout": "highlight" med kjernebudskapet i "highlightText".
+- For hvert lysbilde MÅ du skrive et fyldig, naturlig muntlig talemanus i "script" (hva studenten skal si høyt under fremføringen).
 
 VIKTIG: Du MÅ returnere svaret KUN som et gyldig JSON-array. Ingen markdown-blokker rundt, ingen ekstra tekst.
 Format:
@@ -2148,6 +2270,8 @@ Format:
   {
     "slide": 1,
     "title": "Tittel på lysbildet",
+    "subtitle": "Kort undertittel eller pedagogisk kontekst",
+    "layout": "title",
     "bullets": [
       "Stikkord 1",
       "Stikkord 2"
