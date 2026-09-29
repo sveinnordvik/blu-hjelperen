@@ -25,6 +25,30 @@ export default defineConfig(({mode}) => {
       outDir: 'dist',
       emptyOutDir: true,
       sourcemap: false,
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('docx') || id.includes('pptxgenjs') || id.includes('jspdf') || id.includes('html2canvas')) {
+                return 'vendor-export-tools';
+              }
+              if (id.includes('pdfjs-dist')) {
+                return 'vendor-pdf';
+              }
+              if (id.includes('firebase')) {
+                return 'vendor-firebase';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('react-dom') || id.includes('react/') || id.includes('framer-motion')) {
+                return 'vendor-react-core';
+              }
+            }
+          }
+        }
+      }
     },
   };
 });

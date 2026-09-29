@@ -159,11 +159,18 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         if (!docSnapshot.empty) {
           const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DocumentItem));
           fetchedDocs.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-          setDocuments(fetchedDocs);
-          setActiveDocId(fetchedDocs[0].id);
+          const savedActiveId = localStorage.getItem('blu_active_document_id');
+          const targetExists = savedActiveId && fetchedDocs.some(d => d.id === savedActiveId);
+          if (targetExists) {
+            setActiveDocId(savedActiveId);
+          } else {
+            setActiveDocId(fetchedDocs[0].id);
+          }
         } else {
+          const savedActiveId = localStorage.getItem('blu_active_document_id');
+          const targetExists = savedActiveId && INITIAL_DOCUMENTS.some(d => d.id === savedActiveId);
           setDocuments(INITIAL_DOCUMENTS);
-          setActiveDocId(INITIAL_DOCUMENTS[0].id);
+          setActiveDocId(targetExists ? savedActiveId : INITIAL_DOCUMENTS[0].id);
         }
 
         // Hent mapper

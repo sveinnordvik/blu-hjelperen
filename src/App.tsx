@@ -6261,12 +6261,30 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'kildebank' && (
-            <Resources key="kildebank" collegeName={profile.college || 'DMMH'} initialMenu="sources" />
+            <Resources 
+              key="kildebank" 
+              collegeName={profile.college || 'DMMH'} 
+              initialMenu="sources" 
+              onNavigateToWorkshop={(targetDocId) => {
+                if (targetDocId) {
+                  localStorage.setItem('blu_active_document_id', targetDocId);
+                }
+                setActiveTab('writing-workshop');
+              }}
+            />
           )}
 
           {activeTab === 'kildebank-writing' && (
             <div className="flex-1 flex flex-col bg-slate-50 min-h-screen">
-              <KildebankView onNavigateToWorkshop={() => setActiveTab('writing-workshop')} standalone={true} />
+              <KildebankView 
+                onNavigateToWorkshop={(targetDocId) => {
+                  if (targetDocId) {
+                    localStorage.setItem('blu_active_document_id', targetDocId);
+                  }
+                  setActiveTab('writing-workshop');
+                }} 
+                standalone={true} 
+              />
             </div>
           )}
 
@@ -6424,7 +6442,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               title="Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.4.1
+              v3.4.3
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

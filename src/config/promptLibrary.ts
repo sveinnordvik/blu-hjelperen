@@ -430,6 +430,32 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.4.3',
+    date: '2026-09-29',
+    title: 'Oppgradering til versjon 3.4.3: Kildebank-avhuking og smart oppgaveoverføring',
+    changes: [
+      'Kildebank (APA 7): Avhukingsbokser (multi-select) på alle kildekort for hurtigutvalg av pensum og egne kilder.',
+      'Overfør til oppgave: Ny dialogboks for direkte overføring av utvalgte kilder til enhver oppgave, organisert etter mapper.',
+      'Automatisk APA 7-fletting: Fletter kilder sømløst inn under # Litteraturliste, fjerner duplikater og sorterer alfabetisk.',
+      'Flytende handlingslinje: Elegant hurtigmeny nederst på skjermen for ett-klikks kopiering eller overføring av merkede kilder.',
+      'Direkte oppgaveåpning: Hurtigknapp for å åpne den oppdaterte oppgaven direkte i Skriveverkstedet etter overføring.',
+      'Pensum-RAG forklaring: Pedagogisk forklaring av RAG (Retrieval-Augmented Generation) integrert i Superveileder-kortet på Hjem-fanen.'
+    ]
+  },
+  {
+    version: 'v3.4.2',
+    date: '2026-09-29',
+    title: 'Oppgradering til versjon 3.4.2: Permanent veiledningslagring og ytelsesoptimalisering',
+    changes: [
+      'Superveilederen: Permanent lagring av veiledningssamtaler i sanntid mot Firestore og lokal hurtigbuffer.',
+      'Kontekstsensitiv samtale: Samtalene er primært knyttet til den aktive mappen dokumentet ligger i (f.eks. BLU5003), sekundært oppgaven for løse filer.',
+      'Prosesslogg i sidepanel: Prosesslogger knyttes automatisk til aktiv mappe/oppgave og vises i en oversiktlig historikk under skjemaet.',
+      'Hurtiginnsetting av prosesslogger: Tidligere didaktiske refleksjoner kan flettes rett inn i oppgaveteksten med ett klikk.',
+      'Respons i margen: Viser tydelig tilknytning til mappe og oppgave med sanntidsoppdatering av medstudent-innspill.',
+      'Ytelse og oppstartshastighet: Modulær kodeoppdeling (code-splitting) av tunge eksport- og PDF-biblioteker for lynrask innlastning på alle enheter.'
+    ]
+  },
+  {
     version: 'v3.4.1',
     date: '2026-09-29',
     title: 'Oppgradering til versjon 3.4.1: Kildebank (APA 7) og Notat-oppgavetype',

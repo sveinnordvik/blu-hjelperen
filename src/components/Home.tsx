@@ -213,9 +213,14 @@ export const Home: React.FC<HomeProps> = ({
                   <Sparkles className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">Superveilederen</h2>
+                  <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 flex-wrap">
+                    <span>Superveilederen</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+                      KI-veiledning
+                    </span>
+                  </h2>
                   <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                    Din smarte assistent for oppgaveskriving. Få hjelp med RAG-oppslag i pensum, automatisk APA-referering, og sokratisk refleksjon.
+                    Din smarte assistent for oppgaveskriving. Få hjelp med <strong>RAG-oppslag</strong> (<em>Retrieval-Augmented Generation</em> – der KI-en søker og henter presise fakta direkte fra dine opplastede pensumtekster og rammeplanen), automatisk APA-referering, og sokratisk refleksjon.
                   </p>
                 </div>
               </div>

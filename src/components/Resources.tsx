@@ -68,6 +68,7 @@ export interface ResourcesProps {
   collegeName?: string;
   initialMenu?: 'library' | 'files' | 'field-notes-archive' | 'sources' | 'kildebank' | string;
   onNavigateToFieldNotes?: () => void;
+  onNavigateToWorkshop?: (targetDocId?: string) => void;
 }
 
 export interface ArchiveFile {
@@ -1884,7 +1885,10 @@ export function Resources({
             {/* VISNING 4: KILDEBANK & APA 7 */}
             {activeMenu === 'sources' && (
               <div className="pb-12">
-                <KildebankView standalone={false} />
+                <KildebankView 
+                  standalone={false} 
+                  onNavigateToWorkshop={onNavigateToWorkshop}
+                />
               </div>
             )}
 
