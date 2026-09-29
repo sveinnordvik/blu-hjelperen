@@ -2393,3 +2393,167 @@ Vær oppmuntrende, pedagogisk forankret og skriv på presist norsk. Gi konkret v
 };
 
 
+
+
+export interface EmpiricalAnalysisParams {
+  rawText: string;
+  taskContext: string;
+  customTaskContext?: string;
+  selectedLens: string;
+  researchQuestion?: string;
+}
+
+export interface EmpiricalAnalysisResult {
+  overview: string;
+  keyThemes: Array<{
+    title: string;
+    description: string;
+    quoteOrExample: string;
+  }>;
+  rammeplanDiscussion: {
+    relevantSections: string[];
+    analysis: string;
+  };
+  theoreticalDiscussion: {
+    theorists: string[];
+    analysis: string;
+  };
+  methodologicalReflection: string;
+  suggestedChapterDraft: string;
+}
+
+/**
+ * Utfører dyp empirisk analyse og drøfting av transkriberte intervjuer eller observasjoner
+ * forankret i Rammeplanen for barnehagen og barnehagepedagogisk teori.
+ */
+export async function analyzeEmpiricalData(params: EmpiricalAnalysisParams): Promise<EmpiricalAnalysisResult> {
+  const { rawText, taskContext, customTaskContext, selectedLens, researchQuestion } = params;
+
+  const goalDescription = taskContext === 'custom' 
+    ? (customTaskContext || 'Egendefinert oppgaveform')
+    : taskContext === 'bachelor'
+    ? 'Bacheloroppgave i barnehagelærerutdanningen (Empirisk analyse & drøfting)'
+    : taskContext === 'praksis'
+    ? 'Praksisfortelling & Refleksjonsnotat'
+    : taskContext === 'fou'
+    ? 'FoU-oppgave / Fordypningsoppgave'
+    : 'Forberedelse til muntlig eksamen';
+
+  const lensDescription = selectedLens === 'rammeplan'
+    ? 'Primærvekt på Rammeplanens verdigrunnlag, formål og de 7 fagområdene'
+    : selectedLens === 'theory'
+    ? 'Primærvekt på pedagogiske teoretikere (Berit Bae, Lev Vygotskij, Dion Sommer, Gunvor Løkken, Loris Malaguzzi m.fl.)'
+    : selectedLens === 'method'
+    ? 'Primærvekt på metodisk refleksjon, forskerrolle, reliabilitet, validitet og etisk skjønn (NESH)'
+    : 'Primærvekt på Didaktisk relasjonsmodell (DDRM: mål, innhold, rammefaktorer, barnas forutsetninger)';
+
+  const prompt = `Du er en sensor og veileder i barnehagepedagogikk ved en norsk barnehagelærerutdanning (BLU).
+Du har mottatt en avidentifisert/anonymisert empirisk tekst (intervjutranskripsjon fra Sikt eller feltobservasjon).
+
+KONTEKST FOR ANALYSEN:
+- Mål/oppgaveform: ${goalDescription}
+- Teoretisk analyselinse: ${lensDescription}
+- Studentens problemstilling/fokus: ${researchQuestion ? researchQuestion : 'Ikke oppgitt (utled et faglig relevant fokus basert på empirien)'}
+
+EMPIRISK DATAGRUNNLAG:
+"""
+${rawText.substring(0, 30000)}
+"""
+
+OPPGAVE:
+Utfør en grundig akademisk analyse og drøfting av empirien. Følg disse faglige prinsippene:
+1. Rød tråd & Funn: Trekk ut 2-4 sentrale empiriske temaer som belyser barnehagelærerens profesjonsutøvelse, barns medvirkning, lek eller omsorg.
+2. Rammeplan-forankring: Drøft funnene eksplisitt opp mot relevante kapitler i Forskrift om rammeplan for barnehagens innhold og oppgaver (Kunnskapsdepartementet, 2017). Vis til spesifikke føringer.
+3. Teoretisk drøfting: Løft empirien til et analytisk nivå ved å drøfte den i lys av anerkjente pedagogiske teoretikere (f.eks. Berit Bae om anerkjennende relasjoner, Vygotskij om sosiokulturell læring og medierende artefakter, Løkken om kroppslig samhandling, osv.).
+4. Metodisk refleksjon: Gjør en kort vurdering av empiriens metodiske styrker og begrensninger, observatør/intervjuerrollen, og overholdelse av forskningsetikk (NESH).
+5. Velskrevet kapittelutkast: Forfatt et sammenhengende, velskrevet akademisk utkast (ca. 400-600 ord) i formelt akademisk bokmål med korrekte litteraturhenvisninger (f.eks. Bae, 2018; Kunnskapsdepartementet, 2017) som studenten kan bearbeide og integrere i sitt analyse- eller drøftingskapittel.
+
+Svar i strukturert JSON i henhold til angitt skjema.`;
+
+  try {
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: "Du er en sensor og veileder i barnehagepedagogikk. Svar alltid på presist norsk med høy faglig tyngde og korrekte kildehenvisninger.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            overview: {
+              type: Type.STRING,
+              description: "Overordnet sammendrag og analytisk syntese av empirien (2-3 avsnitt)"
+            },
+            keyThemes: {
+              type: Type.ARRAY,
+              description: "2-4 sentrale empiriske temaer eller kategorier identifisert i datamaterialet",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING, description: "Temaets tittel (f.eks. 'Ikke-verbal etablering av felles fokus')" },
+                  description: { type: Type.STRING, description: "Analytisk beskrivelse av hva dette temaet viser" },
+                  quoteOrExample: { type: Type.STRING, description: "Kort sitat eller konkret observasjonseksempel fra teksten" }
+                },
+                required: ["title", "description", "quoteOrExample"]
+              }
+            },
+            rammeplanDiscussion: {
+              type: Type.OBJECT,
+              description: "Drøfting mot Rammeplanen for barnehagen",
+              properties: {
+                relevantSections: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Relevante kapitler og deler i Rammeplanen (f.eks. 'Kap. 1: Barns medvirkning', 'Kap. 3: Livsmestring og helse')"
+                },
+                analysis: {
+                  type: Type.STRING,
+                  description: "Detaljert drøfting av hvordan empirien harmonerer med eller utfordrer Rammeplanens intensjoner"
+                }
+              },
+              required: ["relevantSections", "analysis"]
+            },
+            theoreticalDiscussion: {
+              type: Type.OBJECT,
+              description: "Pedagogisk teoridrøfting",
+              properties: {
+                theorists: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Navn på aktuelle teoretikere og begreper (f.eks. 'Berit Bae (Anerkjennende relasjoner)', 'Lev Vygotskij (ZPD/støttende stillas)')"
+                },
+                analysis: {
+                  type: Type.STRING,
+                  description: "Drøfting der empirien analyseres gjennom teoretiske begreper"
+                }
+              },
+              required: ["theorists", "analysis"]
+            },
+            methodologicalReflection: {
+              type: Type.STRING,
+              description: "Metodisk refleksjon: Datamaterialets styrker/svakheter, observatør/forskerrolle, reliabilitet og NESH-etikk"
+            },
+            suggestedChapterDraft: {
+              type: Type.STRING,
+              description: "Et ferdig sammenhengende utkast til analyse- og drøftingskapittel (ca. 400-600 ord) med korrekte litteraturhenvisninger."
+            }
+          },
+          required: [
+            "overview",
+            "keyThemes",
+            "rammeplanDiscussion",
+            "theoreticalDiscussion",
+            "methodologicalReflection",
+            "suggestedChapterDraft"
+          ]
+        }
+      }
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    return parsed as EmpiricalAnalysisResult;
+  } catch (error: any) {
+    console.error("Feil under analyzeEmpiricalData:", error);
+    throw error;
+  }
+}

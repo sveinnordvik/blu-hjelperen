@@ -729,13 +729,20 @@ Vær naturtro, faglig utfordrende og svar konsist i rollen (2-4 setninger).`;
                         e.preventDefault();
                         handleSend();
                       }}
-                      className="flex gap-2"
+                      className="flex gap-2 items-end"
                     >
-                      <input
+                      <textarea
+                        rows={3}
                         value={userInput}
                         onChange={(e) => setUserInput(e.target.value)}
-                        placeholder="Ditt faglige svar i rollen (trykk Enter for å sende)..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            handleSend();
+                          }
+                        }}
+                        placeholder="Ditt faglige svar i rollen (f.eks. Ctrl+Enter for å sende)..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium resize-none leading-relaxed custom-scrollbar"
                       />
                       <button
                         type="submit"

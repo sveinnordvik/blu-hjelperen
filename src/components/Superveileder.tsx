@@ -1666,13 +1666,20 @@ export function Superveileder({
                   </button>
                 </div>
               )}
-              <input 
-                type="text"
+              <textarea 
+                rows={3}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    const form = e.currentTarget.form;
+                    if (form) form.requestSubmit();
+                  }
+                }}
                 placeholder={isFelt ? "Beskriv en situasjon eller observasjon fra barnehagen for praksisveiledning..." : "Beskriv en situasjon fra barnehagen for sokratisk sparring..."}
                 disabled={isLoading}
-                className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-800 placeholder:text-slate-400 min-h-[40px] px-2"
+                className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-800 placeholder:text-slate-400 py-2.5 px-2 resize-none leading-relaxed custom-scrollbar"
               />
               <button
                 type="submit"

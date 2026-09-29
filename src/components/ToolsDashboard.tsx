@@ -14,7 +14,8 @@ import {
   CreditCard,
   AlertTriangle,
   ArrowLeft,
-  Library
+  Library,
+  Mic
 } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
 import { isUnlimitedUser, STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL } from '../config/accessConfig';
@@ -413,6 +414,51 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                 className="w-full py-3.5 px-5 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Åpne oppslagsverk</span>
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </div>
+          </div>
+
+          {/* KORT 6: Empiri- og Intervjuanalyse */}
+          <div 
+            id="tool-card-empirical-analysis"
+            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                  <Mic className="w-3.5 h-3.5" /> Sikt & GDPR-veiledet
+                </span>
+              </div>
+
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors">
+                Empiri- og Intervjuanalyse
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                Sikker håndtering av praksisdata, intervjuer og observasjoner. Veiledning for opptak via Sikts Nettskjema, anonymiseringssjekk, og drøfting mot Rammeplanen.
+              </p>
+
+              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Sikt Nettskjema-guide: Lovlig opptak og transkripsjon</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Pedagogisk drøfting: Koble empiri til Rammeplan & teori</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => onSelectTool('empirical-analysis')}
+                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+              >
+                <span>Åpne empiri- og intervjuanalyse</span>
                 <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>

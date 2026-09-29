@@ -304,6 +304,12 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [groupNotice, setGroupNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showNotice = (message: string, type: 'success' | 'error' = 'success') => {
+    setGroupNotice({ message, type });
+    setTimeout(() => setGroupNotice(null), 4000);
+  };
 
   // Chat input
   const [groupInput, setGroupInput] = useState('');
@@ -395,11 +401,11 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
 
   const handleNewGroup = () => {
     if (pricingTier === 'free') {
-      alert('Gratisbrukere kan delta i eksisterende grupper via invitasjonslenke. Oppgrader for å opprette egne grupper.');
+      showNotice('Gratisbrukere kan delta i eksisterende grupper via invitasjonslenke. Oppgrader for å opprette egne grupper.', 'error');
       if (setParentActiveTab) setParentActiveTab('pricing');
       return;
     } else if (pricingTier === 'monthly' && groups.filter(g => !g.isDemo).length >= 1) {
-      alert('Månedspakken inkluderer 1 aktiv gruppe. Oppgrader til Semester-pakka for ubegrenset antall grupper.');
+      showNotice('Månedspakken inkluderer 1 aktiv gruppe. Oppgrader til Semester-pakka for ubegrenset antall grupper.', 'error');
       if (setParentActiveTab) setParentActiveTab('pricing');
       return;
     }
@@ -648,7 +654,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
       if (newEvents.length > 0) {
         updateActiveGroup({ events: [...(activeGroup.events || []), ...newEvents] });
         setCalendarLinkInput('');
-        alert(`Importerte ${newEvents.length} hendelser med hell!`);
+        showNotice(`Importerte ${newEvents.length} hendelser med hell!`, 'success');
       } else {
         throw new Error('Fant ingen gyldige hendelser i kalenderen.');
       }
@@ -887,6 +893,25 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
             {/* ARBEIDSFLATER (Selve innholdet byttes ut basert på aktiv tab) */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50 custom-scrollbar">
               <div className="max-w-6xl mx-auto">
+                <AnimatePresence>
+                  {groupNotice && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`mb-6 p-4 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-xs ${
+                        groupNotice.type === 'error'
+                          ? 'bg-rose-50 border border-rose-200 text-rose-800'
+                          : 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      }`}
+                    >
+                      <span>{groupNotice.message}</span>
+                      <button onClick={() => setGroupNotice(null)} className="p-1 hover:opacity-70">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 
                 {/* VISNING: OVERSIKT */}
                 {activeTab === 'oversikt' && (
@@ -1100,14 +1125,19 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                         ))
                       )}
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <input 
-                        type="text" 
+                    <div className="flex gap-2 shrink-0 items-end">
+                      <textarea 
+                        rows={3}
                         value={groupInput}
                         onChange={(e) => setGroupInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendGroupMessage()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            handleSendGroupMessage();
+                          }
+                        }}
                         placeholder="Skriv en melding til gruppen..."
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none leading-relaxed custom-scrollbar"
                       />
                       <button 
                         onClick={handleSendGroupMessage}
@@ -1150,7 +1180,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                           files: [newFile, ...activeGroup.files],
                           activity: [{ id: Date.now().toString(), user: user?.displayName || 'Meg', action: 'lagret et notat i arkivet', time: 'Akkurat nå' }, ...activeGroup.activity]
                         });
-                        alert(`Notatet ble lagret i filarkivet som "${filename}"`);
+                        showNotice(`Notatet ble lagret i filarkivet som "${filename}"`, 'success');
                       }}
                     />
                   </div>

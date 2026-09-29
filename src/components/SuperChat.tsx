@@ -382,16 +382,21 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
         <div className="relative flex items-end gap-2">
           <div className="relative flex-1">
             <textarea
+              rows={3}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder={
                 selectedMode === 'SOKRATISK'
                   ? "Del en situasjon fra praksis eller et dilemma du vil reflektere over..."
                   : "Hvordan kan jeg hjelpe deg med studiene i dag?"
               }
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none min-h-[56px] max-h-[120px]"
-              rows={1}
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white resize-none min-h-[80px] leading-relaxed custom-scrollbar"
             />
             <div 
               className="absolute right-3 bottom-3 text-slate-400 hover:text-blue-600 transition-colors cursor-help"

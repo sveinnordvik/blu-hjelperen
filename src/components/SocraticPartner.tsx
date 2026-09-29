@@ -98,11 +98,17 @@ export function SocraticPartner({ user, didacticProfile }: SocraticPartnerProps)
         <div className="relative flex items-end gap-2">
           <div className="relative flex-1">
             <textarea
+              rows={3}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Skriv eller bruk systemets diktering..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none min-h-[60px]"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none min-h-[80px] leading-relaxed custom-scrollbar"
             />
             <div 
               className="absolute right-3 bottom-3 text-slate-400 hover:text-primary transition-colors cursor-help"

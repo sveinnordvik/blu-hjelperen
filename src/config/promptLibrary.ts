@@ -430,6 +430,29 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.4.0',
+    date: '2026-09-29',
+    title: 'Oppgradering til versjon 3.4.0',
+    changes: [
+      'Presis 16:9 HD Widescreen PowerPoint-eksport motor (.pptx) med garantert rammepassform, automatisk tekstskalering og talemanus som foredragsholdernotater.',
+      'Ny utskrifts- og PDF-generator for presentasjoner med tilpasset A4-oppsett for lysbilder, stikkord og muntlige manus.',
+      'Direkte «Kopier all tekst og manus»-funksjon med umiddelbar bekreftelse og ren tekststrukturering.',
+      'Ytelses- og stabilitetsoppdatering i Skriveverkstedet for visuell (WYSIWYG) og ren tekstredigering uten re-render-feil.',
+      'Renset mobilvisning i verktøydashboardet for optimalisert bruk på smarttelefoner og nettbrett.'
+    ]
+  },
+  {
+    version: 'v3.3.0',
+    date: '2026-09-28',
+    title: 'Oppgradering til versjon 3.3.0',
+    changes: [
+      'Fullstendig eliminering av avbrytende nettleservarsler (popups) til fordel for sømløse in-app bannere og feedback-meldinger.',
+      'Ferdigbygde barnehagepedagogiske flashcards-kortstokker for rask eksamensøving (Rammeplan, sentrale teoretikere, didaktikk og metode).',
+      'Forbedret kildeformatering med hurtigeksempler for barnehageloven, rammeplanen og andre hyppig brukte Udir-kilder.',
+      'Bedre feilhåndtering ved stor pågang på skriveassistenten.'
+    ]
+  },
+  {
     version: 'v3.2.0',
     date: '2026-09-25',
     title: 'Oppgradering til versjon 3.2.0',

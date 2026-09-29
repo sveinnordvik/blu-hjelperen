@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { WorkspaceLayout, HistoryItem } from './WorkspaceLayout';
 import { 
   Library, 
@@ -264,56 +265,108 @@ Strukturer svaret ryddig og akademisk:
                 </div>
               </div>
 
+              {/* Kontroller for å utvide/kollapse alle */}
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs text-slate-500 font-medium">
+                  Viser {filteredDictionary.length} {filteredDictionary.length === 1 ? 'begrep' : 'begreper'}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => expandAll(filteredDictionary.map(item => item.term))}
+                    className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    Utvid alle
+                  </button>
+                  <button
+                    onClick={collapseAll}
+                    className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    Kollaps alle
+                  </button>
+                </div>
+              </div>
+
               {/* Grid over begreper */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredDictionary.map((item, idx) => (
-                  <div 
-                    key={`${item.term}-${idx}`} 
-                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-primary/40 hover:shadow-md transition-all flex flex-col justify-between group relative"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <h3 className="font-bold text-lg text-slate-800 group-hover:text-primary transition-colors">
-                          {item.term}
-                        </h3>
-                        {item.category && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                            {item.category}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        {item.desc}
-                      </p>
-                      {item.example && (
-                        <div className="mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 italic">
-                          <span className="font-semibold text-slate-600 not-italic">Eksempel: </span>
-                          {item.example}
+                {filteredDictionary.map((item, idx) => {
+                  const isExpanded = expandedTerms.has(item.term);
+                  return (
+                    <div 
+                      key={`${item.term}-${idx}`} 
+                      onClick={() => toggleTerm(item.term)}
+                      className={`bg-white p-5 rounded-2xl shadow-sm border transition-all flex flex-col justify-between group relative cursor-pointer select-none ${
+                        isExpanded ? 'border-primary/40 ring-1 ring-primary/10 shadow-xs' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4 text-primary shrink-0 transition-transform" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-primary shrink-0 transition-transform" />
+                            )}
+                            <h3 className="font-bold text-base text-slate-800 group-hover:text-primary transition-colors truncate">
+                              {item.term}
+                            </h3>
+                          </div>
+                          {item.category && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 shrink-0">
+                              {item.category}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
-                      <button
-                        onClick={() => handleCopy(item.term, item.desc)}
-                        className="text-xs font-semibold text-slate-400 hover:text-slate-700 flex items-center gap-1.5 transition-colors"
-                        title="Kopier definisjon"
-                      >
-                        {copiedTerm === item.term ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span className="text-emerald-600">Kopiert!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Kopier</span>
-                          </>
-                        )}
-                      </button>
+                        {/* Ekspanderbart innhold */}
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden mt-3"
+                              onClick={(e) => e.stopPropagation()} // Hindre lukking ved klikk på teksten
+                            >
+                              <p className="text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
+                                {item.desc}
+                              </p>
+                              {item.example && (
+                                <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-500 italic">
+                                  <span className="font-semibold text-slate-600 not-italic">Eksempel: </span>
+                                  {item.example}
+                                </div>
+                              )}
+
+                              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopy(item.term, item.desc);
+                                  }}
+                                  className="text-xs font-bold text-slate-500 hover:text-primary flex items-center gap-1.5 transition-colors cursor-pointer"
+                                  title="Kopier definisjon"
+                                >
+                                  {copiedTerm === item.term ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span className="text-emerald-600">Kopiert!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>Kopier</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Ingen treff -> Hent med AI */}

@@ -91,6 +91,9 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
   });
 
   const [settingsSavedNotice, setSettingsSavedNotice] = useState(false);
+  const [planSavedNotice, setPlanSavedNotice] = useState(false);
+  const [generatorError, setGeneratorError] = useState<string | null>(null);
+  const [newPlanError, setNewPlanError] = useState<string | null>(null);
 
   // Modal for ny plan
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
@@ -246,10 +249,11 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
 
   const handleGenerateWithAI = async () => {
     if (!genTema) {
-      alert("Vennligst fyll inn 'Tema / Hovedfokus' før du genererer.");
+      setGeneratorError("Vennligst fyll inn 'Tema / Hovedfokus' før du genererer.");
       return;
     }
 
+    setGeneratorError(null);
     setIsGenerating(true);
     try {
       const generatedHtml = await generateDidaktiskPlan({
@@ -274,8 +278,10 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
         });
       }
       setShowGenerator(false);
+      setPlanSavedNotice(true);
+      setTimeout(() => setPlanSavedNotice(false), 3000);
     } catch (e: any) {
-      alert("Det oppstod en feil under genereringen: " + e.message);
+      setGeneratorError("Det oppstod en feil under genereringen: " + (e?.message || 'Ukjent feil'));
     } finally {
       setIsGenerating(false);
     }
@@ -293,7 +299,8 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
       }
       return updated;
     });
-    alert('Planen er lagret!');
+    setPlanSavedNotice(true);
+    setTimeout(() => setPlanSavedNotice(false), 3000);
   };
 
   const handleSaveSettings = () => {
@@ -309,9 +316,10 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
   const handleCreateNewPlan = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newPlanTitle.trim()) {
-      alert('Vennligst oppgi en tittel for planen.');
+      setNewPlanError('Vennligst oppgi en tittel for planen.');
       return;
     }
+    setNewPlanError(null);
 
     const newId = `plan-custom-${Date.now()}`;
     const initialContent = `<h2>Tema: ${newPlanTitle}</h2>
@@ -593,22 +601,26 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
                     <div className="flex flex-col">
                       <div className="p-6 md:p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className={cn(
-                              "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                              selectedPlan.type === 'sesong' ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"
-                            )}>
-                              {selectedPlan.type}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400">{selectedPlan.period}</span>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
+                            <span>{selectedPlan.type === 'sesong' ? 'Sesongplan' : 'Månedsplan'}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{selectedPlan.period}</span>
+                            {planSavedNotice && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                  <Check className="w-3.5 h-3.5" /> Lagret!
+                                </span>
+                              </>
+                            )}
                           </div>
-                          <h2 className="text-xl md:text-2xl font-black text-slate-900 italic">{selectedPlan.title}</h2>
+                          <h2 className="text-xl md:text-2xl font-black text-slate-900">{selectedPlan.title}</h2>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setShowGenerator(!showGenerator)}
                             className={cn(
-                              "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                              "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer",
                               showGenerator ? "bg-primary text-white shadow-md shadow-primary/20" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-primary"
                             )}
                           >
@@ -617,19 +629,35 @@ export const DidaktiskPlanlegger: React.FC<DidaktiskPlanleggerProps> = ({ onOpen
                           <button
                             onClick={() => handleDeletePlan(selectedPlan.id, selectedPlan.title)}
                             title="Slett denne planen"
-                            className="p-2.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-all border border-transparent hover:border-red-100"
+                            className="p-2.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition-all border border-transparent hover:border-red-100 cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => setSelectedPlanId(null)}
                             title="Lukk plan"
-                            className="p-2.5 hover:bg-white text-slate-400 hover:text-slate-900 rounded-xl transition-all border border-transparent hover:border-slate-100"
+                            className="p-2.5 hover:bg-white text-slate-400 hover:text-slate-900 rounded-xl transition-all border border-transparent hover:border-slate-100 cursor-pointer"
                           >
                             <ChevronLeft className="w-5 h-5" />
                           </button>
                         </div>
                       </div>
+
+                      <AnimatePresence>
+                        {generatorError && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="mx-6 my-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center justify-between"
+                          >
+                            <span>{generatorError}</span>
+                            <button onClick={() => setGeneratorError(null)} className="p-1 hover:text-red-900">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       <AnimatePresence>
                         {showGenerator && (

@@ -1,5 +1,5 @@
 // Nye imports (hvis du trenger dem senere) pluss eksisterende
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
   FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, ChevronLeft, PanelRightClose, Send, Archive, User,
@@ -738,6 +738,19 @@ ${activeDoc.content}`;
   });
 
   const wysiwygRef = useRef<HTMLDivElement>(null);
+  const activeDocContentRef = useRef<string>('');
+  activeDocContentRef.current = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+
+  const wysiwygCallbackRef = useCallback((node: HTMLDivElement | null) => {
+    wysiwygRef.current = node;
+    if (node) {
+      const targetHtml = markdownToHtml(activeDocContentRef.current);
+      if (node.innerHTML !== targetHtml) {
+        node.innerHTML = targetHtml;
+      }
+    }
+  }, []);
+
   const isUserTypingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -773,18 +786,18 @@ ${activeDoc.content}`;
     });
   };
 
-  // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes eller oppdateres eksternt
+  // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes, importeres eller oppdateres eksternt
   useEffect(() => {
     if (!wysiwygRef.current) return;
     if (isUserTypingRef.current) return;
 
-    const currentDocContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+    const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
     const targetHtml = markdownToHtml(currentDocContent);
 
     if (wysiwygRef.current.innerHTML !== targetHtml) {
       wysiwygRef.current.innerHTML = targetHtml;
     }
-  }, [activeDoc.id, activeDoc.content, editorMode]);
+  }, [activeDoc?.id, activeDoc?.content, editorMode]);
 
   // Håndterer endringer i WYSIWYG uten å miste markørposisjon
   const handleWysiwygInput = () => {
@@ -1366,7 +1379,7 @@ ${activeDoc.content}`;
                     editorMode === 'wysiwyg' ? (
                       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px] transition-all">
                         <div
-                          ref={wysiwygRef}
+                          ref={wysiwygCallbackRef}
                           contentEditable
                           suppressContentEditableWarning
                           onInput={handleWysiwygInput}

@@ -1,6 +1,6 @@
 import pptxgen from 'pptxgenjs';
 import { PresentationSlide, SlideLayout } from '../services/geminiService';
-import { SlideThemeId, SLIDE_THEMES } from '../components/presentation/SlideCanvas';
+import { SlideThemeId } from '../components/presentation/SlideCanvas';
 import { PresentationBrandingSettings, DEFAULT_BRANDING_SETTINGS } from './presentationSettings';
 
 export interface PptxExportOptions {
@@ -84,15 +84,18 @@ const PPTX_THEME_COLORS: Record<SlideThemeId, ThemeColors> = {
 
 /**
  * Genererer og laster ned en ekte Microsoft PowerPoint (.pptx) presentasjon.
- * Kompatibel med Microsoft PowerPoint, Google Slides, Keynote og LibreOffice.
- * Alle talemanus legges automatisk inn som «Presenter Notes» (foredragsholdernotater).
+ * Bruker 'LAYOUT_WIDE' (13.333 x 7.5 tommer) for 100% kompatibilitet med MS PowerPoint,
+ * Google Slides, Keynote og LibreOffice.
  */
 export async function exportToPowerPoint(options: PptxExportOptions): Promise<string> {
   const { title, slides, themeId = 'pedagogisk-varme', globalBackground, brandingSettings } = options;
   const branding = brandingSettings || DEFAULT_BRANDING_SETTINGS;
 
   const pptx = new pptxgen();
-  pptx.layout = 'LAYOUT_16x9';
+
+  // Bruk den innbygde 16:9 Widescreen-størrelsen i PowerPoint (13.333 x 7.5 tommer)
+  pptx.layout = 'LAYOUT_WIDE';
+
   pptx.author = branding.footerText || 'BLU-Hjelperen (Barnehagelærerutdanningen)';
   pptx.company = 'BLU-Hjelperen';
   pptx.title = title || 'Akademisk Presentasjon';
@@ -106,7 +109,7 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
     const total = slides.length;
     const activeLayout: SlideLayout = slideData.layout || (slideNum === 1 ? 'title' : 'bullets');
 
-    // 1. Sett bakgrunn
+    // 1. SETT BAKGRUNN
     const bgImage = slideData.backgroundImage || globalBackground;
     if (bgImage && bgImage.startsWith('data:image')) {
       slide.background = { data: bgImage };
@@ -116,20 +119,34 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
       slide.background = { color: themeColors.bgColor };
     }
 
+    // Garanter at tekst på bakgrunnsbilder har 100% kontrast med en halvtransparent overflate
+    if (bgImage) {
+      slide.addShape(pptx.ShapeType.rect, {
+        x: 0,
+        y: 0,
+        w: 13.333,
+        h: 7.5,
+        fill: { 
+          color: themeColors.isDark ? '0F172A' : 'FFFFFF', 
+          transparency: themeColors.isDark ? 25 : 30 
+        }
+      });
+    }
+
     // 2. LEGG TIL MUNTLIG TALEMANUS SOM FOREDRAGSHOLDERNOTATER
     if (slideData.script && slideData.script.trim()) {
       const notesHeader = `TALEMANUS (Slide ${slideNum} - ${slideData.title}):\n`;
       slide.addNotes(notesHeader + slideData.script.trim());
     }
 
-    // 3. TOPP-METADATA: ELEMENT 1 (Topp-merke / Badge)
+    // 3. TOPP-METADATA: TOPP-MERKE OG SLIDE-TELLER
     if (branding.showTopBadge && branding.topBadgeText) {
       slide.addText(branding.topBadgeText.toUpperCase(), {
         x: 0.8,
         y: 0.4,
-        w: 5.5,
+        w: 6.0,
         h: 0.35,
-        fontSize: 9,
+        fontSize: 10,
         bold: true,
         color: themeColors.accentColor,
         charSpacing: 1.5
@@ -137,11 +154,11 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
     }
 
     slide.addText(`${slideNum} / ${total}`, {
-      x: 10.0,
+      x: 10.033,
       y: 0.4,
       w: 2.5,
       h: 0.35,
-      fontSize: 9,
+      fontSize: 10,
       bold: true,
       align: 'right',
       color: themeColors.footerColor
@@ -153,55 +170,60 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
       if (branding.showCategoryBadge && branding.categoryBadgeText) {
         slide.addText(branding.categoryBadgeText, {
           x: 0.8,
-          y: 1.25,
-          w: 6.0,
-          h: 0.4,
-          fontSize: 11,
+          y: 1.3,
+          w: 7.0,
+          h: 0.45,
+          fontSize: 12,
           bold: true,
-          color: themeColors.accentColor
+          color: themeColors.accentColor,
+          fill: { color: themeColors.cardBg, transparency: 10 },
+          line: { color: themeColors.cardBorder, width: 1 },
+          margin: 8
         });
       }
 
       slide.addText(slideData.title, {
         x: 0.8,
-        y: branding.showCategoryBadge ? 1.7 : 1.5,
-        w: 11.5,
-        h: 1.6,
-        fontSize: 34,
+        y: branding.showCategoryBadge ? 1.9 : 1.6,
+        w: 11.733,
+        h: 1.8,
+        fontSize: slideData.title.length > 50 ? 30 : 36,
         bold: true,
         color: themeColors.titleColor,
         valign: 'middle',
-        lineSpacing: 40
+        fit: 'shrink',
+        lineSpacing: 38
       });
 
       if (slideData.subtitle) {
         slide.addText(slideData.subtitle, {
           x: 0.8,
-          y: 3.5,
-          w: 11.5,
-          h: 0.8,
+          y: 3.8,
+          w: 11.733,
+          h: 1.0,
           fontSize: 18,
-          color: themeColors.subtitleColor
+          color: themeColors.subtitleColor,
+          fit: 'shrink'
         });
       }
 
       if (slideData.bullets && slideData.bullets.length > 0) {
-        const bulletObjects = slideData.bullets.map(b => ({
-          text: b,
-          options: {
-            bullet: true,
+        const tagWidth = Math.min(11.733 / Math.max(1, slideData.bullets.length), 3.6);
+        slideData.bullets.forEach((bulletText, bIdx) => {
+          slide.addText(`• ${bulletText}`, {
+            x: 0.8 + bIdx * (tagWidth + 0.2),
+            y: 5.0,
+            w: tagWidth,
+            h: 0.7,
+            fontSize: 12,
+            bold: true,
             color: themeColors.textColor,
-            fontSize: 14,
-            breakLine: true
-          }
-        }));
-
-        slide.addText(bulletObjects, {
-          x: 0.8,
-          y: 4.5,
-          w: 11.0,
-          h: 1.8,
-          lineSpacing: 24
+            fill: { color: themeColors.cardBg, transparency: 10 },
+            line: { color: themeColors.cardBorder, width: 1 },
+            margin: 8,
+            fit: 'shrink',
+            valign: 'middle'
+          });
         });
       }
 
@@ -210,37 +232,40 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
       slide.addText(slideData.title, {
         x: 0.8,
         y: 0.85,
-        w: 11.5,
-        h: 0.9,
-        fontSize: 26,
+        w: 11.733,
+        h: 0.8,
+        fontSize: slideData.title.length > 50 ? 24 : 28,
         bold: true,
-        color: themeColors.titleColor
+        color: themeColors.titleColor,
+        fit: 'shrink',
+        valign: 'middle'
       });
 
       const leftBullets = slideData.bullets || [];
       const rightBullets = slideData.bulletsRight && slideData.bulletsRight.length > 0
         ? slideData.bulletsRight
-        : leftBullets.slice(Math.ceil(leftBullets.length / 2));
-      const displayLeft = slideData.bulletsRight ? leftBullets : leftBullets.slice(0, Math.ceil(leftBullets.length / 2));
+        : (leftBullets.length > 2 ? leftBullets.slice(Math.ceil(leftBullets.length / 2)) : ['Drøfting og didaktiske konsekvenser', 'Forankring i praksis']);
+      const displayLeft = slideData.bulletsRight ? leftBullets : (leftBullets.length > 2 ? leftBullets.slice(0, Math.ceil(leftBullets.length / 2)) : leftBullets);
 
-      // Venstre boks
-      slide.addShape('rect' as any, {
+      // Venstre kolonne
+      slide.addShape(pptx.ShapeType.roundRect, {
         x: 0.8,
-        y: 1.9,
-        w: 5.4,
-        h: 4.4,
-        fill: { color: themeColors.cardBg },
+        y: 1.8,
+        w: 5.7,
+        h: 4.8,
+        fill: { color: themeColors.cardBg, transparency: 5 },
         line: { color: themeColors.cardBorder, width: 1 }
       });
 
       slide.addText('TEORETISK PERSPEKTIV / RAMMEVERK', {
         x: 1.1,
-        y: 2.1,
-        w: 4.8,
+        y: 2.0,
+        w: 5.1,
         h: 0.4,
         fontSize: 11,
         bold: true,
-        color: themeColors.accentColor
+        color: themeColors.accentColor,
+        fit: 'shrink'
       });
 
       const leftTextRuns = displayLeft.map(b => ({
@@ -248,37 +273,40 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
         options: {
           bullet: true,
           color: themeColors.textColor,
-          fontSize: 14,
+          fontSize: 13,
           breakLine: true
         }
       }));
 
       slide.addText(leftTextRuns, {
         x: 1.1,
-        y: 2.6,
-        w: 4.8,
-        h: 3.4,
-        lineSpacing: 22
+        y: 2.5,
+        w: 5.1,
+        h: 3.9,
+        lineSpacing: 22,
+        fit: 'shrink',
+        valign: 'top'
       });
 
-      // Høyre boks
-      slide.addShape('rect' as any, {
-        x: 6.6,
-        y: 1.9,
-        w: 5.4,
-        h: 4.4,
-        fill: { color: themeColors.cardBg },
+      // Høyre kolonne
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 6.833,
+        y: 1.8,
+        w: 5.7,
+        h: 4.8,
+        fill: { color: themeColors.cardBg, transparency: 5 },
         line: { color: themeColors.cardBorder, width: 1 }
       });
 
       slide.addText('DIDAKTISK PRAKSIS / REFLEKSJON', {
-        x: 6.9,
-        y: 2.1,
-        w: 4.8,
+        x: 7.133,
+        y: 2.0,
+        w: 5.1,
         h: 0.4,
         fontSize: 11,
         bold: true,
-        color: themeColors.accentColor
+        color: themeColors.accentColor,
+        fit: 'shrink'
       });
 
       const rightTextRuns = rightBullets.map(b => ({
@@ -286,51 +314,54 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
         options: {
           bullet: true,
           color: themeColors.textColor,
-          fontSize: 14,
+          fontSize: 13,
           breakLine: true
         }
       }));
 
       slide.addText(rightTextRuns, {
-        x: 6.9,
-        y: 2.6,
-        w: 4.8,
-        h: 3.4,
-        lineSpacing: 22
+        x: 7.133,
+        y: 2.5,
+        w: 5.1,
+        h: 3.9,
+        lineSpacing: 22,
+        fit: 'shrink',
+        valign: 'top'
       });
 
     } else if (activeLayout === 'quote') {
       // SITAT / TEORI
-      const quoteText = slideData.highlightText || slideData.bullets[0] || slideData.title;
+      const quoteText = slideData.highlightText || (slideData.bullets && slideData.bullets[0]) || slideData.title;
       const author = slideData.quoteAuthor || 'Rammeplanen for barnehagen / Fagteori';
 
-      slide.addShape('rect' as any, {
+      slide.addShape(pptx.ShapeType.roundRect, {
         x: 1.5,
-        y: 1.8,
-        w: 10.3,
-        h: 4.2,
-        fill: { color: themeColors.cardBg },
+        y: 1.6,
+        w: 10.333,
+        h: 5.0,
+        fill: { color: themeColors.cardBg, transparency: 5 },
         line: { color: themeColors.cardBorder, width: 1.5 }
       });
 
       slide.addText(`«${quoteText}»`, {
         x: 2.0,
-        y: 2.2,
-        w: 9.3,
-        h: 2.4,
-        fontSize: 22,
+        y: 2.0,
+        w: 9.333,
+        h: 2.8,
+        fontSize: quoteText.length > 120 ? 20 : 24,
         bold: true,
         italic: true,
         align: 'center',
         valign: 'middle',
         color: themeColors.titleColor,
-        lineSpacing: 32
+        lineSpacing: 34,
+        fit: 'shrink'
       });
 
       slide.addText(`— ${author}`, {
         x: 2.0,
-        y: 4.7,
-        w: 9.3,
+        y: 5.0,
+        w: 9.333,
         h: 0.5,
         fontSize: 13,
         bold: true,
@@ -341,12 +372,13 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
       if (slideData.bullets && slideData.bullets.length > 1) {
         slide.addText(`Refleksjon: ${slideData.bullets[1]}`, {
           x: 2.0,
-          y: 5.2,
-          w: 9.3,
-          h: 0.5,
-          fontSize: 11,
+          y: 5.6,
+          w: 9.333,
+          h: 0.7,
+          fontSize: 12,
           align: 'center',
-          color: themeColors.subtitleColor
+          color: themeColors.subtitleColor,
+          fit: 'shrink'
         });
       }
 
@@ -355,42 +387,31 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
       slide.addText(slideData.title, {
         x: 0.8,
         y: 0.85,
-        w: 11.5,
-        h: 0.9,
-        fontSize: 26,
-        bold: true,
-        color: themeColors.titleColor
-      });
-
-      slide.addShape('rect' as any, {
-        x: 1.5,
-        y: 2.0,
-        w: 10.3,
-        h: 2.4,
-        fill: { color: themeColors.cardBg },
-        line: { color: themeColors.accentColor, width: 2 }
-      });
-
-      slide.addText('KJERNEBUDSKAP / DIDAKTISK KONSEKVENS', {
-        x: 1.8,
-        y: 2.2,
-        w: 9.7,
-        h: 0.4,
-        fontSize: 11,
-        bold: true,
-        color: themeColors.accentColor
-      });
-
-      const hlText = slideData.highlightText || slideData.bullets[0] || 'Viktig pedagogisk innsikt';
-      slide.addText(hlText, {
-        x: 1.8,
-        y: 2.6,
-        w: 9.7,
-        h: 1.5,
-        fontSize: 20,
+        w: 11.733,
+        h: 0.8,
+        fontSize: slideData.title.length > 50 ? 24 : 28,
         bold: true,
         color: themeColors.titleColor,
+        fit: 'shrink',
         valign: 'middle'
+      });
+
+      const hlText = slideData.highlightText || (slideData.bullets && slideData.bullets[0]) || 'Viktig pedagogisk innsikt';
+
+      slide.addText(hlText, {
+        x: 1.2,
+        y: 1.8,
+        w: 10.933,
+        h: 2.4,
+        fontSize: hlText.length > 100 ? 18 : 22,
+        bold: true,
+        align: 'center',
+        valign: 'middle',
+        color: themeColors.titleColor,
+        fill: { color: themeColors.cardBg, transparency: 5 },
+        line: { color: themeColors.accentColor, width: 2 },
+        margin: 16,
+        fit: 'shrink'
       });
 
       if (slideData.bullets && slideData.bullets.length > 1) {
@@ -399,49 +420,64 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
           options: {
             bullet: true,
             color: themeColors.textColor,
-            fontSize: 14,
+            fontSize: 13,
             breakLine: true
           }
         }));
 
         slide.addText(subBullets, {
-          x: 1.5,
-          y: 4.7,
-          w: 10.3,
-          h: 1.7,
-          lineSpacing: 22
+          x: 1.2,
+          y: 4.5,
+          w: 10.933,
+          h: 2.1,
+          lineSpacing: 22,
+          fit: 'shrink',
+          valign: 'top'
         });
       }
 
     } else {
-      // STANDARD KULEPUNKTER (BULLETS)
+      // STANDARD KULEPUNKTER MED KORTDESIGN (BULLETS)
       slide.addText(slideData.title, {
         x: 0.8,
         y: 0.85,
-        w: 11.5,
-        h: 0.9,
-        fontSize: 26,
+        w: 11.733,
+        h: 0.8,
+        fontSize: slideData.title.length > 50 ? 24 : 28,
         bold: true,
-        color: themeColors.titleColor
+        color: themeColors.titleColor,
+        fit: 'shrink',
+        valign: 'middle'
       });
 
-      const bulletObjects = (slideData.bullets || []).map(b => ({
-        text: b,
-        options: {
-          bullet: true,
-          color: themeColors.textColor,
-          fontSize: 16,
-          breakLine: true
-        }
-      }));
+      const bullets = slideData.bullets || [];
+      const totalBullets = bullets.length;
 
-      slide.addText(bulletObjects, {
-        x: 0.8,
-        y: 2.0,
-        w: 11.5,
-        h: 4.4,
-        lineSpacing: 30
-      });
+      if (totalBullets > 0) {
+        const availableH = 4.8;
+        const startY = 1.8;
+        const gap = 0.15;
+        const cardH = Math.min(1.3, (availableH - (totalBullets - 1) * gap) / totalBullets);
+
+        bullets.forEach((bullet, bIdx) => {
+          const cardY = startY + bIdx * (cardH + gap);
+
+          slide.addText(`✓  ${bullet}`, {
+            x: 0.8,
+            y: cardY,
+            w: 11.733,
+            h: cardH,
+            fontSize: totalBullets > 4 ? 13 : 15,
+            bold: true,
+            color: themeColors.textColor,
+            fill: { color: themeColors.cardBg, transparency: 5 },
+            line: { color: themeColors.cardBorder, width: 1 },
+            margin: 12,
+            fit: 'shrink',
+            valign: 'middle'
+          });
+        });
+      }
     }
 
     // 5. FOOTER BUNNTEKST & LAYOUT-TAG
@@ -452,21 +488,22 @@ export async function exportToPowerPoint(options: PptxExportOptions): Promise<st
 
       slide.addText(footerContent, {
         x: 0.8,
-        y: 6.8,
+        y: 6.9,
         w: 8.0,
-        h: 0.3,
+        h: 0.35,
         fontSize: 9,
-        color: themeColors.footerColor
+        color: themeColors.footerColor,
+        fit: 'shrink'
       });
     }
 
     if (branding.showLayoutTag) {
       const layoutTagText = branding.layoutTagCustomText || `${activeLayout.toUpperCase()} • Slide ${slideNum}`;
       slide.addText(layoutTagText, {
-        x: 9.0,
-        y: 6.8,
+        x: 9.033,
+        y: 6.9,
         w: 3.5,
-        h: 0.3,
+        h: 0.35,
         fontSize: 9,
         align: 'right',
         color: themeColors.footerColor

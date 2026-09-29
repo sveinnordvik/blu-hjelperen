@@ -40,6 +40,7 @@ export const AiTextRewriter: React.FC<AiTextRewriterProps> = ({
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isWashing, setIsWashing] = useState(false);
+  const [washNotice, setWashNotice] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -101,10 +102,12 @@ export const AiTextRewriter: React.FC<AiTextRewriterProps> = ({
         onChange(result);
       }
       
-      alert("✨ Språkvask fullført! Bruk Angre-knappen (eller Ctrl+Z/Cmd+Z) hvis du vil ha tilbake originalen.");
+      setWashNotice("Språkvask fullført! Bruk Ctrl+Z / Cmd+Z hvis du vil angre.");
+      setTimeout(() => setWashNotice(null), 4000);
     } catch (error) {
       console.error("Språkvask error:", error);
-      alert("Feil under språkvask: Kunne ikke koble til AI-Assistenten.");
+      setWashNotice("Feil under språkvask: Kunne ikke koble til skriveassistenten.");
+      setTimeout(() => setWashNotice(null), 4000);
     } finally {
       setIsWashing(false);
     }
@@ -229,6 +232,22 @@ export const AiTextRewriter: React.FC<AiTextRewriterProps> = ({
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {washNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="p-3 bg-slate-900 text-white text-xs rounded-xl shadow-md flex items-center justify-between gap-2"
+          >
+            <span>{washNotice}</span>
+            <button onClick={() => setWashNotice(null)} className="text-slate-400 hover:text-white p-1">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {suggestion && (

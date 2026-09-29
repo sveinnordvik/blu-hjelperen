@@ -46,6 +46,7 @@ export const ExportPresentationModal: React.FC<ExportPresentationModalProps> = (
   const [isExporting, setIsExporting] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [localCopied, setLocalCopied] = useState(false);
 
   const handleDownloadPptx = async () => {
     setIsExporting(true);
@@ -68,8 +69,106 @@ export const ExportPresentationModal: React.FC<ExportPresentationModalProps> = (
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleLocalCopyAll = async () => {
+    if (!slides || slides.length === 0) return;
+    const fullText = slides
+      .map((s, idx) => 
+        `========================================\n` +
+        `LYSBILDE ${idx + 1}: ${s.title.toUpperCase()}\n` +
+        `========================================\n` +
+        (s.subtitle ? `UNDERTEKST: ${s.subtitle}\n\n` : '\n') +
+        `STIKKORD / INNHOLD:\n${(s.bullets || []).map(b => `• ${b}`).join('\n')}\n\n` +
+        `MUNTLIG TALEMANUS:\n${s.script || '(Ingen manus skrevet)'}\n`
+      )
+      .join('\n\n');
+
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setLocalCopied(true);
+      if (onCopyAll) onCopyAll();
+      setTimeout(() => setLocalCopied(false), 2500);
+    } catch (err) {
+      console.error('Kopiering feilet:', err);
+    }
+  };
+
+  const handlePrintPDF = () => {
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+
+    const slidesHtml = slides.map((s, idx) => `
+      <div class="slide-page">
+        <div class="slide-header">
+          <span class="slide-num">Lysbilde ${idx + 1} av ${slides.length}</span>
+          <span class="slide-tag">${s.layout ? s.layout.toUpperCase() : 'STANDARD'}</span>
+        </div>
+        <h2 class="slide-title">${s.title}</h2>
+        ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+        
+        <div class="bullets-box">
+          <h3 class="section-title">Stikkord / Lysbildeinnhold:</h3>
+          <ul>
+            ${(s.bullets || []).map(b => `<li>${b}</li>`).join('')}
+          </ul>
+        </div>
+
+        ${s.script ? `
+          <div class="script-box">
+            <h3 class="section-title">Muntlig talemanus / Foredragsholdernotater:</h3>
+            <p class="script-text">${s.script.replace(/\n/g, '<br/>')}</p>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${title || 'BLU-Presentasjon'} - Utskrift & PDF</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 0; padding: 20px; line-height: 1.5; background: #fff; }
+          .doc-header { border-bottom: 2px solid #4f46e5; padding-bottom: 12px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .doc-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+          .doc-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+          .doc-brand { font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; letter-spacing: 1px; }
+          .slide-page { page-break-inside: avoid; break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 20px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+          .slide-header { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #4f46e5; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
+          .slide-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 6px 0; }
+          .slide-subtitle { font-size: 13px; font-weight: 600; color: #475569; margin: 0 0 14px 0; }
+          .bullets-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin: 0 0 6px 0; }
+          ul { margin: 0; padding-left: 18px; }
+          li { font-size: 13px; font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+          .script-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; }
+          .script-text { font-size: 13px; color: #166534; margin: 0; white-space: pre-wrap; font-style: italic; line-height: 1.6; }
+        </style>
+      </head>
+      <body>
+        <div class="doc-header">
+          <div>
+            <h1 class="doc-title">${title || 'Akademisk Presentasjon'}</h1>
+            <div class="doc-sub">Klar for utskrift og PDF • Totalt ${slides.length} lysbilder med talemanus</div>
+          </div>
+          <div class="doc-brand">BLU-Hjelperen</div>
+        </div>
+        ${slidesHtml}
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
   };
 
   return (
@@ -212,16 +311,16 @@ export const ExportPresentationModal: React.FC<ExportPresentationModalProps> = (
           <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
-              onClick={onCopyAll}
+              onClick={handleLocalCopyAll}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
             >
-              {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedAll ? 'Kopiert til utklippstavle!' : 'Kopier all tekst og manus'}</span>
+              {localCopied || copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{localCopied || copiedAll ? 'Kopiert til utklippstavle!' : 'Kopier all tekst og manus'}</span>
             </button>
 
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handlePrintPDF}
               className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
               title="Skriv ut eller lagre som PDF via utskriftsdialogen"
             >

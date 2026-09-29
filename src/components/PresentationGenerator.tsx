@@ -753,7 +753,7 @@ export function PresentationGenerator({
         globalDim: updatedFields.globalDim !== undefined ? updatedFields.globalDim : globalDim,
         globalBlur: updatedFields.globalBlur !== undefined ? updatedFields.globalBlur : globalBlur,
         brandingSettings: updatedFields.brandingSettings !== undefined ? updatedFields.brandingSettings : brandingSettings,
-        createdAt: existingRecord.createdAt || new Date().toISOString(),
+        createdAt: (existingRecord as any).createdAt || new Date().toISOString(),
         ...updatedFields,
         updatedAt: new Date().toISOString()
       };
@@ -1128,7 +1128,7 @@ ${textToUse}`;
 
   const playScript = (text: string) => {
     if (!('speechSynthesis' in window)) {
-      alert("Nettleseren din støtter ikke tekst-til-tale direkte.");
+      setErrorMessage("Nettleseren din støtter ikke tekst-til-tale direkte.");
       return;
     }
 

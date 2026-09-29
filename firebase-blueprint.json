@@ -177,6 +177,9 @@
         "userId": {
           "type": "string"
         },
+        "isPinned": {
+          "type": "boolean"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time"

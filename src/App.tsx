@@ -9,6 +9,7 @@ import { DidaktiskPlanlegger } from './components/DidaktiskPlanlegger';
 import { VisualContentGenerator } from './components/VisualContentGenerator';
 import { RoleplaySimulator } from './components/RoleplaySimulator';
 import { PresentationGenerator } from './components/PresentationGenerator';
+import { EmpiricalAnalysis } from './components/tools/EmpiricalAnalysis';
 import { Resources } from './components/Resources';
 import { Profile as ProfileComponent } from './components/Profile';
 import { isUnlimitedUser, isAdminUser } from './config/accessConfig';
@@ -413,7 +414,7 @@ export default function App() {
     return 'home';
   });
   const [fieldAssistantPrompt, setFieldAssistantPrompt] = useState<string>('');
-  const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary'>('tools-overview');
+  const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'empirical-analysis'>('tools-overview');
   const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
   const [writingStep, setWritingStep] = useState(1);
 
@@ -5697,7 +5698,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                           setDocAnalysisInitialTool('humanizer');
                           setActiveSubTab('document-analysis');
                           setActiveTab('verktoy');
-                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                           if (toolId === 'document-analysis') {
                             setDocAnalysisInitialTool('sensor');
                           }
@@ -5761,6 +5762,30 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       }}
                     />
                   );
+                case 'empirical-analysis':
+                  return (
+                    <EmpiricalAnalysis 
+                      key="empirical-analysis" 
+                      onBackToTools={() => {
+                        setActiveSubTab('tools-overview');
+                        setActiveTab('verktoy');
+                      }}
+                      onNavigateToWritingWorkshop={(transferContent, transferTitle) => {
+                        try {
+                          localStorage.setItem('blu_pending_workshop_import', JSON.stringify({
+                            title: transferTitle || 'Empiridrøfting – Utkast',
+                            content: transferContent || '',
+                            template: 'Bacheloroppgave / Empirisk analyse',
+                            taskPrompt: 'Overført fra Empiri- og Intervjuanalysen',
+                            targetWords: 2000
+                          }));
+                        } catch (e) {
+                          console.error('Feil ved skriveverksted-overføring:', e);
+                        }
+                        setActiveTab('writing-workshop');
+                      }}
+                    />
+                  );
                 default:
                   return (
                     <ToolsDashboard 
@@ -5774,7 +5799,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                           setDocAnalysisInitialTool('humanizer');
                           setActiveSubTab('document-analysis');
                           setActiveTab('verktoy');
-                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                           if (toolId === 'document-analysis') {
                             setDocAnalysisInitialTool('sensor');
                           }
@@ -5809,7 +5834,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                     setDocAnalysisInitialTool('humanizer');
                     setActiveSubTab('document-analysis');
                     setActiveTab('verktoy');
-                  } else if (['simulator', 'presentations', 'document-analysis', 'dictionary'].includes(toolId)) {
+                  } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                     if (toolId === 'document-analysis') {
                       setDocAnalysisInitialTool('sensor');
                     }
@@ -6385,7 +6410,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               title="Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.2.0
+              v3.4.0
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

@@ -23,6 +23,8 @@ export interface FieldNote {
   title: string;
   content: string;
   category: NoteCategory;
+  isPinned?: boolean;
+  folderId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

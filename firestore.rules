@@ -86,7 +86,8 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() < 255 &&
              data.type in ['file', 'folder'] &&
              (!('content' in data) || data.content is string) &&
-             (!('folderId' in data) || data.folderId is string || data.folderId == null);
+             (!('folderId' in data) || data.folderId is string || data.folderId == null) &&
+             (!('isPinned' in data) || data.isPinned is bool);
     }
 
     function isValidPedagogicalDocumentation(data) {
@@ -221,13 +222,13 @@ service cloud.firestore {
 
     match /context_files/{fileId} {
       // Secure List Queries Pattern
-      allow list: if isVerified() && resource.data.userId == request.auth.uid;
-      allow get: if isVerified() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       
-      allow create: if isVerified() && isValidContextFile(incoming());
-      allow update: if isVerified() && isValidContextFile(incoming()) &&
+      allow create: if isSignedIn() && isValidContextFile(incoming());
+      allow update: if isSignedIn() && isValidContextFile(incoming()) &&
                     incoming().userId == existing().userId;
-      allow delete: if isVerified() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /pedagogical_documentation/{docId} {

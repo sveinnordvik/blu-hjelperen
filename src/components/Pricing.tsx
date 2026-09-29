@@ -60,7 +60,7 @@ export const Pricing: React.FC<PricingProps> = ({
 
   const handleCopyReferralLink = () => {
     if (!userUid) {
-      alert("Vennligst logg inn for å få din personlige vervelenke.");
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
       return;
     }
     const link = `${window.location.origin}/?ref=${userUid}`;
