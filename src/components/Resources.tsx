@@ -150,7 +150,8 @@ const INITIAL_SAMPLE_FILES: ArchiveFile[] = [
 export function Resources({ 
   collegeName = 'DMMH', 
   initialMenu = 'files',
-  onNavigateToFieldNotes
+  onNavigateToFieldNotes,
+  onNavigateToWorkshop
 }: ResourcesProps) {
   // Navigation / views: 'files' | 'library' | 'field-notes-archive' | 'sources'
   const [activeMenu, setActiveMenu] = useState<string>(() => {

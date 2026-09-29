@@ -1143,7 +1143,8 @@ export function Superveileder({
       onDeleteItem={handleDeleteItem}
     >
       {({ isCollapsed, openMobileArchive }) => (
-        <div className="flex flex-col h-full bg-slate-50/50">
+        <>
+          <div className="flex flex-col h-full bg-slate-50/50">
           
           {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
           <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
@@ -1699,6 +1700,64 @@ export function Superveileder({
             </form>
           </div>
         </div>
+
+      {/* OPPRETT NY MAPPE MODAL */}
+      {isCreatingFolder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-2 ${isFelt ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
+              <FolderPlus className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-black text-slate-900">Opprett ny mappe</h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                {isFelt 
+                  ? 'Organiser veiledningssamtalene dine etter praksisperioder, emner eller tema.' 
+                  : 'Organiser veiledningssamtalene dine i Superveilederen etter emner, oppgaver eller fag.'}
+              </p>
+            </div>
+            
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateFolder(); }} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mappenavn
+                </label>
+                <input 
+                  type="text" 
+                  autoFocus
+                  required
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="f.eks. BLU5003, Praksis H26..."
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreatingFolder(false);
+                    setNewFolderName('');
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Avbryt
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newFolderName.trim()}
+                  className={`px-5 py-2 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 ${isFelt ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Opprett mappe</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+        </>
       )}
     </WorkspaceLayout>
   );

@@ -447,7 +447,17 @@ export function WorkspaceLayout({
             </div>
           </div>
         ) : null}
-        {typeof children === 'function' ? children({ isCollapsed, toggleCollapsed, openMobileArchive }) : children}
+        {Array.isArray(children) ? (
+          children.map((child, idx) => 
+            typeof child === 'function' 
+              ? <React.Fragment key={idx}>{child({ isCollapsed, toggleCollapsed, openMobileArchive })}</React.Fragment> 
+              : <React.Fragment key={idx}>{child}</React.Fragment>
+          )
+        ) : typeof children === 'function' ? (
+          children({ isCollapsed, toggleCollapsed, openMobileArchive })
+        ) : (
+          children
+        )}
       </main>
 
       {/* MOBIL SKUFF FOR SAMTALER / ARKIV */}
