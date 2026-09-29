@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
 import { 
   FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, ChevronLeft, PanelRightClose, Send, Archive, User,
-  Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown, BookMarked, Users, Share2, MessageSquare, Clock, ShieldCheck
+  Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown, BookMarked, Users, Share2, MessageSquare, Clock, ShieldCheck,
+  Undo2, Redo2, StickyNote
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
@@ -46,6 +47,21 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   isError?: boolean;
+}
+
+export interface ProcessLogEntry {
+  id: string;
+  userId: string;
+  folderId?: string | null;
+  folderName?: string | null;
+  documentId: string;
+  documentTitle: string;
+  category: string;
+  situation: string;
+  reflection: string;
+  sources?: string;
+  createdAt?: any;
+  updatedAt?: string;
 }
 
 const STORAGE_KEY = 'blu_writing_workshop_docs_v2';
@@ -342,30 +358,34 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     return () => unsubscribe();
   }, [activeDocId]);
   
+  const DEFAULT_WELCOME_MESSAGE: ChatMessage = {
+    id: 'welcome',
+    role: 'assistant',
+    content: 'Hei! Jeg er Superveilederen. Står du fast med oppgaven din, eller ønsker du at vi drøfter teksten sammen?'
+  };
+
   // State for Superveileder Chat
   const [chatMode, setChatMode] = useState('Auto');
   const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Hei! Jeg er Superveilederen. Står du fast med oppgaven din, eller ønsker du at vi drøfter teksten sammen?'
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatSyncing, setIsChatSyncing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isChatLoading]);
 
-  // STEG 5: State for Prosesslogg-skjema
+  // STEG 5: State for Prosesslogg
   const [logCategory, setLogCategory] = useState('Praksisfortelling');
   const [logSituation, setLogSituation] = useState('');
   const [logReflection, setLogReflection] = useState('');
   const [logSources, setLogSources] = useState('');
   const [logSaveNotice, setLogSaveNotice] = useState<string | null>(null);
   const [isSavingLog, setIsSavingLog] = useState(false);
+  const [savedProcessLogs, setSavedProcessLogs] = useState<ProcessLogEntry[]>([]);
+  const [isProcessLogsLoading, setIsProcessLogsLoading] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const templates: Record<string, { id: number; title: string; subItems: string[] }[]> = {
     'Refleksjons- og diskusjonsoppgave': [
@@ -428,6 +448,9 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
       { id: 3, title: 'Refleksjon', subItems: [] },
       { id: 4, title: 'Litteraturliste', subItems: [] }
     ],
+    'Notater & Kladdeblokk': [
+      { id: 1, title: 'Notater, idéer og kladder', subItems: [] }
+    ],
     'Egendefinert struktur': [
       { id: 1, title: 'Nytt kapittel', subItems: [] },
       { id: 2, title: 'Litteraturliste', subItems: [] }
@@ -442,6 +465,145 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     template: 'Refleksjonsnotat',
     targetWords: 1000,
     updatedAt: new Date().toISOString()
+  };
+
+  const activeFolder = folders.find(f => f.id === activeDoc?.folderId);
+  const activeContextKey = activeDoc?.folderId 
+    ? `folder_${activeDoc.folderId}` 
+    : (activeDoc?.id ? `doc_${activeDoc.id}` : 'global');
+  const activeContextTitle = activeDoc?.folderId 
+    ? (activeFolder?.name || 'Aktiv mappe') 
+    : (activeDoc?.title || 'Aktiv oppgave');
+
+  // Superveilederen: Sanntids-synkronisering og automatisk lagring knyttet til aktiv mappe / oppgave
+  useEffect(() => {
+    if (!activeContextKey) return;
+
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    // 1. Last umiddelbart fra lokal hurtigbuffer for null ventetid
+    const localKey = `blu_superveileder_${user?.uid || 'guest'}_${activeContextKey}`;
+    try {
+      const cached = localStorage.getItem(localKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        } else {
+          setMessages([DEFAULT_WELCOME_MESSAGE]);
+        }
+      } else {
+        setMessages([DEFAULT_WELCOME_MESSAGE]);
+      }
+    } catch {
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+    }
+
+    if (!user) return;
+
+    // 2. Koble på sanntidslytter mot Firebase Firestore
+    setIsChatSyncing(true);
+    const chatDocRef = doc(db, 'users', user.uid, 'superveileder_chats', activeContextKey);
+    const unsubscribe = onSnapshot(chatDocRef, (snapshot) => {
+      setIsChatSyncing(false);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (Array.isArray(data?.messages) && data.messages.length > 0) {
+          setMessages(data.messages);
+          try {
+            localStorage.setItem(localKey, JSON.stringify(data.messages));
+          } catch {}
+        }
+      }
+    }, (error) => {
+      console.warn("Lokal modus for Superveileder-chat:", error);
+      setIsChatSyncing(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeContextKey]);
+
+  // Prosesslogg: Henter alle prosesslogger for brukeren og sorterer etter dato
+  useEffect(() => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) {
+      setSavedProcessLogs([]);
+      return;
+    }
+
+    setIsProcessLogsLoading(true);
+    const q = query(
+      collection(db, 'processLogs'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setIsProcessLogsLoading(false);
+      const logs: ProcessLogEntry[] = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      } as ProcessLogEntry));
+
+      logs.sort((a, b) => {
+        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : (new Date(a.updatedAt || 0).getTime());
+        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : (new Date(b.updatedAt || 0).getTime());
+        return timeB - timeA;
+      });
+
+      setSavedProcessLogs(logs);
+    }, (err) => {
+      console.warn("Kunne ikke lytte på prosesslogger:", err);
+      setIsProcessLogsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const contextProcessLogs = savedProcessLogs.filter(log => {
+    if (activeDoc?.folderId) {
+      return log.folderId === activeDoc.folderId || log.documentId === activeDoc.id;
+    }
+    return log.documentId === activeDoc.id;
+  });
+
+  const saveChatToFirebase = async (newMessages: ChatMessage[]) => {
+    const user = getAuth().currentUser;
+    const localKey = `blu_superveileder_${user?.uid || 'guest'}_${activeContextKey}`;
+    
+    // Alltid lagre lokalt først for umiddelbar respons
+    try {
+      localStorage.setItem(localKey, JSON.stringify(newMessages));
+    } catch {}
+
+    if (!user) return;
+
+    try {
+      const chatDocRef = doc(db, 'users', user.uid, 'superveileder_chats', activeContextKey);
+      await setDoc(chatDocRef, {
+        userId: user.uid,
+        contextId: activeContextKey,
+        folderId: activeDoc?.folderId || null,
+        folderName: activeFolder?.name || null,
+        documentId: activeDoc?.id || null,
+        documentTitle: activeDoc?.title || null,
+        messages: newMessages,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Feil ved lagring av Superveileder-chat til skyen:", err);
+    }
+  };
+
+  const handleClearChat = async () => {
+    const targetLabel = activeDoc?.folderId ? `mappen «${activeFolder?.name || 'Aktiv mappe'}»` : `oppgaven «${activeDoc?.title || 'Aktiv oppgave'}»`;
+    if (!window.confirm(`Er du sikker på at du vil starte en ny samtale for ${targetLabel}? Tidligere samtalehistorikk for denne vil bli tømt.`)) {
+      return;
+    }
+    const freshMessages = [DEFAULT_WELCOME_MESSAGE];
+    setMessages(freshMessages);
+    await saveChatToFirebase(freshMessages);
   };
 
   // Offline-deteksjon og automatisk gjenoppretting av nettkobling (Punkt 5)
@@ -655,6 +817,9 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     setMessages(currentMessages);
     setIsChatLoading(true);
 
+    // Lagrer samtalen umiddelbart til skyen og lokal buffer
+    saveChatToFirebase(currentMessages);
+
     try {
       // Kaller Gemini og sender med historikk, valgt modus og teksten studenten jobber med
       const responseText = await chatWithSuperveileder({
@@ -671,19 +836,22 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         content: responseText
       };
       
-      setMessages(prev => [...prev.filter(m => !m.isError), aiResponse]);
+      const finalMessages = [...currentMessages.filter(m => !m.isError), aiResponse];
+      setMessages(finalMessages);
+      saveChatToFirebase(finalMessages);
     } catch (error: any) {
       console.error("Feil ved kommunikasjon med Gemini:", error);
       const errMsg = error?.message || (typeof error === 'string' ? error : '');
       const displayMsg = errMsg 
         ? errMsg 
         : "Superveilederen opplever stor pågang akkurat nå. Vent noen sekunder og prøv igjen.";
-      setMessages(prev => [...prev, {
+      const errorMessages = [...currentMessages, {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
+        role: 'assistant' as const,
         content: displayMsg,
         isError: true
-      }]);
+      }];
+      setMessages(errorMessages);
     } finally {
       setIsChatLoading(false);
     }
@@ -755,7 +923,7 @@ ${activeDoc.content}`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sjekker aktiv formatering for verktøylinje-knapper i sanntid
-  const checkActiveFormatting = () => {
+  const checkActiveFormatting = useCallback(() => {
     if (editorMode !== 'wysiwyg' || !wysiwygRef.current) return;
     const selection = window.getSelection();
     if (!selection || !selection.anchorNode) return;
@@ -784,7 +952,210 @@ ${activeDoc.content}`;
       ol: document.queryCommandState('insertOrderedList'),
       quote: isQuote
     });
+  }, [editorMode]);
+
+  // ==========================================
+  // ANGRE (UNDO) & GJENTA (REDO) HISTORIKK
+  // ==========================================
+  const historyStackRef = useRef<{ id: string; content: string }[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const typingDebounceTimerRef = useRef<any>(null);
+  const isHistoryNavigatingRef = useRef(false);
+
+  // Initialiser historikk når et dokument lastes inn eller byttes
+  useEffect(() => {
+    if (!activeDoc?.id) return;
+    if (typingDebounceTimerRef.current) {
+      clearTimeout(typingDebounceTimerRef.current);
+      typingDebounceTimerRef.current = null;
+    }
+    const initialContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+    historyStackRef.current = [{ id: activeDoc.id, content: initialContent }];
+    historyIndexRef.current = 0;
+    setCanUndo(false);
+    setCanRedo(false);
+  }, [activeDoc?.id]);
+
+  // Lagre øyeblikksbilde i historikkstakken
+  const pushHistorySnapshot = useCallback((newContent: string, immediate = false) => {
+    if (isHistoryNavigatingRef.current) return;
+
+    const stack = historyStackRef.current;
+    const currentIndex = historyIndexRef.current;
+    const currentItem = currentIndex >= 0 && currentIndex < stack.length ? stack[currentIndex] : null;
+
+    if (currentItem && currentItem.content === newContent) return;
+
+    const commitSnapshot = () => {
+      if (isHistoryNavigatingRef.current) return;
+      const currentStack = historyStackRef.current;
+      const cIndex = historyIndexRef.current;
+      const truncated = currentStack.slice(0, cIndex + 1);
+      truncated.push({ id: activeDoc?.id || '', content: newContent });
+      if (truncated.length > 50) {
+        truncated.shift();
+      }
+      historyStackRef.current = truncated;
+      historyIndexRef.current = truncated.length - 1;
+      setCanUndo(historyIndexRef.current > 0);
+      setCanRedo(false);
+    };
+
+    if (immediate) {
+      if (typingDebounceTimerRef.current) {
+        clearTimeout(typingDebounceTimerRef.current);
+        typingDebounceTimerRef.current = null;
+      }
+      commitSnapshot();
+    } else {
+      if (typingDebounceTimerRef.current) {
+        clearTimeout(typingDebounceTimerRef.current);
+      }
+      typingDebounceTimerRef.current = setTimeout(commitSnapshot, 400);
+    }
+  }, [activeDoc?.id]);
+
+  // Registrer løpende endringer i dokumentinnhold for angre-historikk
+  useEffect(() => {
+    if (isHistoryNavigatingRef.current || !activeDoc?.id) return;
+    const currentContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
+    pushHistorySnapshot(currentContent, false);
+  }, [activeDoc?.content, activeDoc?.id, pushHistorySnapshot]);
+
+  // Angre-handling (Word-stil)
+  const handleUndo = useCallback(() => {
+    const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+
+    if (typingDebounceTimerRef.current) {
+      clearTimeout(typingDebounceTimerRef.current);
+      typingDebounceTimerRef.current = null;
+      const currentIndex = historyIndexRef.current;
+      const topItem = currentIndex >= 0 ? historyStackRef.current[currentIndex] : null;
+      if (topItem && topItem.content !== currentDocContent) {
+        const truncated = historyStackRef.current.slice(0, currentIndex + 1);
+        truncated.push({ id: activeDoc?.id || '', content: currentDocContent });
+        historyStackRef.current = truncated;
+        historyIndexRef.current = truncated.length - 1;
+      }
+    }
+
+    const stack = historyStackRef.current;
+    const currentIndex = historyIndexRef.current;
+
+    if (currentIndex <= 0) return;
+
+    const targetIndex = currentIndex - 1;
+    const targetItem = stack[targetIndex];
+    if (!targetItem) return;
+
+    historyIndexRef.current = targetIndex;
+    setCanUndo(targetIndex > 0);
+    setCanRedo(true);
+
+    isHistoryNavigatingRef.current = true;
+    isUserTypingRef.current = false;
+
+    handleUpdateActiveDoc({ content: targetItem.content });
+
+    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+      const targetHtml = markdownToHtml(targetItem.content);
+      if (wysiwygRef.current.innerHTML !== targetHtml) {
+        wysiwygRef.current.innerHTML = targetHtml;
+      }
+      wysiwygRef.current.focus();
+    } else if (textareaRef.current) {
+      textareaRef.current.value = targetItem.content;
+      textareaRef.current.focus();
+    }
+
+    checkActiveFormatting();
+
+    setTimeout(() => {
+      isHistoryNavigatingRef.current = false;
+    }, 120);
+  }, [activeDoc?.content, activeDoc?.id, editorMode, checkActiveFormatting]);
+
+  // Gjenta/Gjør om-handling (Word-stil)
+  const handleRedo = useCallback(() => {
+    const stack = historyStackRef.current;
+    const currentIndex = historyIndexRef.current;
+
+    if (currentIndex < 0 || currentIndex >= stack.length - 1) return;
+
+    const targetIndex = currentIndex + 1;
+    const targetItem = stack[targetIndex];
+    if (!targetItem) return;
+
+    historyIndexRef.current = targetIndex;
+    setCanUndo(true);
+    setCanRedo(targetIndex < stack.length - 1);
+
+    isHistoryNavigatingRef.current = true;
+    isUserTypingRef.current = false;
+
+    handleUpdateActiveDoc({ content: targetItem.content });
+
+    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+      const targetHtml = markdownToHtml(targetItem.content);
+      if (wysiwygRef.current.innerHTML !== targetHtml) {
+        wysiwygRef.current.innerHTML = targetHtml;
+      }
+      wysiwygRef.current.focus();
+    } else if (textareaRef.current) {
+      textareaRef.current.value = targetItem.content;
+      textareaRef.current.focus();
+    }
+
+    checkActiveFormatting();
+
+    setTimeout(() => {
+      isHistoryNavigatingRef.current = false;
+    }, 120);
+  }, [editorMode, checkActiveFormatting]);
+
+  // Snarveier for Ctrl+Z og Ctrl+Y
+  const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      handleRedo();
+    }
   };
+
+  // Global tastelytter for Ctrl+Z / Ctrl+Y når skriveflaten er aktiv
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (viewMode !== 'editor' || editorTab !== 'write') return;
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === 'INPUT') return;
+      if (target && target.tagName === 'TEXTAREA' && target !== textareaRef.current) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [viewMode, editorTab, handleUndo, handleRedo]);
 
   // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes, importeres eller oppdateres eksternt
   useEffect(() => {
@@ -813,6 +1184,9 @@ ${activeDoc.content}`;
   };
 
   const applyFormatting = (type: string) => {
+    const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+    pushHistorySnapshot(currentDocContent, true);
+
     if (editorMode === 'wysiwyg' && wysiwygRef.current) {
       wysiwygRef.current.focus();
 
@@ -956,8 +1330,8 @@ ${activeDoc.content}`;
 
   const handleSaveProcessLog = async () => {
     // Sjekk at de viktigste feltene er fylt ut
-    if (!logSituation.trim() || !logReflection.trim()) {
-      alert("Vennligst fyll ut situasjonsbeskrivelse og didaktisk refleksjon før du lagrer.");
+    if (!logSituation.trim() && !logReflection.trim()) {
+      alert("Vennligst fyll ut situasjonsbeskrivelse eller didaktisk refleksjon før du lagrer.");
       return;
     }
 
@@ -972,23 +1346,27 @@ ${activeDoc.content}`;
         return;
       }
 
-      // Lagrer til en kolleksjon kalt "processLogs" i Firestore
+      // Lagrer til "processLogs" i Firestore med både mappe- og dokumentkobling
       await addDoc(collection(db, 'processLogs'), {
         userId: user.uid,
-        documentId: activeDocId,
+        folderId: activeDoc?.folderId || null,
+        folderName: activeFolder?.name || null,
+        documentId: activeDoc.id,
         documentTitle: activeDoc.title,
         category: logCategory,
         situation: logSituation,
         reflection: logReflection,
         sources: logSources,
         createdAt: serverTimestamp(),
+        updatedAt: new Date().toISOString()
       });
 
       // Tømmer skjemaet etter vellykket lagring
       setLogSituation('');
       setLogReflection('');
       setLogSources('');
-      setLogSaveNotice(`Prosesslogg for «${activeDoc.title}» er lagret i skyen!`);
+      const targetName = activeDoc?.folderId ? `mappen «${activeFolder?.name}»` : `oppgaven «${activeDoc.title}»`;
+      setLogSaveNotice(`Prosesslogg for ${targetName} er lagret!`);
       setTimeout(() => setLogSaveNotice(null), 3500);
     } catch (error) {
       console.error("Feil ved lagring av prosesslogg:", error);
@@ -996,6 +1374,42 @@ ${activeDoc.content}`;
     } finally {
       setIsSavingLog(false);
     }
+  };
+
+  const handleDeleteProcessLog = async (logId: string) => {
+    if (!window.confirm("Er du sikker på at du vil slette denne prosessloggen?")) return;
+    try {
+      await deleteDoc(doc(db, 'processLogs', logId));
+    } catch (err) {
+      console.error("Feil ved sletting av prosesslogg:", err);
+    }
+  };
+
+  const handleInsertLogIntoDoc = (log: ProcessLogEntry) => {
+    const formatted = `\n\n### Prosesslogg: ${log.category}\n**Situasjonsbeskrivelse:**\n${log.situation}\n\n**Didaktisk refleksjon:**\n${log.reflection}\n${log.sources ? `\n**Kilder & Teori:**\n${log.sources}\n` : ''}`;
+    handleUpdateActiveDoc({
+      content: (activeDoc.content ? activeDoc.content + '\n' : '') + formatted
+    });
+    setLogSaveNotice("Satt inn i teksten!");
+    setTimeout(() => setLogSaveNotice(null), 2500);
+  };
+
+  const handleCreateNote = () => {
+    const newId = Date.now().toString();
+    const newDoc: DocumentItem = { 
+      id: newId, 
+      title: 'Uten tittel (Notat)', 
+      subtitle: 'Notater & Kladdeblokk • Sist endret nå', 
+      content: '# Notater & Idéer\n\n- Skriv fritt ned råtanker, stikkord, sitater og kladder her...\n', 
+      taskPrompt: 'Fritt notatdokument for idémyldring, stikkord og arbeidsnotater.', 
+      template: 'Notater & Kladdeblokk', 
+      targetWords: 0, 
+      updatedAt: new Date().toISOString() 
+    };
+    setDocuments(prev => [newDoc, ...prev]);
+    setActiveDocId(newId);
+    setViewMode('editor');
+    saveDocToFirebase(newDoc);
   };
 
   const wordCount = (typeof activeDoc.content === 'string' && activeDoc.content.trim()) 
@@ -1020,6 +1434,9 @@ ${activeDoc.content}`;
       subtitle="Strukturer, skriv og analyser dine barnehagepedagogiske oppgaver"
       icon={<FileText className="w-6 h-6" />}
       actionButtonLabel="Ny oppgave"
+      secondaryActionButtonLabel="Nytt notat / kladd"
+      onSecondaryActionClick={handleCreateNote}
+      secondaryActionButtonIcon={<StickyNote className="w-3.5 h-3.5 text-amber-400" />}
       folders={folders}
       onAddFolder={() => setIsCreatingFolder(true)}
       onMoveToFolder={handleMoveDoc}
@@ -1031,7 +1448,12 @@ ${activeDoc.content}`;
         setViewMode('setup');
         saveDocToFirebase(newDoc); // Lagrer det nye dokumentet i skyen
       }}
-      historyItems={documents}
+      historyItems={documents.map(d => ({
+        ...d,
+        icon: d.template === 'Notater & Kladdeblokk'
+          ? <StickyNote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          : <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+      }))}
       activeItemId={activeDocId}
       historySectionTitle="Mine oppgaver"
       onItemClick={(id: string) => { setActiveDocId(id); setViewMode('editor'); }}
@@ -1148,12 +1570,19 @@ ${activeDoc.content}`;
               </div>
 
               {/* Ordteller & Fremdrift */}
-              <div className="h-8 inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white border border-slate-200/80 shrink-0 whitespace-nowrap shadow-2xs text-[11px] font-medium text-slate-600">
-                <span>{wordCount} / {activeDoc.targetWords || 1500} ord ({wordProgress}%)</span>
-                <div className="w-14 sm:w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden shrink-0">
-                  <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${wordProgress}%` }} />
+              {activeDoc.template === 'Notater & Kladdeblokk' ? (
+                <div className="h-8 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50/90 border border-amber-200/90 shrink-0 whitespace-nowrap shadow-2xs text-[11px] font-bold text-amber-900">
+                  <StickyNote className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{wordCount} ord (Kladdeblokk)</span>
                 </div>
-              </div>
+              ) : (
+                <div className="h-8 inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white border border-slate-200/80 shrink-0 whitespace-nowrap shadow-2xs text-[11px] font-medium text-slate-600">
+                  <span>{wordCount} / {activeDoc.targetWords || 1500} ord ({wordProgress}%)</span>
+                  <div className="w-14 sm:w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden shrink-0">
+                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-300" style={{ width: `${wordProgress}%` }} />
+                  </div>
+                </div>
+              )}
 
               <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
               
@@ -1225,6 +1654,35 @@ ${activeDoc.content}`;
             <div className="flex-1 flex flex-col min-h-0">
               <div className="px-6 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
                 <div className="flex items-center gap-1 text-slate-700">
+                  {/* Angre (Undo) og Gjenta (Redo) - Som i Microsoft Word */}
+                  <button 
+                    type="button"
+                    onClick={handleUndo} 
+                    disabled={!canUndo}
+                    title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
+                    className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                      canUndo 
+                        ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                        : 'text-slate-300 cursor-not-allowed opacity-40'
+                    }`}
+                  >
+                    <Undo2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleRedo} 
+                    disabled={!canRedo}
+                    title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
+                    className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                      canRedo 
+                        ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                        : 'text-slate-300 cursor-not-allowed opacity-40'
+                    }`}
+                  >
+                    <Redo2 className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-slate-200 mx-1" />
+
                   <button 
                     type="button"
                     onClick={() => applyFormatting('bold')} 
@@ -1383,6 +1841,7 @@ ${activeDoc.content}`;
                           contentEditable
                           suppressContentEditableWarning
                           onInput={handleWysiwygInput}
+                          onKeyDown={handleEditorKeyDown}
                           onKeyUp={checkActiveFormatting}
                           onMouseUp={checkActiveFormatting}
                           onSelect={checkActiveFormatting}
@@ -1395,6 +1854,7 @@ ${activeDoc.content}`;
                           ref={textareaRef} 
                           value={typeof activeDoc.content === 'string' ? activeDoc.content : ''} 
                           onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })} 
+                          onKeyDown={handleEditorKeyDown}
                           placeholder="Begynn å skrive oppgaven din her..." 
                           className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[600px] font-mono" 
                         />
@@ -1436,6 +1896,15 @@ ${activeDoc.content}`;
                       </select>
                     </div>
                   </div>
+                  {activeDoc.template === 'Notater & Kladdeblokk' && (
+                    <div className="p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-3">
+                      <StickyNote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-950 leading-relaxed">
+                        <strong className="block font-bold mb-0.5 text-amber-900">Fritt notatdokument</strong>
+                        Dette dokumentet er satt opp som en åpen kladdeblokk. Du trenger ingen rigid akademisk disposisjon eller fastsatt ordtallsmål. Skriv fritt ned råtekst, sitater, observasjonsnotater og idéer.
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="pt-6 border-t border-slate-200">
                   <div className="flex items-center justify-between mb-3">
@@ -1448,9 +1917,24 @@ ${activeDoc.content}`;
                         Egendefinert oppsett
                       </span>
                     )}
+                    {activeDoc.template === 'Notater & Kladdeblokk' && (
+                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/70 px-2.5 py-0.5 rounded-full border border-amber-200">
+                        Fri disposisjon
+                      </span>
+                    )}
                   </div>
 
-                  {activeDoc.template === 'Egendefinert struktur' ? (
+                  {activeDoc.template === 'Notater & Kladdeblokk' ? (
+                    <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/60 text-xs text-slate-700 space-y-1 mb-4">
+                      <p className="font-bold text-amber-900 flex items-center gap-1.5">
+                        <StickyNote className="w-4 h-4 text-amber-600" />
+                        Fri strukturering for kladder & notater
+                      </p>
+                      <p className="text-slate-600 leading-relaxed">
+                        Kladder krever ingen obligatoriske akademiske kapitler (som innledning, analyse, konklusjon). Du kan fritt strukturere med overskrifter (# og ##) eller punktlister direkte i skriveflaten når du har behov for det.
+                      </p>
+                    </div>
+                  ) : activeDoc.template === 'Egendefinert struktur' ? (
                     <p className="text-xs text-slate-500 mb-4">
                       Definer dine egne kapitler og underpunkter. Du kan skrive inn kapitteltitler direkte, flytte dem opp og ned med pilene, legge til nye kapitler eller fjerne etter behov.
                     </p>
@@ -1843,12 +2327,47 @@ ${activeDoc.content}`;
               {activePanelTab === 'superveileder' ? (
                 // SUPERVEILEDER CHAT UI
                 <div className="flex flex-col h-full">
-                  <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-center gap-1.5 flex-wrap">
+                  {/* Kontekst-indikator for Superveileder */}
+                  <div className="px-3.5 py-2 border-b border-slate-200/80 bg-slate-100/70 flex items-center justify-between gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 min-w-0 text-xs text-slate-700">
+                      {activeDoc?.folderId ? (
+                        <>
+                          <Folder className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="font-bold text-slate-800 truncate" title={`Samtale knyttet til mappen: ${activeFolder?.name || 'Aktiv mappe'}`}>
+                            Mappe: {activeFolder?.name || 'Aktiv mappe'}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          <span className="font-bold text-slate-800 truncate" title={`Samtale for oppgaven: ${activeDoc?.title || 'Aktiv oppgave'}`}>
+                            Oppgave: {activeDoc?.title || 'Uten tittel'}
+                          </span>
+                        </>
+                      )}
+                      {isChatSyncing && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Synkroniserer samtale med skyen..." />
+                      )}
+                    </div>
+                    {messages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleClearChat}
+                        className="text-[11px] text-slate-500 hover:text-red-600 px-2 py-0.5 rounded-lg hover:bg-red-50 font-semibold transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                        title="Start ny samtale for denne konteksten"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Nullstill</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="px-2.5 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-center gap-1.5 flex-wrap shrink-0">
                     {['Auto', 'Sokratisk', 'Rammeplan', 'APA', 'Metode', 'Lytte'].map(mode => (
                       <button 
                         key={mode} 
                         onClick={() => setChatMode(mode)} 
-                        className={`px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors whitespace-nowrap ${
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-full transition-colors whitespace-nowrap cursor-pointer ${
                           chatMode === mode 
                             ? 'bg-indigo-600 text-white shadow-xs' 
                             : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
@@ -1858,7 +2377,7 @@ ${activeDoc.content}`;
                       </button>
                     ))}
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                     {messages.map((msg) => {
                       const isErrorMsg = msg.isError || (msg.role === 'assistant' && typeof msg.content === 'string' && (
                         msg.content.includes("Kapasitetsgrensen for forespørsler er midlertidig nådd") ||
@@ -1951,7 +2470,7 @@ ${activeDoc.content}`;
                     )}
                     <div ref={messagesEndRef} />
                   </div>
-                  <div className="p-3 border-t border-slate-200 bg-white">
+                  <div className="p-3 border-t border-slate-200 bg-white shrink-0">
                     <div className="relative">
                       <textarea 
                         value={chatInput} 
@@ -1971,7 +2490,7 @@ ${activeDoc.content}`;
                         type="button"
                         onClick={() => handleSendMessage()}
                         disabled={!chatInput.trim() || isChatLoading}
-                        className="absolute right-2 bottom-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-colors"
+                        className="absolute right-2 bottom-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-colors cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
                       </button>
@@ -1980,8 +2499,27 @@ ${activeDoc.content}`;
                 </div>
 
               ) : activePanelTab === 'prosesslogg' ? (
-                // STEG 5: PROSESSLOGG SKJEMA UI
-                <div className="flex flex-col h-full overflow-y-auto p-5 space-y-6">
+                // STEG 5: PROSESSLOGG SKJEMA & LOGGARKIV UI
+                <div className="flex flex-col h-full overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                  {/* Kontekst-indikator for Prosesslogg */}
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-200/70 rounded-2xl flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {activeDoc?.folderId ? (
+                        <Folder className="w-4 h-4 text-indigo-600 shrink-0" />
+                      ) : (
+                        <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                      )}
+                      <div className="text-xs truncate">
+                        <span className="text-indigo-900 font-bold block truncate">
+                          {activeDoc?.folderId ? `Mappe: ${activeFolder?.name || 'Aktiv mappe'}` : `Oppgave: ${activeDoc.title}`}
+                        </span>
+                        <span className="text-indigo-600/80 text-[10px] block">
+                          Logger lagres og knyttes automatisk til denne konteksten
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {logSaveNotice && (
                     <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -1989,79 +2527,176 @@ ${activeDoc.content}`;
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Kategori</label>
-                    <select 
-                      value={logCategory}
-                      onChange={(e) => setLogCategory(e.target.value)}
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                  <div className="space-y-4 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Ny prosesslogg</span>
+                    </h4>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Kategori</label>
+                      <select 
+                        value={logCategory}
+                        onChange={(e) => setLogCategory(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                      >
+                        <option value="Praksisfortelling">Praksisfortelling</option>
+                        <option value="Didaktisk refleksjon">Didaktisk refleksjon</option>
+                        <option value="Observasjon">Observasjon</option>
+                        <option value="Teorikobling">Teorikobling</option>
+                        <option value="Etisk dilemma">Etisk dilemma</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Situasjonsbeskrivelse / Hva skjedde?</label>
+                      <textarea 
+                        value={logSituation}
+                        onChange={(e) => setLogSituation(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs resize-none"
+                        placeholder="Beskriv en konkret hendelse fra barnehagen, hva barna sa/gjorde, og din egen rolle..."
+                        rows={4}
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Didaktisk refleksjon / Hva lærte jeg?</label>
+                      </div>
+                      <textarea 
+                        value={logReflection}
+                        onChange={(e) => setLogReflection(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs resize-none"
+                        placeholder="Reflekter over hvorfor situasjonen utviklet seg slik, og hvordan din pedagogiske væremåte påvirket utfallet..."
+                        rows={4}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Faglige kilder & Rammeplan-forankring</label>
+                      <textarea 
+                        value={logSources}
+                        onChange={(e) => setLogSources(e.target.value)}
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs resize-none"
+                        placeholder="F.eks. Bae (2012), Rammeplanen kap. 3..."
+                        rows={2}
+                      />
+                    </div>
+
+                    <button 
+                      type="button"
+                      onClick={handleSaveProcessLog}
+                      disabled={isSavingLog}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl disabled:opacity-70 transition-all shadow-md flex justify-center items-center gap-2 cursor-pointer text-xs"
                     >
-                      <option value="Praksisfortelling">Praksisfortelling</option>
-                      <option value="Didaktisk refleksjon">Didaktisk refleksjon</option>
-                      <option value="Observasjon">Observasjon</option>
-                      <option value="Teorikobling">Teorikobling</option>
-                      <option value="Etisk dilemma">Etisk dilemma</option>
-                    </select>
+                      {isSavingLog ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                      {isSavingLog ? 'Lagrer i skyen...' : 'Lagre prosesslogg'}
+                    </button>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Situasjonsbeskrivelse / Hva skjedde?</label>
+                  {/* Tidligere lagrede prosesslogger for denne mappen/oppgaven */}
+                  <div className="pt-2 border-t border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Lagrede logger for {activeDoc?.folderId ? 'mappen' : 'oppgaven'} ({contextProcessLogs.length})</span>
+                      </h4>
                     </div>
-                    <textarea 
-                      value={logSituation}
-                      onChange={(e) => setLogSituation(e.target.value)}
-                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm resize-none"
-                      placeholder="Beskriv en konkret hendelse fra barnehagen, hva barna sa/gjorde, og din egen rolle..."
-                      rows={5}
-                    />
-                  </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Didaktisk refleksjon / Hva lærte jeg?</label>
-                      <button className="text-[10px] flex items-center gap-1 font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded-md">
-                        <Sparkles className="w-3 h-3" /> Foreslå teorikobling med AI
-                      </button>
-                    </div>
-                    <textarea 
-                      value={logReflection}
-                      onChange={(e) => setLogReflection(e.target.value)}
-                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm resize-none"
-                      placeholder="Reflekter over hvorfor situasjonen utviklet seg slik, og hvordan din pedagogiske væremåte påvirket utfallet..."
-                      rows={5}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Faglige kilder & Rammeplan-forankring</label>
-                    <textarea 
-                      value={logSources}
-                      onChange={(e) => setLogSources(e.target.value)}
-                      className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm resize-none"
-                      placeholder="F.eks. Bae (2012), Rammeplanen kap. 3..."
-                      rows={2}
-                    />
-                  </div>
-
-                  <button 
-                    onClick={handleSaveProcessLog}
-                    disabled={isSavingLog}
-                    className="w-full py-3.5 mt-2 bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 disabled:opacity-70 transition-colors shadow-md flex justify-center items-center gap-2"
-                  >
-                    {isSavingLog ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {isProcessLogsLoading ? (
+                      <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                        <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        <span>Laster prosesslogger fra skyen...</span>
+                      </div>
+                    ) : contextProcessLogs.length === 0 ? (
+                      <div className="p-4 bg-white border border-slate-200/80 rounded-2xl text-center text-xs text-slate-500 italic">
+                        Ingen logger lagret for denne {activeDoc?.folderId ? 'mappen' : 'oppgaven'} enda. Fyll ut skjemaet over for å lagre din didaktiske refleksjon.
+                      </div>
                     ) : (
-                      <Archive className="w-4 h-4" />
+                      <div className="space-y-2.5">
+                        {contextProcessLogs.map(log => {
+                          const isExpanded = expandedLogId === log.id;
+                          return (
+                            <div key={log.id} className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-2xs space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100">
+                                    {log.category}
+                                  </span>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    {log.createdAt?.toDate ? log.createdAt.toDate().toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : (log.updatedAt ? new Date(log.updatedAt).toLocaleDateString('nb-NO') : 'Nylig')}
+                                    {log.documentTitle && <span className="ml-1 text-slate-500">• {log.documentTitle}</span>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleInsertLogIntoDoc(log)}
+                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Sett inn i oppgaven"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>Sett inn</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProcessLog(log.id)}
+                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                    title="Slett logg"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="text-xs text-slate-700 space-y-1.5">
+                                <div>
+                                  <strong className="text-slate-900 block font-semibold text-[11px]">Situasjon:</strong>
+                                  <p className={`text-slate-600 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+                                    {log.situation || '–'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <strong className="text-slate-900 block font-semibold text-[11px]">Refleksjon:</strong>
+                                  <p className={`text-slate-600 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+                                    {log.reflection || '–'}
+                                  </p>
+                                </div>
+                                {log.sources && (
+                                  <div>
+                                    <strong className="text-slate-900 block font-semibold text-[11px]">Kilder:</strong>
+                                    <p className="text-slate-500 italic">
+                                      {log.sources}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {(log.situation?.length > 100 || log.reflection?.length > 100) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                                  className="text-[10px] text-indigo-600 font-bold hover:underline pt-0.5 block cursor-pointer"
+                                >
+                                  {isExpanded ? '▲ Vis mindre' : '▼ Les hele loggen'}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
-                    {isSavingLog ? 'Lagrer i skyen...' : 'Lagre logg i arkivet'}
-                  </button>
+                  </div>
 
                 </div>
               ) : (
                 // STEG 6: MEDSTUDENT-RESPONS / MARGINKOMMENTARER
                 <div className="flex flex-col h-full overflow-hidden bg-slate-50/40">
-                  <div className="p-3.5 bg-white border-b border-slate-200/80 space-y-2.5">
+                  <div className="p-3.5 bg-white border-b border-slate-200/80 space-y-2.5 shrink-0">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                         <Users className="w-4 h-4 text-purple-600" />
@@ -2070,6 +2705,10 @@ ${activeDoc.content}`;
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
                         {peerComments.length} innspill
                       </span>
+                    </div>
+
+                    <div className="p-2 bg-purple-50/70 border border-purple-200/60 rounded-xl text-[11px] text-purple-950">
+                      <strong>Tilknyttet:</strong> {activeDoc?.folderId ? `📁 ${activeFolder?.name || 'Mappe'} / ` : ''}📄 {activeDoc.title}
                     </div>
 
                     <div className="flex items-center gap-1.5">

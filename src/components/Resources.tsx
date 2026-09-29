@@ -36,8 +36,10 @@ import {
   Move,
   Clock,
   Archive,
-  StickyNote
+  StickyNote,
+  BookMarked
 } from 'lucide-react';
+import { KildebankView } from './tools/KildebankView';
 import { 
   FieldNote, 
   NoteCategory, 
@@ -64,7 +66,7 @@ import { extractTextFromDocx } from '../lib/docxUtils';
 
 export interface ResourcesProps {
   collegeName?: string;
-  initialMenu?: 'library' | 'files' | 'field-notes-archive' | string;
+  initialMenu?: 'library' | 'files' | 'field-notes-archive' | 'sources' | 'kildebank' | string;
   onNavigateToFieldNotes?: () => void;
 }
 
@@ -149,8 +151,13 @@ export function Resources({
   initialMenu = 'files',
   onNavigateToFieldNotes
 }: ResourcesProps) {
-  // Navigation / views: 'files' | 'library' | 'field-notes-archive'
-  const [activeMenu, setActiveMenu] = useState<string>(initialMenu === 'library' ? 'library' : 'files');
+  // Navigation / views: 'files' | 'library' | 'field-notes-archive' | 'sources'
+  const [activeMenu, setActiveMenu] = useState<string>(() => {
+    if (initialMenu === 'library') return 'library';
+    if (initialMenu === 'sources' || initialMenu === 'kildebank') return 'sources';
+    if (initialMenu === 'field-notes-archive') return 'field-notes-archive';
+    return 'files';
+  });
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [selectedFolderFilter, setSelectedFolderFilter] = useState<string | null>(null);
@@ -852,6 +859,19 @@ export function Resources({
             >
               <Library className="w-3.5 h-3.5" />
               <span>Ressursbibliotek</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => { setActiveMenu('sources'); setSelectedFileId(null); setSelectedNoteId(null); }} 
+              className={cn(
+                "px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5",
+                activeMenu === 'sources' 
+                  ? "bg-white text-indigo-700 shadow-xs font-black" 
+                  : "text-slate-600 hover:text-slate-900"
+              )}
+            >
+              <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Kildebank (APA 7)</span>
             </button>
           </div>
 
@@ -1858,6 +1878,13 @@ export function Resources({
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* VISNING 4: KILDEBANK & APA 7 */}
+            {activeMenu === 'sources' && (
+              <div className="pb-12">
+                <KildebankView standalone={false} />
               </div>
             )}
 

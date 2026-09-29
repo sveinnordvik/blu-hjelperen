@@ -430,6 +430,19 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.4.1',
+    date: '2026-09-29',
+    title: 'Oppgradering til versjon 3.4.1: Kildebank (APA 7) og Notat-oppgavetype',
+    changes: [
+      'Ny dedikert Kildebank (APA 7) fane under både «Ressurser» og «Skriving» for uavhengig kildehåndtering, registrering av pensumbøker, artikler, nettsider og lover.',
+      'Sanntids APA 7 forhåndsvisning av referanser og automatisk generering av alfabetisk sortert litteraturliste med ett-klikks kopiering.',
+      'Ny oppgavetype «Notater & Kladdeblokk» i Skriveverkstedet med åpen, fri disposisjon uten akademisk mal-tvang.',
+      'Hurtigknapp «+ Nytt notat / kladd» i Skriveverkstedets sidemeny for direkte oppstart i skriveflaten.',
+      'Behagelig og stressfri ordteller for kladder (viser antall ord uten progresjonsbar eller målkrav).',
+      'Visuelt gult notatikon for kladder i mappene og dokumentlistene.'
+    ]
+  },
+  {
     version: 'v3.4.0',
     date: '2026-09-29',
     title: 'Oppgradering til versjon 3.4.0',

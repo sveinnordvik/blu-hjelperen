@@ -17,7 +17,8 @@ import {
   FolderOpen,
   FolderPlus,
   ChevronDown,
-  ArrowLeft
+  ArrowLeft,
+  StickyNote
 } from 'lucide-react';
 
 export interface FolderType {
@@ -61,6 +62,9 @@ export interface WorkspaceLayoutProps {
   icon?: React.ReactNode;
   actionButtonLabel: string;
   onActionClick: () => void;
+  secondaryActionButtonLabel?: string;
+  onSecondaryActionClick?: () => void;
+  secondaryActionButtonIcon?: React.ReactNode;
   historyItems?: HistoryItem[];
   folders?: FolderType[]; // Ny prop for mapper
   activeItemId?: string | null;
@@ -83,6 +87,9 @@ export function WorkspaceLayout({
   icon,
   actionButtonLabel, 
   onActionClick, 
+  secondaryActionButtonLabel,
+  onSecondaryActionClick,
+  secondaryActionButtonIcon,
   historyItems = [], 
   folders = [],
   activeItemId, 
@@ -228,11 +235,20 @@ export function WorkspaceLayout({
 
               <button 
                 onClick={onActionClick}
-                className="w-10 h-10 bg-primary text-white rounded-xl font-bold flex items-center justify-center hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all"
+                className="w-10 h-10 bg-primary text-white rounded-xl font-bold flex items-center justify-center hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all cursor-pointer"
                 title={actionButtonLabel}
               >
                 <Plus className="w-5 h-5" />
               </button>
+              {secondaryActionButtonLabel && onSecondaryActionClick && (
+                <button 
+                  onClick={onSecondaryActionClick}
+                  className="w-10 h-10 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl font-bold flex items-center justify-center hover:bg-amber-500/30 transition-all cursor-pointer mt-1"
+                  title={secondaryActionButtonLabel}
+                >
+                  {secondaryActionButtonIcon || <StickyNote className="w-4 h-4 text-amber-400" />}
+                </button>
+              )}
 
               {/* Lagt til overflow-x-hidden for å forhindre sideveis rulling */}
               <div className="w-full px-2 mt-2 space-y-2 overflow-y-auto overflow-x-hidden max-h-[calc(100vh-320px)] custom-scrollbar">
@@ -282,12 +298,23 @@ export function WorkspaceLayout({
                 </button>
               </div>
               
-              <button 
-                onClick={onActionClick}
-                className="w-full py-3 px-4 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all active:scale-[0.99]"
-              >
-                <Plus className="w-5 h-5" /> {actionButtonLabel}
-              </button>
+              <div className="space-y-2">
+                <button 
+                  onClick={onActionClick}
+                  className="w-full py-2.5 px-3 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all active:scale-[0.99] text-xs sm:text-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> {actionButtonLabel}
+                </button>
+                {secondaryActionButtonLabel && onSecondaryActionClick && (
+                  <button 
+                    onClick={onSecondaryActionClick}
+                    className="w-full py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.99] text-xs cursor-pointer shadow-2xs"
+                  >
+                    {secondaryActionButtonIcon || <StickyNote className="w-3.5 h-3.5 text-amber-400" />}
+                    <span>{secondaryActionButtonLabel}</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -447,7 +474,7 @@ export function WorkspaceLayout({
               </button>
             </div>
 
-            <div className="p-3 border-b border-slate-800">
+            <div className="p-3 border-b border-slate-800 space-y-2">
               <button
                 onClick={() => {
                   onActionClick();
@@ -457,6 +484,18 @@ export function WorkspaceLayout({
               >
                 <Plus className="w-4 h-4" /> {actionButtonLabel}
               </button>
+              {secondaryActionButtonLabel && onSecondaryActionClick && (
+                <button
+                  onClick={() => {
+                    onSecondaryActionClick();
+                    setShowMobileArchive(false);
+                  }}
+                  className="w-full py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl font-bold flex items-center justify-center gap-2 text-xs cursor-pointer active:scale-98 shadow-xs"
+                >
+                  {secondaryActionButtonIcon || <StickyNote className="w-3.5 h-3.5 text-amber-400" />}
+                  <span>{secondaryActionButtonLabel}</span>
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">

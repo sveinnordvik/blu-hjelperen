@@ -174,3 +174,28 @@ export function saveCustomSource(source: AcademicSource): AcademicSource[] {
     return [];
   }
 }
+
+export function deleteCustomSource(id: string): AcademicSource[] {
+  try {
+    const current = getStoredCustomSources();
+    const updated = current.filter(s => s.id !== id);
+    localStorage.setItem(USER_CUSTOM_SOURCES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Feil ved sletting av kilde:', e);
+    return [];
+  }
+}
+
+export function updateCustomSource(source: AcademicSource): AcademicSource[] {
+  try {
+    const current = getStoredCustomSources();
+    const updated = current.map(s => s.id === source.id ? source : s);
+    localStorage.setItem(USER_CUSTOM_SOURCES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Feil ved oppdatering av kilde:', e);
+    return [];
+  }
+}
+

@@ -11,6 +11,7 @@ import { RoleplaySimulator } from './components/RoleplaySimulator';
 import { PresentationGenerator } from './components/PresentationGenerator';
 import { EmpiricalAnalysis } from './components/tools/EmpiricalAnalysis';
 import { Resources } from './components/Resources';
+import { KildebankView } from './components/tools/KildebankView';
 import { Profile as ProfileComponent } from './components/Profile';
 import { isUnlimitedUser, isAdminUser } from './config/accessConfig';
 import { FieldNotes } from './components/mobile/FieldNotes';
@@ -57,6 +58,7 @@ import {
   CheckSquare,
   Quote,
   Library,
+  BookMarked,
   X,
   Check,
   Upload,
@@ -406,7 +408,7 @@ export default function App() {
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools' | 'field-notes' | 'field-assistant' | 'peer-review'>(() => {
+  const [activeTab, setActiveTab] = useState<'home' | 'super-chat' | 'desktop-dashboard' | 'blu-hjelper' | 'prompt-library' | 'task-start' | 'process-log' | 'socratic-partner' | 'language-bot' | 'writing-workshop' | 'polishing' | 'assistant' | 'literature-ref' | 'glossary-auto' | 'method-ethics' | 'pdf-analysis' | 'oral-simulator' | 'presentation-generator' | 'resources' | 'file-archive' | 'profile' | 'settings' | 'about' | 'pricing' | 'milestones' | 'collaboration' | 'sensor' | 'apa' | 'checklist' | 'citations' | 'methodology' | 'literature' | 'ethics' | 'glossary' | 'pdf' | 'source' | 'chat' | 'writing-process' | 'progress' | 'admin' | 'didaktisk-planlegger' | 'dagens-bilde' | 'privacy' | 'terms' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'verktoy' | 'tools-overview' | 'tools' | 'field-notes' | 'field-assistant' | 'peer-review' | 'kildebank' | 'kildebank-writing'>(() => {
     try {
       const p = new URLSearchParams(window.location.search);
       if (p.get('review') || p.get('reviewId')) return 'peer-review';
@@ -1016,6 +1018,7 @@ export default function App() {
     { id: 'skriving', label: 'Skriving', icon: PenTool, subTabs: [
       { id: 'assistant', label: 'Superveilederen', icon: Sparkles, requiredTier: 'free' },
       { id: 'writing-workshop', label: 'Skriveverksted', icon: FileText, requiredTier: 'free' },
+      { id: 'kildebank-writing', label: 'Kildebank (APA 7)', icon: BookMarked, requiredTier: 'free' },
       { id: 'process-log', label: 'Prosesslogg', icon: BookOpen, requiredTier: 'free' }
     ]},
     { id: 'verktoy', label: 'Verktøy', icon: Zap, subTabs: [
@@ -1026,7 +1029,8 @@ export default function App() {
     ]},
     { id: 'ressurser', label: 'Ressurser', icon: Library, subTabs: [
       { id: 'resources', label: 'Ressursbibliotek', icon: Grid, requiredTier: 'free' },
-      { id: 'file-archive', label: 'Filarkiv', icon: Archive, requiredTier: 'free' }
+      { id: 'file-archive', label: 'Filarkiv', icon: Archive, requiredTier: 'free' },
+      { id: 'kildebank', label: 'Kildebank (APA 7)', icon: BookMarked, requiredTier: 'free' }
     ]},
     { id: 'profil', label: 'Profil', icon: User, subTabs: [
       { id: 'profile', label: 'Konto & Profil', icon: User, requiredTier: 'free' }
@@ -6256,6 +6260,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             <Resources key="file-archive" collegeName={profile.college || 'DMMH'} initialMenu="files" />
           )}
 
+          {activeTab === 'kildebank' && (
+            <Resources key="kildebank" collegeName={profile.college || 'DMMH'} initialMenu="sources" />
+          )}
+
+          {activeTab === 'kildebank-writing' && (
+            <div className="flex-1 flex flex-col bg-slate-50 min-h-screen">
+              <KildebankView onNavigateToWorkshop={() => setActiveTab('writing-workshop')} standalone={true} />
+            </div>
+          )}
+
           {activeTab === 'milestones' && (
             <motion.div 
               key="milestones"
@@ -6410,7 +6424,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               title="Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.4.0
+              v3.4.1
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

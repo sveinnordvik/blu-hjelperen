@@ -23,7 +23,8 @@ import {
   List,
   Edit2,
   UserPlus,
-  ChevronDown
+  ChevronDown,
+  FileCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -48,7 +49,8 @@ type MobileTab = 'oversikt' | 'chat' | 'notater' | 'kalender';
 const APPOINTMENT_TYPES = [
   { id: 'guidance', label: 'Veiledningstime', sub: 'Praksisveileder / faglærer', icon: GraduationCap, color: 'bg-purple-100 text-purple-700 border-purple-200' },
   { id: 'meeting', label: 'Gruppemøte', sub: 'Kollokvieøkt / forberedelse', icon: Users, color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  { id: 'deadline', label: 'Innleveringsfrist', sub: 'Arbeidskrav / prosessnotat', icon: AlertOctagon, color: 'bg-rose-100 text-rose-700 border-rose-200' }
+  { id: 'assignment', label: 'Arbeidskrav', sub: 'Obligatorisk innlevering', icon: FileCheck, color: 'bg-amber-100 text-amber-800 border-amber-200' },
+  { id: 'deadline', label: 'Eksamen / Frist', sub: 'Avsluttende vurdering', icon: AlertOctagon, color: 'bg-rose-100 text-rose-700 border-rose-200' }
 ] as const;
 
 export const MobileBasen: React.FC<MobileBasenProps> = ({
@@ -83,7 +85,7 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
 
   // New event form state
   const [eventTitle, setEventTitle] = useState('');
-  const [eventType, setEventType] = useState<'guidance' | 'meeting' | 'deadline'>('meeting');
+  const [eventType, setEventType] = useState<'guidance' | 'meeting' | 'deadline' | 'assignment'>('meeting');
   const [eventDate, setEventDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [eventStartTime, setEventStartTime] = useState('10:00');
   const [eventEndTime, setEventEndTime] = useState('11:30');
@@ -817,6 +819,7 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                         .map((ev, idx) => {
                           const isGuidance = ev.type === 'guidance';
                           const isDeadline = ev.type === 'deadline';
+                          const isAssignment = ev.type === 'assignment' || ev.type === 'arbeidskrav';
                           return (
                             <div 
                               key={ev.id || `mob-ev-${idx}`} 
@@ -826,12 +829,14 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 ${
                                   isGuidance
                                     ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                    : isAssignment
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
                                     : isDeadline
                                     ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                     : 'bg-blue-100 text-blue-800 border border-blue-200'
                                 }`}>
-                                  {isGuidance ? <GraduationCap className="w-3 h-3" /> : isDeadline ? <AlertOctagon className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                                  <span>{isGuidance ? 'Veiledningstime' : isDeadline ? 'Innleveringsfrist' : 'Gruppemøte'}</span>
+                                  {isGuidance ? <GraduationCap className="w-3 h-3" /> : isAssignment ? <FileCheck className="w-3 h-3" /> : isDeadline ? <AlertOctagon className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                                  <span>{isGuidance ? 'Veiledningstime' : isAssignment ? 'Arbeidskrav' : isDeadline ? 'Eksamen / Frist' : 'Gruppemøte'}</span>
                                 </span>
                                 <div className="flex items-center gap-2">
                                   <span className="text-[11px] font-bold text-slate-500">{ev.date}</span>
@@ -945,6 +950,8 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                                       ? 'bg-white'
                                       : ev.type === 'guidance'
                                       ? 'bg-purple-600'
+                                      : ev.type === 'assignment' || ev.type === 'arbeidskrav'
+                                      ? 'bg-amber-500'
                                       : ev.type === 'deadline'
                                       ? 'bg-rose-500'
                                       : 'bg-blue-500'
@@ -1019,7 +1026,7 @@ export const MobileBasen: React.FC<MobileBasenProps> = ({
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         Velg avtaletype:
                       </label>
-                      <div className="grid grid-cols-3 gap-1.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                         {APPOINTMENT_TYPES.map(type => {
                           const Icon = type.icon;
                           const isSelected = eventType === type.id;

@@ -120,11 +120,13 @@ service cloud.firestore {
              (!('title' in data) || (data.title is string && data.title.size() <= 500)) &&
              (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 500)) &&
              (!('folderId' in data) || data.folderId is string || data.folderId == null) &&
+             (!('folderName' in data) || data.folderName is string || data.folderName == null) &&
              (!('category' in data) || (data.category is string && data.category.size() <= 200)) &&
              (!('documentId' in data) || (data.documentId is string && data.documentId.size() <= 200)) &&
              (!('documentTitle' in data) || (data.documentTitle is string && data.documentTitle.size() <= 500)) &&
              (!('sources' in data) || (data.sources is string && data.sources.size() <= 5000)) &&
              (!('theoryLinks' in data) || (data.theoryLinks is string && data.theoryLinks.size() <= 5000)) &&
+             (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt == null) &&
              (!('isPinned' in data) || data.isPinned is bool);
     }
 

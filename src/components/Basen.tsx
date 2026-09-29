@@ -28,7 +28,9 @@ import {
   CalendarRange, 
   CheckSquare, 
   Send, 
-  FolderOpen
+  FolderOpen,
+  FileCheck,
+  MapPin
 } from 'lucide-react';
 import { Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -88,9 +90,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 const categoryConfig: Record<string, { label: string; color: string; icon: any }> = {
   meeting: { label: 'Gruppemøte', color: 'bg-blue-100 border-blue-200 text-blue-700 hover:bg-blue-200', icon: Users },
+  assignment: { label: 'Arbeidskrav', color: 'bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200', icon: FileCheck },
+  arbeidskrav: { label: 'Arbeidskrav', color: 'bg-amber-100 border-amber-300 text-amber-900 hover:bg-amber-200', icon: FileCheck },
   lecture: { label: 'Forelesning/Undervisning', color: 'bg-purple-100 border-purple-200 text-purple-700 hover:bg-purple-200', icon: Video },
-  deadline: { label: 'Frist/Innlevering', color: 'bg-rose-100 border-rose-200 text-rose-700 hover:bg-rose-200', icon: AlertOctagon },
-  social: { label: 'Sosialt', color: 'bg-emerald-100 border-emerald-200 text-emerald-700 hover:bg-emerald-200', icon: CheckSquare }
+  deadline: { label: 'Eksamen', color: 'bg-rose-100 border-rose-200 text-rose-700 hover:bg-rose-200', icon: AlertOctagon },
+  social: { label: 'Skriveøkt/Sosialt', color: 'bg-emerald-100 border-emerald-200 text-emerald-700 hover:bg-emerald-200', icon: CheckSquare }
 };
 
 export interface GroupFile {
@@ -146,7 +150,7 @@ export interface GroupEvent {
   startTime?: string;
   endTime?: string;
   allDay?: boolean;
-  type?: 'meeting' | 'guidance' | 'deadline' | 'lecture' | 'social' | string;
+  type?: 'meeting' | 'guidance' | 'deadline' | 'lecture' | 'social' | 'assignment' | 'arbeidskrav' | string;
   category?: string;
   location?: string;
   description?: string;
@@ -1226,6 +1230,16 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                       </div>
                     </div>
 
+                    {/* Kategori-oversikt og fargeforklaring */}
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 py-2 px-4 bg-white border border-slate-200/80 rounded-2xl text-xs font-bold text-slate-600 mb-4 shadow-2xs">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400 font-black">Kategorier:</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Gruppemøte</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Arbeidskrav</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Eksamen</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Skriveøkt</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Forelesning</span>
+                    </div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       {/* Kalendervisning */}
                       <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
@@ -1741,6 +1755,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                           className="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary"
                         >
                           <option value="meeting">Gruppemøte (Blå)</option>
+                          <option value="assignment">Arbeidskrav (Oransje)</option>
                           <option value="deadline">Eksamen (Rød)</option>
                           <option value="social">Skriveøkt (Grønn)</option>
                           <option value="lecture">Forelesning (Lilla)</option>
@@ -1874,6 +1889,106 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
                       </button>
                     </div>
                     
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* MODAL: VIS DETALJER FOR VALGT HENDELSE */}
+            <AnimatePresence>
+              {selectedEvent && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                  <motion.div 
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border",
+                          (categoryConfig[selectedEvent.type || 'meeting'] || categoryConfig.meeting).color
+                        )}>
+                          {(() => {
+                            const ConfIcon = (categoryConfig[selectedEvent.type || 'meeting'] || categoryConfig.meeting).icon;
+                            return <ConfIcon className="w-3.5 h-3.5" />;
+                          })()}
+                          <span>{(categoryConfig[selectedEvent.type || 'meeting'] || categoryConfig.meeting).label}</span>
+                        </span>
+                        <h3 className="text-lg font-black text-slate-900 mt-2 leading-snug">
+                          {selectedEvent.title}
+                        </h3>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedEvent(null)}
+                        className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span><strong>Dato:</strong> {selectedEvent.date}</span>
+                      </div>
+                      <div className="flex items-center gap-2 font-medium">
+                        <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span><strong>Tid:</strong> {selectedEvent.allDay ? 'Hele dagen' : `${selectedEvent.startTime || '09:00'} - ${selectedEvent.endTime || '10:00'}`}</span>
+                      </div>
+                      {selectedEvent.location && (
+                        <div className="flex items-center gap-2 font-medium">
+                          <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span><strong>Sted/Lenke:</strong> {selectedEvent.location}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedEvent.description && (
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Beskrivelse / Agenda</label>
+                        <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed whitespace-pre-wrap">
+                          {selectedEvent.description}
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedEvent.files && selectedEvent.files.length > 0 && (
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Tilknyttede filer</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedEvent.files.map((fn: string, idx: number) => (
+                            <span key={`sev-f-${idx}`} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700">
+                              <FileIcon className="w-3.5 h-3.5 text-indigo-500" />
+                              <span className="max-w-[200px] truncate">{fn}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          updateActiveGroup({ events: (activeGroup.events || []).filter(e => e.id !== selectedEvent.id) });
+                          setSelectedEvent(null);
+                        }}
+                        className="flex-1 py-2.5 px-3 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Slett hendelse</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setSelectedEvent(null)}
+                        className="flex-1 py-2.5 px-3 bg-slate-900 text-white hover:bg-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Lukk
+                      </button>
+                    </div>
                   </motion.div>
                 </div>
               )}
