@@ -1140,10 +1140,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.4.3 (September 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.5.0 (September 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Avhuking (multi-select) og smart kildeoverføring i Kildebanken: Huk av kilder fra standardpensum eller egne kilder, og overfør dem direkte til valgfri oppgave/mappe med automatisk APA 7-alfabetisering, flytende handlingslinje for hurtigkopiering av kildelister, samt forklaring av pensum-RAG på Hjem-fanen.</span>
+                        <span className="text-slate-600">Ekte Word A4-ark med separate sider, 2,54 cm akademiske marger, topp- og bunntekst, samt automatisk tekstoverføring ved overskridelse. 2-linjers akademisk verktøylinje med Angre/Gjenta, skrifttyper (Times New Roman, Calibri, Arial, Georgia), linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og + Kilde (APA 7). Word-stil Zoom-glidebryter (50 % – 175 %) og hurtigmeny. Ekspansiv Fokusmodus med valgfrie bredder (Normal, Bred 1024px, Ekstra bred, Full) og skriftstørrelser (18px–28px) uten indre scrollbokser. Sanntidsanalyse med ord, tegn, avsnitt, lesetid og LIX-lesbarhetsindeks.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1155,7 +1155,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.4.2, v3.4.1, v3.4.0, v3.3.0)</span>
+                            <span>Tidligere versjoner (v3.4.3, v3.4.2, v3.4.1, v3.4.0, v3.3.0)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1166,6 +1166,10 @@ export function Profile({
 
                         {showOlderVersions && (
                           <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.4.3 (September 2026)</strong>
+                              <span className="text-slate-500">Avhuking (multi-select) og smart kildeoverføring i Kildebanken: Huk av kilder fra standardpensum eller egne kilder, og overfør dem direkte til valgfri oppgave/mappe med automatisk APA 7-alfabetisering, flytende handlingslinje for hurtigkopiering av kildelister, samt forklaring av pensum-RAG på Hjem-fanen.</span>
+                            </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.2 (September 2026)</strong>
                               <span className="text-slate-500">Permanent sky- og hurtigbufferlagring av samtaler i Superveilederen og prosesslogger knyttet direkte til mapper og oppgaver, visning av lagrede prosesslogger i sidepanelet med mulighet for hurtiginnsetting i oppgaveteksten, samt modulær ytelsesoptimalisering (code-splitting av eksport- og PDF-motorer) for maksimal responsivitet og rask oppstart.</span>
