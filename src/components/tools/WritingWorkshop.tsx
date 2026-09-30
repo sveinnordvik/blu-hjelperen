@@ -1,19 +1,25 @@
 // Nye imports (hvis du trenger dem senere) pluss eksisterende
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { WorkspaceLayout, HistoryItem } from '../WorkspaceLayout';
+import { WorkspaceLayout, HistoryItem, FOLDER_COLORS } from '../WorkspaceLayout';
 import { 
   FileText, Settings, Sparkles, Save, CheckCircle2, FileEdit, AlertCircle, Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Underline, Eye, Edit3, Check, RotateCcw, BookOpen, Copy, Download, ChevronRight, ChevronLeft, PanelRightClose, Send, Archive, User,
   Folder, FolderOpen, FolderPlus, Plus, Trash2, X, ArrowUp, ArrowDown, BookMarked, Users, Share2, MessageSquare, Clock, ShieldCheck,
-  Undo2, Redo2, StickyNote
+  Undo2, Redo2, StickyNote, Brain, Scissors,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, Indent, Outdent, Baseline,
+  Search, Replace, BarChart3, Type, ChevronUp, ChevronDown,
+  Maximize2, Minimize2, Sun, Moon,
+  ZoomIn, ZoomOut
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
+import { markdownToHtml, htmlToMarkdown, splitDocumentIntoPages } from '../../lib/wysiwygConverter';
 import { CitationAssistantModal } from './CitationAssistantModal';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
 import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '../../firebase'; 
 import { DocumentExportModal } from './DocumentExportModal';
+import { FolderExportModal } from './FolderExportModal';
+import { FolderContextModal } from './FolderContextModal';
 import { ShareToCollabModal } from './ShareToCollabModal';
 import { PeerReviewShareModal } from './PeerReviewShareModal';
 import { DocumentHistoryModal } from './DocumentHistoryModal';
@@ -24,7 +30,11 @@ import { MarginComment, SharedReviewData } from '../PeerReviewReader';
 export interface FolderItem {
   id: string;
   name: string;
+  color?: string;
+  isArchived?: boolean;
   isExpanded: boolean; // Styrer om mappen er åpen eller lukket i menyen
+  customContext?: string; // Felles KI-mappekontekst
+  focusArea?: string;
   createdAt: string;
 }
 
@@ -39,6 +49,8 @@ export interface DocumentItem extends HistoryItem {
   template: string;
   targetWords: number;
   updatedAt: string;
+  fontFamily?: 'times' | 'calibri' | 'arial' | 'georgia'; // Valgt skrifttype
+  lineSpacing?: '1.0' | '1.15' | '1.5' | '2.0'; // Valgt linjeavstand
   outline?: { id: number; title: string; subItems: string[] }[];
 }
 
@@ -63,9 +75,6 @@ export interface ProcessLogEntry {
   createdAt?: any;
   updatedAt?: string;
 }
-
-const STORAGE_KEY = 'blu_writing_workshop_docs_v2';
-const FOLDERS_STORAGE_KEY = 'blu_writing_workshop_folders_v1';
 
 // STEG 1: Mock-data for mapper
 const INITIAL_FOLDERS: FolderItem[] = [
@@ -112,9 +121,31 @@ const INITIAL_DOCUMENTS: DocumentItem[] = [
   }
 ];
 
+const STORAGE_KEY = 'blu_active_document_id';
+const FOLDERS_STORAGE_KEY = 'blu_workshop_folders';
+const DOCUMENTS_STORAGE_KEY = 'blu_workshop_documents_cache_v2';
+
 export function WritingWorkshop(_props?: { [key: string]: any }) {
-  const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [activeDocId, setActiveDocId] = useState<string>('');
+  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(DOCUMENTS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to parse documents from localStorage', e);
+    }
+    return INITIAL_DOCUMENTS;
+  });
+
+  const [activeDocId, setActiveDocId] = useState<string>(() => {
+    try {
+      const savedActiveId = localStorage.getItem('blu_active_document_id');
+      if (savedActiveId) return savedActiveId;
+    } catch (e) {}
+    return '1';
+  });
 
   // Legg til dette rett under setDocuments / setActiveDocId
   const [folders, setFolders] = useState<FolderItem[]>(() => {
@@ -127,7 +158,25 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     return INITIAL_FOLDERS;
   });
 
-  // Legg til en useEffect for å lagre mapper lokalt i mellomtiden
+  // Lagre dokumenter og mapper lokalt for umiddelbar respons
+  useEffect(() => {
+    if (documents.length > 0) {
+      try {
+        localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(documents));
+      } catch (e) {
+        console.error('Failed to save documents to localStorage', e);
+      }
+    }
+  }, [documents]);
+
+  useEffect(() => {
+    if (activeDocId) {
+      try {
+        localStorage.setItem('blu_active_document_id', activeDocId);
+      } catch (e) {}
+    }
+  }, [activeDocId]);
+
   useEffect(() => {
     try {
       localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
@@ -136,8 +185,21 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     }
   }, [folders]);
 
-  const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const latestDocToSaveRef = useRef<DocumentItem | null>(null);
+
+  // Flush pending saves on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      if (latestDocToSaveRef.current) {
+        saveDocToFirebase(latestDocToSaveRef.current);
+      }
+    };
+  }, []);
 
   // Henter dokumenter og mapper fra Firestore ved innlasting
   useEffect(() => {
@@ -146,7 +208,9 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
       const user = auth.currentUser;
       
       if (!user) {
-        setDocuments(INITIAL_DOCUMENTS);
+        if (!documents || documents.length === 0) {
+          setDocuments(INITIAL_DOCUMENTS);
+        }
         setFolders(INITIAL_FOLDERS);
         setIsLoadingDocs(false);
         return;
@@ -159,18 +223,24 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         if (!docSnapshot.empty) {
           const fetchedDocs = docSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DocumentItem));
           fetchedDocs.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+          setDocuments(fetchedDocs);
+          try {
+            localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(fetchedDocs));
+          } catch (e) {}
+
           const savedActiveId = localStorage.getItem('blu_active_document_id');
           const targetExists = savedActiveId && fetchedDocs.some(d => d.id === savedActiveId);
           if (targetExists) {
             setActiveDocId(savedActiveId);
-          } else {
+          } else if (fetchedDocs.length > 0) {
             setActiveDocId(fetchedDocs[0].id);
           }
         } else {
-          const savedActiveId = localStorage.getItem('blu_active_document_id');
-          const targetExists = savedActiveId && INITIAL_DOCUMENTS.some(d => d.id === savedActiveId);
-          setDocuments(INITIAL_DOCUMENTS);
-          setActiveDocId(targetExists ? savedActiveId : INITIAL_DOCUMENTS[0].id);
+          // Hvis det er første gang brukeren logger inn og ikke har noen dokumenter i skyen
+          if (documents.length > 0) {
+            // Last opp eksisterende startdokumenter til skyen
+            documents.forEach(d => saveDocToFirebase(d));
+          }
         }
 
         // Hent mapper
@@ -179,8 +249,6 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
         if (!folderSnapshot.empty) {
           const fetchedFolders = folderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FolderItem));
           setFolders(fetchedFolders);
-        } else {
-          setFolders([]); // Tom hvis brukeren ikke har laget mapper enda
         }
       } catch (error) {
         console.error("Feil ved henting av data fra skyen:", error);
@@ -259,6 +327,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
   // State for Ny Mappe modal
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderColor, setNewFolderColor] = useState('indigo');
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
@@ -266,12 +335,14 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     const newFolder: FolderItem = {
       id: 'folder_' + Date.now(),
       name: newFolderName.trim(),
+      color: newFolderColor,
       isExpanded: true,
       createdAt: new Date().toISOString()
     };
     
     setFolders(prev => [...prev, newFolder]);
     setNewFolderName('');
+    setNewFolderColor('indigo');
     setIsCreatingFolder(false);
     
     // Lagre til skyen
@@ -293,6 +364,108 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     });
   };
 
+  const handleDeleteFolder = async (folderId: string) => {
+    // 1. Fjern mappen fra state
+    setFolders(prev => prev.filter(f => f.id !== folderId));
+    
+    // 2. Flytt eventuelle dokumenter i mappen ut til roten så ingen data går tapt
+    setDocuments(prev => prev.map(d => {
+      if (d.folderId === folderId) {
+        const unlinked = { ...d, folderId: undefined, updatedAt: new Date().toISOString() };
+        saveDocToFirebase(unlinked);
+        return unlinked;
+      }
+      return d;
+    }));
+
+    // 3. Slett fra Firestore
+    try {
+      await deleteDoc(doc(db, 'folders', folderId));
+    } catch (err) {
+      console.error("Feil ved sletting av mappe fra Firestore:", err);
+    }
+  };
+
+  const handleRenameFolder = async (folderId: string, newName: string) => {
+    if (!newName.trim()) return;
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) {
+        const updated = { ...f, name: newName.trim() };
+        saveFolderToFirebase(updated);
+        return updated;
+      }
+      return f;
+    }));
+  };
+
+  const handleUpdateFolderColor = async (folderId: string, color: string) => {
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) {
+        const updated = { ...f, color };
+        saveFolderToFirebase(updated);
+        return updated;
+      }
+      return f;
+    }));
+  };
+
+  const handleReorderFolders = (newFolders: FolderItem[]) => {
+    setFolders(newFolders);
+  };
+
+  const handleDuplicateDoc = (docId: string) => {
+    const original = documents.find(d => d.id === docId);
+    if (!original) return;
+    const newId = Date.now().toString();
+    const duplicated: DocumentItem = {
+      ...original,
+      id: newId,
+      title: `${original.title} (kopi)`,
+      subtitle: original.subtitle ? `${original.subtitle} • Kopi` : undefined,
+      updatedAt: new Date().toISOString()
+    };
+    setDocuments(prev => [duplicated, ...prev]);
+    setActiveDocId(newId);
+    saveDocToFirebase(duplicated);
+  };
+
+  const [folderToExportId, setFolderToExportId] = useState<string | null>(null);
+
+  const handleArchiveDoc = (docId: string, isArchived: boolean) => {
+    setDocuments(prev => prev.map(d => {
+      if (d.id === docId) {
+        const updated = { ...d, isArchived, updatedAt: new Date().toISOString() };
+        saveDocToFirebase(updated);
+        return updated;
+      }
+      return d;
+    }));
+  };
+
+  const handleArchiveFolder = (folderId: string, isArchived: boolean) => {
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) {
+        const updated = { ...f, isArchived };
+        saveFolderToFirebase(updated);
+        return updated;
+      }
+      return f;
+    }));
+  };
+
+  const [folderForContextModalId, setFolderForContextModalId] = useState<string | null>(null);
+
+  const handleSaveFolderContext = async (folderId: string, customContext: string, focusArea?: string) => {
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) {
+        const updated = { ...f, customContext, focusArea };
+        saveFolderToFirebase(updated);
+        return updated;
+      }
+      return f;
+    }));
+  };
+
   const [viewMode, setViewMode] = useState<'editor' | 'setup' | 'quality-check'>('editor');
   const [editorTab, setEditorTab] = useState<'write' | 'preview'>('write');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -308,6 +481,27 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
   const [peerReviewData, setPeerReviewData] = useState<SharedReviewData | null>(null);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showHighlightMenu, setShowHighlightMenu] = useState(false);
+  const [showFontMenu, setShowFontMenu] = useState(false);
+  const [showSpacingMenu, setShowSpacingMenu] = useState(false);
+
+  // STEG 3: Søk og erstatt state
+  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+  const [isReplaceMode, setIsReplaceMode] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [replaceQuery, setReplaceQuery] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [isDocStatsModalOpen, setIsDocStatsModalOpen] = useState(false);
+
+  // STEG 4: Fokusmodus / Zen-mode state
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [zenTheme, setZenTheme] = useState<'dark' | 'light'>('dark');
+  const [zenWidth, setZenWidth] = useState<'normal' | 'wide' | 'xl' | 'full'>('wide');
+  const [zenFontSize, setZenFontSize] = useState<'md' | 'lg' | 'xl' | '2xl'>('xl');
+
+  // ZOOM / FORSTØRRELSE (Word-stil 50% - 200%)
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [outline, setOutline] = useState<{ id: number; title: string; subItems: string[] }[]>([]);
@@ -666,6 +860,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
           }
 
           // 2. Skysynkronisering (debounced)
+          latestDocToSaveRef.current = updatedDoc;
           setSyncState('saving');
           if (saveTimerRef.current) {
             clearTimeout(saveTimerRef.current);
@@ -680,7 +875,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
               console.warn('Kunne ikke synkronisere til Firestore akkurat nå, lokal kopi er sikret:', e);
               setSyncState('offline');
             }
-          }, 3500);
+          }, 800);
           
           return updatedDoc;
         }
@@ -903,13 +1098,21 @@ ${activeDoc.content}`;
     ul: boolean;
     ol: boolean;
     quote: boolean;
+    justifyLeft: boolean;
+    justifyCenter: boolean;
+    justifyRight: boolean;
+    justifyFull: boolean;
   }>({
     bold: false,
     italic: false,
     underline: false,
     ul: false,
     ol: false,
-    quote: false
+    quote: false,
+    justifyLeft: false,
+    justifyCenter: false,
+    justifyRight: false,
+    justifyFull: false
   });
 
   const wysiwygRef = useRef<HTMLDivElement>(null);
@@ -957,7 +1160,11 @@ ${activeDoc.content}`;
       underline: document.queryCommandState('underline'),
       ul: document.queryCommandState('insertUnorderedList'),
       ol: document.queryCommandState('insertOrderedList'),
-      quote: isQuote
+      quote: isQuote,
+      justifyLeft: document.queryCommandState('justifyLeft'),
+      justifyCenter: document.queryCommandState('justifyCenter'),
+      justifyRight: document.queryCommandState('justifyRight'),
+      justifyFull: document.queryCommandState('justifyFull')
     });
   }, [editorMode]);
 
@@ -1122,8 +1329,25 @@ ${activeDoc.content}`;
     }, 120);
   }, [editorMode, checkActiveFormatting]);
 
-  // Snarveier for Ctrl+Z og Ctrl+Y
+  // Snarveier for Ctrl+Z, Ctrl+Y, Ctrl+Enter (Sideskift), Ctrl+F (Søk) og Ctrl+H (Erstatt)
   const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      applyFormatting('pagebreak');
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      setIsFindReplaceOpen(true);
+      setIsReplaceMode(false);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      setIsFindReplaceOpen(true);
+      setIsReplaceMode(true);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
       e.preventDefault();
       if (e.shiftKey) {
@@ -1137,15 +1361,37 @@ ${activeDoc.content}`;
     }
   };
 
-  // Global tastelytter for Ctrl+Z / Ctrl+Y når skriveflaten er aktiv
+  // Global tastelytter for hurtigtaster
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (viewMode !== 'editor' || editorTab !== 'write') return;
       const target = e.target as HTMLElement;
-      if (target && target.tagName === 'INPUT') return;
+      if (target && target.tagName === 'INPUT' && !target.classList.contains('find-input')) return;
       if (target && target.tagName === 'TEXTAREA' && target !== textareaRef.current) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (e.key === 'Escape') {
+        if (isFindReplaceOpen) {
+          e.preventDefault();
+          setIsFindReplaceOpen(false);
+        } else if (isZenMode) {
+          e.preventDefault();
+          setIsZenMode(false);
+        }
+      } else if (e.key === 'F11' || ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'f')) {
+        e.preventDefault();
+        setIsZenMode(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsFindReplaceOpen(true);
+        setIsReplaceMode(false);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        setIsFindReplaceOpen(true);
+        setIsReplaceMode(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        applyFormatting('pagebreak');
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
           handleRedo();
@@ -1162,7 +1408,62 @@ ${activeDoc.content}`;
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [viewMode, editorTab, handleUndo, handleRedo]);
+  }, [viewMode, editorTab, handleUndo, handleRedo, isFindReplaceOpen, isZenMode]);
+
+  // STEG 3: Søk og erstatt handlinger
+  const handleFindNext = () => {
+    if (!findQuery.trim()) return;
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.find) {
+        win.find(findQuery, matchCase, false, true, false, false, false);
+      }
+    }
+  };
+
+  const handleFindPrev = () => {
+    if (!findQuery.trim()) return;
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.find) {
+        win.find(findQuery, matchCase, true, true, false, false, false);
+      }
+    }
+  };
+
+  const handleReplaceCurrent = () => {
+    if (!findQuery.trim()) return;
+    const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+    const flags = matchCase ? '' : 'i';
+    try {
+      const regex = new RegExp(findQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+      const newContent = currentDocContent.replace(regex, replaceQuery);
+      if (newContent !== currentDocContent) {
+        pushHistorySnapshot(currentDocContent, true);
+        handleUpdateActiveDoc({ content: newContent });
+        if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+          wysiwygRef.current.innerHTML = markdownToHtml(newContent);
+        }
+      }
+    } catch {}
+  };
+
+  const handleReplaceAll = () => {
+    if (!findQuery.trim()) return;
+    const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+    const flags = matchCase ? 'g' : 'gi';
+    try {
+      const regex = new RegExp(findQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+      const matchCount = (currentDocContent.match(regex) || []).length;
+      if (matchCount === 0) return;
+      pushHistorySnapshot(currentDocContent, true);
+      const newContent = currentDocContent.replace(regex, replaceQuery);
+      handleUpdateActiveDoc({ content: newContent });
+      if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+        wysiwygRef.current.innerHTML = markdownToHtml(newContent);
+      }
+    } catch {}
+  };
 
   // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes, importeres eller oppdateres eksternt
   useEffect(() => {
@@ -1241,6 +1542,44 @@ ${activeDoc.content}`;
             document.execCommand('formatBlock', false, '<blockquote>');
           }
           break;
+        case 'pagebreak': {
+          const pbHtml = '<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>';
+          document.execCommand('insertHTML', false, pbHtml);
+          break;
+        }
+        case 'justifyLeft':
+          document.execCommand('justifyLeft', false);
+          break;
+        case 'justifyCenter':
+          document.execCommand('justifyCenter', false);
+          break;
+        case 'justifyRight':
+          document.execCommand('justifyRight', false);
+          break;
+        case 'justifyFull':
+          document.execCommand('justifyFull', false);
+          break;
+        case 'indent':
+          document.execCommand('indent', false);
+          break;
+        case 'outdent':
+          document.execCommand('outdent', false);
+          break;
+        case 'highlight-yellow':
+          document.execCommand('backColor', false, '#fef08a');
+          break;
+        case 'highlight-green':
+          document.execCommand('backColor', false, '#bbf7d0');
+          break;
+        case 'highlight-pink':
+          document.execCommand('backColor', false, '#fbcfe8');
+          break;
+        case 'highlight-blue':
+          document.execCommand('backColor', false, '#bae6fd');
+          break;
+        case 'highlight-clear':
+          document.execCommand('backColor', false, 'transparent');
+          break;
         default:
           break;
       }
@@ -1271,6 +1610,7 @@ ${activeDoc.content}`;
       case 'list': replacement = `\n- ${selectedText || 'Punkt 1'}\n- Punkt 2\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'orderedList': replacement = `\n1. ${selectedText || 'Første punkt'}\n2. Andre punkt\n`; newStart = start + replacement.length; newEnd = newStart; break;
       case 'quote': replacement = `\n> ${selectedText || 'Sitat'}\n`; newStart = start + replacement.length; newEnd = newStart; break;
+      case 'pagebreak': replacement = `\n\n<!-- pagebreak -->\n\n`; newStart = start + replacement.length; newEnd = newStart; break;
       default: return;
     }
 
@@ -1447,6 +1787,15 @@ ${activeDoc.content}`;
       folders={folders}
       onAddFolder={() => setIsCreatingFolder(true)}
       onMoveToFolder={handleMoveDoc}
+      onDeleteFolder={handleDeleteFolder}
+      onRenameFolder={handleRenameFolder}
+      onUpdateFolderColor={handleUpdateFolderColor}
+      onArchiveFolder={handleArchiveFolder}
+      onExportFolder={(fId) => setFolderToExportId(fId)}
+      onEditFolderContext={(fId) => setFolderForContextModalId(fId)}
+      onReorderFolders={handleReorderFolders}
+      onDuplicateItem={handleDuplicateDoc}
+      onArchiveItem={handleArchiveDoc}
       onActionClick={() => {
         const newId = Date.now().toString();
         const newDoc: DocumentItem = { id: newId, title: 'Nytt dokument', content: '# Nytt dokument\n\nSkriv inn teksten din her...', taskPrompt: '', template: 'Refleksjonsnotat', targetWords: 1500, updatedAt: new Date().toISOString() };
@@ -1576,6 +1925,29 @@ ${activeDoc.content}`;
                 <RotateCcw className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 transition-colors ml-0.5 shrink-0" />
               </div>
 
+              {/* Mappekontekst knapp hvis dokumentet er i en mappe */}
+              {(() => {
+                const activeFolder = folders.find(f => f.id === activeDoc.folderId);
+                if (!activeFolder) return null;
+                const hasCtx = Boolean(activeFolder.customContext?.trim());
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setFolderForContextModalId(activeFolder.id)}
+                    className={`h-8 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl border transition-all cursor-pointer text-[11px] font-bold shrink-0 ${
+                      hasCtx
+                        ? 'bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100 shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    }`}
+                    title={hasCtx ? `Mappekontekst aktiv: «${activeFolder.name}» (klikk for å endre)` : `Mappe: «${activeFolder.name}» (klikk for å legge til KI-føringer)`}
+                  >
+                    <Brain className={`w-3.5 h-3.5 ${hasCtx ? 'text-purple-600 animate-pulse' : 'text-slate-400'}`} />
+                    <span className="max-w-[130px] truncate">{activeFolder.name}</span>
+                    {hasCtx && <span className="w-1.5 h-1.5 rounded-full bg-purple-600 shrink-0" />}
+                  </button>
+                );
+              })()}
+
               {/* Ordteller & Fremdrift */}
               {activeDoc.template === 'Notater & Kladdeblokk' ? (
                 <div className="h-8 inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50/90 border border-amber-200/90 shrink-0 whitespace-nowrap shadow-2xs text-[11px] font-bold text-amber-900">
@@ -1593,6 +1965,17 @@ ${activeDoc.content}`;
 
               <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
               
+              {/* Fokusmodus-knapp */}
+              <button 
+                type="button"
+                onClick={() => setIsZenMode(true)}
+                className="h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-slate-700 hover:text-indigo-600 text-xs cursor-pointer shrink-0 whitespace-nowrap"
+                title="Åpne forstyrrelsesfri fokusmodus (F11 / Esc for å avslutte)"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span>Fokusmodus</span>
+              </button>
+
               {/* Eksport-pille */}
               <button 
                 type="button"
@@ -1659,175 +2042,515 @@ ${activeDoc.content}`;
           {/* View Mode: Editor */}
           {viewMode === 'editor' && (
             <div className="flex-1 flex flex-col min-h-0">
-              <div className="px-6 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 bg-white">
-                <div className="flex items-center gap-1 text-slate-700">
-                  {/* Angre (Undo) og Gjenta (Redo) - Som i Microsoft Word */}
-                  <button 
-                    type="button"
-                    onClick={handleUndo} 
-                    disabled={!canUndo}
-                    title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
-                    className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                      canUndo 
-                        ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
-                        : 'text-slate-300 cursor-not-allowed opacity-40'
-                    }`}
-                  >
-                    <Undo2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={handleRedo} 
-                    disabled={!canRedo}
-                    title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
-                    className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                      canRedo 
-                        ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
-                        : 'text-slate-300 cursor-not-allowed opacity-40'
-                    }`}
-                  >
-                    <Redo2 className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-4 bg-slate-200 mx-1" />
+              {/* VERKTØYLINJE (2 DEDIKERTE LINJER - MICROSOFT WORD STIL) */}
+              <div className="border-b border-slate-200 bg-white select-none shrink-0">
+                {/* LINJE 1: Tekstformatering, Font, Linjeavstand & Lister */}
+                <div className="px-4 sm:px-6 py-2 border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-slate-700">
+                  {/* Angre (Undo) og Gjenta (Redo) */}
+                  <div className="flex items-center gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={handleUndo} 
+                      disabled={!canUndo}
+                      title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
+                      className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                        canUndo 
+                          ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                          : 'text-slate-300 cursor-not-allowed opacity-40'
+                      }`}
+                    >
+                      <Undo2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={handleRedo} 
+                      disabled={!canRedo}
+                      title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
+                      className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                        canRedo 
+                          ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                          : 'text-slate-300 cursor-not-allowed opacity-40'
+                      }`}
+                    >
+                      <Redo2 className="w-4 h-4" />
+                    </button>
+                  </div>
 
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('bold')} 
-                    title="Fet (Ctrl+B)" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Skrifttype-velger */}
+                  <select
+                    value={activeDoc.fontFamily || 'times'}
+                    onChange={(e) => handleUpdateActiveDoc({ fontFamily: e.target.value as any })}
+                    className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                    title="Skrifttype for oppgaven"
                   >
-                    <Bold className="w-4 h-4" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('italic')} 
-                    title="Kursiv (Ctrl+I)" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    <option value="times">Times New Roman (APA)</option>
+                    <option value="calibri">Calibri</option>
+                    <option value="arial">Arial</option>
+                    <option value="georgia">Georgia</option>
+                  </select>
+
+                  {/* Linjeavstand-velger */}
+                  <select
+                    value={activeDoc.lineSpacing || '1.5'}
+                    onChange={(e) => handleUpdateActiveDoc({ lineSpacing: e.target.value as any })}
+                    className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                    title="Linjeavstand (1.5 er akademisk standard)"
                   >
-                    <Italic className="w-4 h-4" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('underline')} 
-                    title="Understreket" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                  >
-                    <Underline className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('h1')} 
-                    title="Overskrift 1 (14 pt, starter alltid på ny side i Word/PDF)" 
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                      activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <Heading1 className="w-4 h-4" />
-                    <span className="text-[11px]">H1</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('h2')} 
-                    title="Overskrift 2 (12 pt, 12 pkt etter)" 
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                      activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <Heading2 className="w-4 h-4" />
-                    <span className="text-[11px]">H2</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('h3')} 
-                    title="Overskrift 3 (12 pt kursiv, 6 pkt etter)" 
-                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                      activeHeading === 'h3' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    <Heading3 className="w-4 h-4" />
-                    <span className="text-[11px]">H3</span>
-                  </button>
-                  <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('list')} 
-                    title="Punktliste" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('orderedList')} 
-                    title="Nummerert liste" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                  >
-                    <ListOrdered className="w-4 h-4" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => applyFormatting('quote')} 
-                    title="Sitatblokk (1,27 cm innrykk for sitater over 40 ord)" 
-                    className={`p-1.5 rounded-lg transition-all ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                  >
-                    <Quote className="w-4 h-4" />
-                  </button>
-                  <div className="w-px h-4 bg-slate-200 mx-1" />
-                  <button
-                    type="button"
-                    onClick={() => setIsCitationModalOpen(true)}
-                    title="Kildeassistent & Litteraturliste (APA 7)"
-                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1.5 shadow-2xs"
-                  >
-                    <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>+ Sett inn kilde</span>
-                  </button>
+                    <option value="1.0">1.0 (Enkel)</option>
+                    <option value="1.15">1.15</option>
+                    <option value="1.5">1.5 (Standard)</option>
+                    <option value="2.0">2.0 (Dobbel)</option>
+                  </select>
+
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Skriftstiler */}
+                  <div className="flex items-center gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('bold')} 
+                      title="Fet (Ctrl+B)" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Bold className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('italic')} 
+                      title="Kursiv (Ctrl+I)" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Italic className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('underline')} 
+                      title="Understreket" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Underline className="w-4 h-4" />
+                    </button>
+
+                    {/* Markeringspenn (Highlighter) */}
+                    <div className="relative">
+                      <button 
+                        type="button"
+                        onClick={() => setShowHighlightMenu(!showHighlightMenu)} 
+                        title="Markeringspenn (Tekstutheving)" 
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${showHighlightMenu ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                      >
+                        <Highlighter className="w-4 h-4" />
+                      </button>
+                      {showHighlightMenu && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute left-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95"
+                        >
+                          <button 
+                            type="button" 
+                            onClick={() => { applyFormatting('highlight-yellow'); setShowHighlightMenu(false); }}
+                            title="Gul markering"
+                            className="w-5 h-5 rounded-md bg-yellow-200 border border-yellow-400 hover:scale-110 transition-transform cursor-pointer"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => { applyFormatting('highlight-green'); setShowHighlightMenu(false); }}
+                            title="Grønn markering"
+                            className="w-5 h-5 rounded-md bg-emerald-200 border border-emerald-400 hover:scale-110 transition-transform cursor-pointer"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => { applyFormatting('highlight-pink'); setShowHighlightMenu(false); }}
+                            title="Rosa markering"
+                            className="w-5 h-5 rounded-md bg-pink-200 border border-pink-400 hover:scale-110 transition-transform cursor-pointer"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => { applyFormatting('highlight-blue'); setShowHighlightMenu(false); }}
+                            title="Blå markering"
+                            className="w-5 h-5 rounded-md bg-sky-200 border border-sky-400 hover:scale-110 transition-transform cursor-pointer"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => { applyFormatting('highlight-clear'); setShowHighlightMenu(false); }}
+                            title="Fjern markering"
+                            className="p-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 border border-slate-200 rounded-md ml-1 hover:bg-slate-50 cursor-pointer"
+                          >
+                            Fjern
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Tekstjustering */}
+                  <div className="flex items-center gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('justifyLeft')} 
+                      title="Venstrejustert" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyLeft ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <AlignLeft className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('justifyCenter')} 
+                      title="Midtstilt" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyCenter ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <AlignCenter className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('justifyRight')} 
+                      title="Høyrejustert" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyRight ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <AlignRight className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('justifyFull')} 
+                      title="Blokkjustert (Justify)" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyFull ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <AlignJustify className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Innrykk og utrykk */}
+                  <div className="flex items-center gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('outdent')} 
+                      title="Reduser innrykk" 
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
+                    >
+                      <Outdent className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('indent')} 
+                      title="Øk innrykk" 
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
+                    >
+                      <Indent className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Overskrifter H1, H2, H3 */}
+                  <div className="flex items-center gap-1">
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('h1')} 
+                      title="Overskrift 1 (14 pt, starter alltid på ny side i Word/PDF)" 
+                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <Heading1 className="w-4 h-4" />
+                      <span className="text-[11px]">H1</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('h2')} 
+                      title="Overskrift 2 (12 pt, 12 pkt etter)" 
+                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <Heading2 className="w-4 h-4" />
+                      <span className="text-[11px]">H2</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('h3')} 
+                      title="Overskrift 3 (12 pt kursiv, 6 pkt etter)" 
+                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        activeHeading === 'h3' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <Heading3 className="w-4 h-4" />
+                      <span className="text-[11px]">H3</span>
+                    </button>
+                  </div>
+
+                  <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                  {/* Lister & Sitater */}
+                  <div className="flex items-center gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('list')} 
+                      title="Punktliste" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('orderedList')} 
+                      title="Nummerert liste" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <ListOrdered className="w-4 h-4" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => applyFormatting('quote')} 
+                      title="Sitatblokk (1,27 cm innrykk for sitater over 40 ord)" 
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Quote className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-semibold gap-0.5">
-                  <button 
-                    type="button"
-                    onClick={() => { setEditorTab('write'); setEditorMode('wysiwyg'); }} 
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                      editorTab === 'write' && editorMode === 'wysiwyg' 
-                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Visuell redigering i Word-stil uten formateringskoder som #"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Visuell (Word)</span>
-                  </button>
 
-                  <button 
-                    type="button"
-                    onClick={() => { setEditorTab('write'); setEditorMode('markdown'); }} 
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                      editorTab === 'write' && editorMode === 'markdown' 
-                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Råtekst med Markdown-koder (#, ##, ###)"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Markdown (#)</span>
-                  </button>
+                {/* LINJE 2: Innholdsverktøy, Søk & Erstatt, Sideskift, Kilde & Modusvelger */}
+                <div className="px-4 sm:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 border-b border-slate-100">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Sideskift */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('pagebreak')}
+                      title="Sett inn sideskift (Ctrl+Enter / Cmd+Enter) – Starter på et nytt A4-ark"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50/80 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Scissors className="w-3.5 h-3.5 text-indigo-600 rotate-90" />
+                      <span>Sideskift (Ctrl+Enter)</span>
+                    </button>
 
-                  <button 
-                    type="button"
-                    onClick={() => setEditorTab('preview')} 
-                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
-                      editorTab === 'preview' 
-                        ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Forhåndsvis ferdig formatert oppgave"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Forhåndsvis</span>
-                  </button>
+                    {/* + Kilde (APA 7) */}
+                    <button
+                      type="button"
+                      onClick={() => setIsCitationModalOpen(true)}
+                      title="Kildeassistent & Litteraturliste (APA 7)"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>+ Kilde (APA 7)</span>
+                    </button>
+
+                    {/* Søk og erstatt med ikon OG tekst */}
+                    <button
+                      type="button"
+                      onClick={() => { setIsFindReplaceOpen(!isFindReplaceOpen); setIsReplaceMode(false); }}
+                      title="Søk og erstatt i oppgaven (Ctrl+F / Ctrl+H)"
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                        isFindReplaceOpen 
+                          ? 'bg-indigo-600 text-white shadow-2xs' 
+                          : 'bg-white text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 border border-slate-200'
+                      }`}
+                    >
+                      <Search className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Søk & erstatt</span>
+                    </button>
+
+                    {/* Fokusmodus */}
+                    <button
+                      type="button"
+                      onClick={() => setIsZenMode(true)}
+                      title="Åpne forstyrrelsesfri fokusmodus (F11 / Esc)"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Fokusmodus</span>
+                    </button>
+
+                    {/* Zoom-velger i verktøylinjen */}
+                    <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setZoomLevel(prev => Math.max(50, prev - 10))}
+                        title="Forminsk (Zoom ut)"
+                        className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <select
+                        value={zoomLevel}
+                        onChange={(e) => setZoomLevel(Number(e.target.value))}
+                        className="text-[11px] font-bold text-slate-700 bg-transparent border-none focus:outline-none cursor-pointer py-0.5"
+                        title="Zoom / Forstørrelse av A4-arket"
+                      >
+                        <option value="75">75 %</option>
+                        <option value="90">90 %</option>
+                        <option value="100">100 % (Standard)</option>
+                        <option value="110">110 %</option>
+                        <option value="125">125 %</option>
+                        <option value="150">150 %</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
+                        title="Forstørr (Zoom inn)"
+                        className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Høyre: Visningsmodus (Visuell / Markdown / Forhåndsvis) */}
+                  <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg text-xs font-semibold gap-0.5">
+                    <button 
+                      type="button"
+                      onClick={() => { setEditorTab('write'); setEditorMode('wysiwyg'); }} 
+                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                        editorTab === 'write' && editorMode === 'wysiwyg' 
+                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Visuell redigering i Word-stil uten formateringskoder som #"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Visuell (Word)</span>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => { setEditorTab('write'); setEditorMode('markdown'); }} 
+                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                        editorTab === 'write' && editorMode === 'markdown' 
+                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Råtekst med Markdown-koder (#, ##, ###)"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Markdown (#)</span>
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setEditorTab('preview')} 
+                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                        editorTab === 'preview' 
+                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Forhåndsvis ferdig formatert oppgave"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Forhåndsvis</span>
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* STEG 3: Søk og erstatt panel */}
+              {isFindReplaceOpen && (
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-2 flex flex-wrap items-center gap-2.5 animate-in fade-in slide-in-from-top-1 text-xs">
+                  <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
+                    <Search className="w-3.5 h-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={findQuery}
+                      onChange={(e) => setFindQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (e.shiftKey) handleFindPrev();
+                          else handleFindNext();
+                        }
+                      }}
+                      placeholder="Søk i teksten..."
+                      className="find-input text-xs text-slate-800 bg-transparent border-none focus:outline-none w-32 sm:w-44 placeholder:text-slate-400"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-0.5 border-l border-slate-200 pl-1">
+                      <button
+                        type="button"
+                        onClick={handleFindPrev}
+                        title="Forrige treff (Shift+Enter)"
+                        className="p-1 hover:bg-slate-100 text-slate-600 rounded cursor-pointer"
+                      >
+                        <ChevronUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFindNext}
+                        title="Neste treff (Enter)"
+                        className="p-1 hover:bg-slate-100 text-slate-600 rounded cursor-pointer"
+                      >
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {isReplaceMode ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
+                        <Replace className="w-3.5 h-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={replaceQuery}
+                          onChange={(e) => setReplaceQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleReplaceCurrent();
+                            }
+                          }}
+                          placeholder="Erstatt med..."
+                          className="find-input text-xs text-slate-800 bg-transparent border-none focus:outline-none w-32 sm:w-44 placeholder:text-slate-400"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleReplaceCurrent}
+                        className="px-2.5 py-1 font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg shadow-2xs cursor-pointer"
+                      >
+                        Erstatt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleReplaceAll}
+                        className="px-2.5 py-1 font-semibold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-2xs cursor-pointer"
+                      >
+                        Erstatt alle
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsReplaceMode(true)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold hover:underline cursor-pointer"
+                    >
+                      Bytt til erstatt-modus
+                    </button>
+                  )}
+
+                  <label className="flex items-center gap-1 text-[11px] text-slate-500 select-none cursor-pointer ml-1">
+                    <input
+                      type="checkbox"
+                      checked={matchCase}
+                      onChange={(e) => setMatchCase(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                    />
+                    <span>Skille store/små</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsFindReplaceOpen(false)}
+                    className="ml-auto p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg cursor-pointer"
+                    title="Lukk søk (Esc)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100/50">
                 <div className="max-w-3xl mx-auto space-y-4">
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 px-6 py-4">
@@ -1841,32 +2564,109 @@ ${activeDoc.content}`;
                   </div>
 
                   {editorTab === 'write' ? (
-                    editorMode === 'wysiwyg' ? (
-                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px] transition-all">
-                        <div
-                          ref={wysiwygCallbackRef}
-                          contentEditable
-                          suppressContentEditableWarning
-                          onInput={handleWysiwygInput}
-                          onKeyDown={handleEditorKeyDown}
-                          onKeyUp={checkActiveFormatting}
-                          onMouseUp={checkActiveFormatting}
-                          onSelect={checkActiveFormatting}
-                          className="academic-editor-surface w-full focus:outline-none"
-                        />
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-6 md:p-8 min-h-[650px]">
-                        <textarea 
-                          ref={textareaRef} 
-                          value={typeof activeDoc.content === 'string' ? activeDoc.content : ''} 
-                          onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })} 
-                          onKeyDown={handleEditorKeyDown}
-                          placeholder="Begynn å skrive oppgaven din her..." 
-                          className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[600px] font-mono" 
-                        />
-                      </div>
-                    )
+                    (() => {
+                      const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+                      const docPages = splitDocumentIntoPages(fullDocText, 320);
+
+                      return (
+                        <div 
+                          className="space-y-8 pb-12 transition-all origin-top flex flex-col items-center"
+                          style={{ zoom: `${zoomLevel}%` }}
+                        >
+                          {docPages.map((pageText, pageIdx) => {
+                            const pageNum = pageIdx + 1;
+                            const totalPages = docPages.length;
+
+                            return (
+                              <div
+                                key={`a4-page-sheet-${pageIdx}`}
+                                className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1050px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative transition-all"
+                              >
+                                {/* A4 Topptekst for dette arket */}
+                                <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-100 text-[11px] text-slate-400 select-none">
+                                  <span className="font-semibold text-slate-600 truncate max-w-[280px]">
+                                    {activeDoc.title || 'Uten tittel'}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[10px]">
+                                      Side {pageNum} av {totalPages}
+                                    </span>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="font-medium text-slate-400">
+                                      A4 (2,54 cm marg)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Innhold / Skriveflate på dette arket */}
+                                <div className="flex-1">
+                                  {editorMode === 'wysiwyg' ? (
+                                    <div
+                                      contentEditable
+                                      suppressContentEditableWarning
+                                      dangerouslySetInnerHTML={{ __html: markdownToHtml(pageText) }}
+                                      onInput={(e) => {
+                                        const newHtml = e.currentTarget.innerHTML;
+                                        const updatedPageMd = htmlToMarkdown(newHtml);
+                                        const updatedPages = [...docPages];
+                                        updatedPages[pageIdx] = updatedPageMd;
+                                        const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
+                                        handleUpdateActiveDoc({ content: newFull });
+                                        checkActiveFormatting();
+                                      }}
+                                      onKeyDown={handleEditorKeyDown}
+                                      onKeyUp={checkActiveFormatting}
+                                      onMouseUp={checkActiveFormatting}
+                                      onSelect={checkActiveFormatting}
+                                      style={{
+                                        fontFamily: activeDoc.fontFamily === 'calibri'
+                                          ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                                          : activeDoc.fontFamily === 'arial'
+                                          ? 'Arial, Helvetica, sans-serif'
+                                          : activeDoc.fontFamily === 'georgia'
+                                          ? 'Georgia, serif'
+                                          : '"Times New Roman", Times, serif',
+                                        lineHeight: activeDoc.lineSpacing === '1.0'
+                                          ? '1.2'
+                                          : activeDoc.lineSpacing === '1.15'
+                                          ? '1.38'
+                                          : activeDoc.lineSpacing === '2.0'
+                                          ? '2.0'
+                                          : '1.6'
+                                      }}
+                                      className="academic-editor-surface w-full focus:outline-none min-h-[850px]"
+                                    />
+                                  ) : (
+                                    <textarea
+                                      value={pageText}
+                                      onChange={(e) => {
+                                        const updatedPages = [...docPages];
+                                        updatedPages[pageIdx] = e.target.value;
+                                        const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
+                                        handleUpdateActiveDoc({ content: newFull });
+                                      }}
+                                      onKeyDown={handleEditorKeyDown}
+                                      placeholder={`Skriv innhold på side ${pageNum}...`}
+                                      className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[850px] font-mono"
+                                    />
+                                  )}
+                                </div>
+
+                                {/* A4 Bunntekst for dette arket */}
+                                <div className="flex items-center justify-between pt-4 mt-8 border-t border-slate-100 text-[11px] text-slate-400 select-none">
+                                  <span className="font-medium text-slate-400">
+                                    {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
+                                  </span>
+                                  <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
+                                    Side {pageNum}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
                   ) : (
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px]">
                       <div className="prose prose-slate max-w-none text-slate-800 leading-relaxed">
@@ -1878,6 +2678,94 @@ ${activeDoc.content}`;
                   )}
                 </div>
               </div>
+
+              {/* STEG 3: Avansert statuslinje og dokumentstatistikk i bunnbaren */}
+              {(() => {
+                const currentText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+                const cleanPlainText = currentText
+                  .replace(/<[^>]+>/g, '')
+                  .replace(/[#*`_~>[\]()]/g, ' ')
+                  .trim();
+                const charCount = currentText.length;
+                const charNoSpacesCount = currentText.replace(/\s/g, '').length;
+                const paragraphs = currentText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+                const paragraphCount = paragraphs.length || (cleanPlainText ? 1 : 0);
+                const readingTimeMinutes = Math.max(1, Math.ceil((wordCount || 1) / 200));
+                const explicitPageBreaks = currentText.match(/<!-- pagebreak -->|---pagebreak---|--- sideskift ---|\[SIDESKIFT\]/g)?.length || 0;
+                const estimatedPages = Math.max(1 + explicitPageBreaks, Math.ceil((wordCount || 1) / 400));
+
+                return (
+                  <div className="px-6 py-2 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 select-none shrink-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="font-semibold text-slate-700">
+                        Ca. {estimatedPages} {estimatedPages === 1 ? 'side' : 'sider'} (A4)
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                        {wordCount} {activeDoc.targetWords ? `/ ${activeDoc.targetWords} ord (${Math.min(100, Math.round((wordCount / activeDoc.targetWords) * 100))}%)` : 'ord'}
+                      </span>
+                      <span className="text-slate-300">•</span>
+                      <span>{charCount} tegn ({charNoSpacesCount} u/mellomrom)</span>
+                      <span className="text-slate-300 hidden sm:inline">•</span>
+                      <span className="hidden sm:inline">{paragraphCount} avsnitt</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-500 hidden md:flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>~{readingTimeMinutes} min lesetid</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsDocStatsModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-indigo-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-2xs cursor-pointer"
+                        title="Åpne detaljert dokumentstatistikk og lesbarhetsanalyse (LIX)"
+                      >
+                        <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Statistikk</span>
+                      </button>
+
+                      {/* Zoom-glidebryter og kontroller (Microsoft Word stil i bunnhøyre) */}
+                      <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setZoomLevel(prev => Math.max(50, prev - 10))}
+                          title="Zoom ut (-10%)"
+                          className="p-1 hover:bg-slate-200/70 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        <input
+                          type="range"
+                          min="50"
+                          max="175"
+                          step="5"
+                          value={zoomLevel}
+                          onChange={(e) => setZoomLevel(Number(e.target.value))}
+                          className="w-16 sm:w-20 md:w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          title={`Zoom: ${zoomLevel}% (Dra for å endre forstørrelse)`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
+                          title="Zoom inn (+10%)"
+                          className="p-1 hover:bg-slate-200/70 rounded text-slate-500 hover:text-slate-800 cursor-pointer"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setZoomLevel(100)}
+                          title="Nullstill zoom til 100%"
+                          className="text-[11px] font-bold text-slate-600 hover:text-indigo-600 px-1.5 py-0.5 rounded hover:bg-slate-200/60 min-w-[38px] text-center cursor-pointer border border-transparent hover:border-slate-200"
+                        >
+                          {zoomLevel}%
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2874,8 +3762,31 @@ ${activeDoc.content}`;
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
                 placeholder="F.eks. Praksis H26"
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-3"
               />
+
+              {/* Fargevelger */}
+              <div className="mb-4">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Velg fargekode
+                </label>
+                <div className="flex items-center gap-2">
+                  {FOLDER_COLORS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setNewFolderColor(c.id)}
+                      className={`w-7 h-7 rounded-full ${c.dot} transition-transform hover:scale-110 cursor-pointer flex items-center justify-center ${
+                        newFolderColor === c.id ? 'ring-2 ring-indigo-600 ring-offset-2 scale-110' : 'opacity-70'
+                      }`}
+                      title={c.name}
+                    >
+                      {newFolderColor === c.id && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button 
                   onClick={() => {
@@ -2915,6 +3826,30 @@ ${activeDoc.content}`;
         }}
         onUpdateDocument={(fields) => handleUpdateActiveDoc(fields)}
       />
+
+      {/* MAPPE EKSPORT MODAL (WORD KOMPENDIUM / ZIP) */}
+      {folderToExportId && (
+        <FolderExportModal
+          isOpen={Boolean(folderToExportId)}
+          onClose={() => setFolderToExportId(null)}
+          folderName={folders.find(f => f.id === folderToExportId)?.name || 'Mappe'}
+          items={documents.filter(d => d.folderId === folderToExportId)}
+          userProfile={{
+            name: _props?.user?.displayName || _props?.profile?.name || getAuth().currentUser?.displayName || '',
+            institution: _props?.profile?.studiested || _props?.profile?.college || _props?.settings?.studiested || 'Barnehagelærerutdanningen'
+          }}
+        />
+      )}
+
+      {/* MAPPE KONTEKST MODAL */}
+      {folderForContextModalId && (
+        <FolderContextModal
+          isOpen={Boolean(folderForContextModalId)}
+          onClose={() => setFolderForContextModalId(null)}
+          folder={folders.find(f => f.id === folderForContextModalId) || null}
+          onSaveContext={handleSaveFolderContext}
+        />
+      )}
 
       {/* KILDEASSISTENT & LITTERATURLISTE MODAL (APA 7) */}
       <CitationAssistantModal
@@ -2967,7 +3902,368 @@ ${activeDoc.content}`;
         lastCloudSyncTime={lastCloudSyncTime}
         isOnline={isOnline}
       />
+
+      {/* STEG 3: DETALJERT DOKUMENTSTATISTIKK & LIX MODAL */}
+      {(() => {
+        const currentText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+        const cleanPlainText = currentText
+          .replace(/<[^>]+>/g, '')
+          .replace(/[#*`_~>[\]()]/g, ' ')
+          .trim();
+        const charCount = currentText.length;
+        const charNoSpacesCount = currentText.replace(/\s/g, '').length;
+        const paragraphs = currentText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+        const paragraphCount = paragraphs.length || (cleanPlainText ? 1 : 0);
+        const sentences = cleanPlainText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        const sentenceCount = sentences.length || 1;
+        const avgWordsPerSentence = sentenceCount > 0 ? (wordCount / sentenceCount).toFixed(1) : '0';
+        const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
+
+        const wordsArray = cleanPlainText.split(/\s+/).filter(w => w.length > 0);
+        const longWords = wordsArray.filter(w => w.replace(/[^a-zA-ZæøåÆØÅ]/g, '').length > 6).length;
+        const lixIndex = wordCount > 0 ? Math.round((wordCount / sentenceCount) + (longWords * 100 / wordCount)) : 0;
+        const explicitPageBreaks = currentText.match(/<!-- pagebreak -->|---pagebreak---|--- sideskift ---|\[SIDESKIFT\]/g)?.length || 0;
+        const estimatedPages = Math.max(1 + explicitPageBreaks, Math.ceil((wordCount || 1) / 400));
+
+        return (
+          <DocStatsModal
+            isOpen={isDocStatsModalOpen}
+            onClose={() => setIsDocStatsModalOpen(false)}
+            title={activeDoc.title}
+            wordCount={wordCount}
+            targetWords={activeDoc.targetWords || 1500}
+            charCount={charCount}
+            charNoSpacesCount={charNoSpacesCount}
+            paragraphCount={paragraphCount}
+            sentenceCount={sentenceCount}
+            avgWordsPerSentence={avgWordsPerSentence}
+            readingTimeMinutes={readingTimeMinutes}
+            lixIndex={lixIndex}
+            estimatedPages={estimatedPages}
+          />
+        );
+      })()}
+
+      {/* STEG 4: FOKUSMODUS (ZEN-MODE) OVERLAY */}
+      {isZenMode && (
+        <div className={`fixed inset-0 z-50 flex flex-col transition-colors duration-300 ${zenTheme === 'dark' ? 'bg-[#0B0F17] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+          {/* Zen Header */}
+          <div className={`px-6 py-3 border-b flex items-center justify-between gap-4 select-none shrink-0 transition-colors ${zenTheme === 'dark' ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200 shadow-xs'}`}>
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="text-xs uppercase tracking-widest font-extrabold text-indigo-500 shrink-0">
+                Fokusmodus
+              </span>
+              <span className="text-slate-400 hidden sm:inline">•</span>
+              <input
+                type="text"
+                value={activeDoc.title}
+                onChange={(e) => handleUpdateActiveDoc({ title: e.target.value })}
+                placeholder="Oppgavetittel..."
+                className={`text-sm font-bold bg-transparent border-none focus:outline-none truncate max-w-xs sm:max-w-md ${zenTheme === 'dark' ? 'text-white placeholder:text-slate-600' : 'text-slate-900 placeholder:text-slate-400'}`}
+              />
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              {/* Breddevelger */}
+              <div className={`hidden md:flex items-center gap-1 p-0.5 rounded-lg border text-xs font-semibold ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => setZenWidth('normal')}
+                  className={`px-2 py-0.5 rounded cursor-pointer transition-all ${zenWidth === 'normal' ? (zenTheme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-indigo-700 shadow-2xs') : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
+                  title="Normal bredde (768px)"
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZenWidth('wide')}
+                  className={`px-2 py-0.5 rounded cursor-pointer transition-all ${zenWidth === 'wide' ? (zenTheme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-indigo-700 shadow-2xs') : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
+                  title="Bred skriveflate (1024px - Anbefalt)"
+                >
+                  Bred
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZenWidth('xl')}
+                  className={`px-2 py-0.5 rounded cursor-pointer transition-all ${zenWidth === 'xl' ? (zenTheme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-indigo-700 shadow-2xs') : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
+                  title="Ekstra bred skriveflate (1280px)"
+                >
+                  Ekstra bred
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZenWidth('full')}
+                  className={`px-2 py-0.5 rounded cursor-pointer transition-all ${zenWidth === 'full' ? (zenTheme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-indigo-700 shadow-2xs') : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
+                  title="Full skjermbredde"
+                >
+                  Full
+                </button>
+              </div>
+
+              {/* Skriftstørrelse A- / A+ */}
+              <div className={`flex items-center gap-1 p-0.5 rounded-lg border text-xs font-semibold ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (zenFontSize === '2xl') setZenFontSize('xl');
+                    else if (zenFontSize === 'xl') setZenFontSize('lg');
+                    else if (zenFontSize === 'lg') setZenFontSize('md');
+                  }}
+                  title="Mindre tekststørrelse"
+                  className={`px-2 py-0.5 rounded cursor-pointer ${zenTheme === 'dark' ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-white text-slate-700'}`}
+                >
+                  A-
+                </button>
+                <span className={`px-1 text-[11px] font-bold ${zenTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {zenFontSize === 'md' ? '18px' : zenFontSize === 'lg' ? '20px' : zenFontSize === 'xl' ? '24px' : '28px'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (zenFontSize === 'md') setZenFontSize('lg');
+                    else if (zenFontSize === 'lg') setZenFontSize('xl');
+                    else if (zenFontSize === 'xl') setZenFontSize('2xl');
+                  }}
+                  title="Større tekststørrelse"
+                  className={`px-2 py-0.5 rounded cursor-pointer ${zenTheme === 'dark' ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-white text-slate-700'}`}
+                >
+                  A+
+                </button>
+              </div>
+
+              {/* Ordteller i Zen mode */}
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'}`}>
+                {wordCount} {activeDoc.targetWords ? `/ ${activeDoc.targetWords} ord` : 'ord'}
+              </span>
+
+              {/* Mørkt/Lyst tema-toggle */}
+              <button
+                type="button"
+                onClick={() => setZenTheme(zenTheme === 'dark' ? 'light' : 'dark')}
+                title={zenTheme === 'dark' ? 'Bytt til lyst fokusmiljø' : 'Bytt til mørkt fokusmiljø'}
+                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+              >
+                {zenTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+
+              {/* Avslutt Fokusmodus */}
+              <button
+                type="button"
+                onClick={() => setIsZenMode(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+                title="Avslutt fokusmodus (Esc)"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Avslutt (Esc)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Zen Writing Sheet Area (Stor, luftig, uforstyrret skriveflate uten trange scrollbokser) */}
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-12 py-8 flex justify-center">
+            <div className={`w-full transition-all duration-300 ${
+              zenWidth === 'normal' 
+                ? 'max-w-3xl' 
+                : zenWidth === 'wide' 
+                ? 'max-w-5xl' 
+                : zenWidth === 'xl' 
+                ? 'max-w-6xl' 
+                : 'max-w-full px-4 md:px-8'
+            }`}>
+              <div className={`rounded-3xl p-8 sm:p-14 md:p-20 min-h-[85vh] shadow-2xl transition-all border ${
+                zenTheme === 'dark'
+                  ? 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/80'
+                  : 'bg-white border-slate-200/90 text-slate-900 shadow-slate-200/60'
+              }`}>
+                <textarea
+                  value={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
+                  onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })}
+                  onKeyDown={handleEditorKeyDown}
+                  placeholder="Skriv uforstyrret her..."
+                  autoFocus
+                  style={{
+                    fontFamily: activeDoc.fontFamily === 'calibri'
+                      ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                      : activeDoc.fontFamily === 'arial'
+                      ? 'Arial, Helvetica, sans-serif'
+                      : activeDoc.fontFamily === 'georgia'
+                      ? 'Georgia, serif'
+                      : '"Times New Roman", Times, serif',
+                    fontSize: zenFontSize === 'md' 
+                      ? '1.125rem' 
+                      : zenFontSize === 'lg' 
+                      ? '1.25rem' 
+                      : zenFontSize === 'xl' 
+                      ? '1.5rem' 
+                      : '1.75rem',
+                    lineHeight: '2.0',
+                    minHeight: '70vh'
+                  }}
+                  className={`w-full bg-transparent resize-none border-none focus:outline-none transition-all ${zenTheme === 'dark' ? 'text-slate-100 placeholder:text-slate-700' : 'text-slate-900 placeholder:text-slate-300'}`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Zen Bottom Status Bar */}
+          <div className={`px-6 py-2.5 border-t flex items-center justify-between text-xs select-none shrink-0 ${zenTheme === 'dark' ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}>
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Forstyrrelsesfri skriveøkt aktiv • Skriveflate: {zenWidth === 'normal' ? 'Normal' : zenWidth === 'wide' ? 'Bred (1024px)' : zenWidth === 'xl' ? 'Ekstra bred' : 'Fullskjerm'}</span>
+            </span>
+            <span>Trykk <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${zenTheme === 'dark' ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Esc</kbd> for å gå tilbake</span>
+          </div>
+        </div>
+      )}
     </WorkspaceLayout>
+  );
+}
+
+/**
+ * STEG 3: Dokumentstatistikk & LIX-modal
+ */
+function DocStatsModal({
+  isOpen,
+  onClose,
+  title,
+  wordCount,
+  targetWords,
+  charCount,
+  charNoSpacesCount,
+  paragraphCount,
+  sentenceCount,
+  avgWordsPerSentence,
+  readingTimeMinutes,
+  lixIndex,
+  estimatedPages
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  wordCount: number;
+  targetWords: number;
+  charCount: number;
+  charNoSpacesCount: number;
+  paragraphCount: number;
+  sentenceCount: number;
+  avgWordsPerSentence: string;
+  readingTimeMinutes: number;
+  lixIndex: number;
+  estimatedPages: number;
+}) {
+  if (!isOpen) return null;
+
+  const getLixEvaluation = (lix: number) => {
+    if (lix < 30) return { label: 'Svært lettlest (Skjønnlitteratur / Barnebøker)', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
+    if (lix < 40) return { label: 'Lettlest (Enkel sakprosa)', color: 'text-sky-700 bg-sky-50 border-sky-200' };
+    if (lix < 50) return { label: 'Middels vanskelig (Aviser / Tidsskrifter)', color: 'text-blue-700 bg-blue-50 border-blue-200' };
+    if (lix <= 60) return { label: 'Fagtekst / Høgskolenivå (Optimalt for akademiske oppgaver)', color: 'text-indigo-700 bg-indigo-50 border-indigo-200' };
+    return { label: 'Svært krevende fagtekst (Tett akademisk fagspråk)', color: 'text-amber-800 bg-amber-50 border-amber-200' };
+  };
+
+  const lixInfo = getLixEvaluation(lixIndex);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+      <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col">
+        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-indigo-600" />
+            <h3 className="font-bold text-slate-900 text-base">Dokumentstatistikk</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+          <div>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Oppgave</span>
+            <h4 className="text-base font-bold text-slate-900 truncate">{title || 'Uten tittel'}</h4>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">Ordantall</span>
+              <span className="text-xl font-bold text-slate-900">{wordCount}</span>
+              {targetWords > 0 && (
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Mål: {targetWords} ({Math.min(100, Math.round((wordCount / targetWords) * 100))}%)
+                </span>
+              )}
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">A4-sider (est.)</span>
+              <span className="text-xl font-bold text-slate-900">Ca. {estimatedPages}</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">~400 ord/side</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">Lesetid</span>
+              <span className="text-xl font-bold text-slate-900">~{readingTimeMinutes} min</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">200 ord/min</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">Tegn (totalt)</span>
+              <span className="text-lg font-bold text-slate-900">{charCount}</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">Tegn (u/mellomrom)</span>
+              <span className="text-lg font-bold text-slate-900">{charNoSpacesCount}</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-[11px] font-semibold text-slate-500 block">Avsnitt</span>
+              <span className="text-lg font-bold text-slate-900">{paragraphCount}</span>
+            </div>
+          </div>
+
+          {/* Språklig kompleksitet og LIX */}
+          <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Type className="w-4 h-4 text-indigo-600" />
+                Lesbarhetsindeks (LIX)
+              </span>
+              <span className="text-lg font-extrabold text-indigo-700">LIX {lixIndex}</span>
+            </div>
+
+            <div className={`p-2.5 rounded-lg border text-xs font-semibold ${lixInfo.color}`}>
+              {lixInfo.label}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1 text-xs text-slate-600">
+              <div>
+                <span className="text-slate-400 block text-[11px]">Antall setninger:</span>
+                <span className="font-semibold text-slate-800">{sentenceCount}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[11px]">Snitt ord per setning:</span>
+                <span className="font-semibold text-slate-800">{avgWordsPerSentence} ord</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition-all shadow-xs cursor-pointer"
+          >
+            Lukk
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

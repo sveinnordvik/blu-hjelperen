@@ -24,6 +24,7 @@ export interface FieldNote {
   content: string;
   category: NoteCategory;
   isPinned?: boolean;
+  isArchived?: boolean;
   folderId?: string | null;
   createdAt: string;
   updatedAt: string;

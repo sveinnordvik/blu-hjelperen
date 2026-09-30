@@ -366,6 +366,57 @@ export const Settings: React.FC<SettingsProps> = ({
           <AIWarning compact={true} />
         </div>
 
+        {/* Versjonsinformasjon & Nyheter */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 md:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">BLU-Hjelperen versjonsinformasjon</h3>
+                <p className="text-[11px] text-slate-400">Oversikt over nyeste funksjoner og oppdateringer</p>
+              </div>
+            </div>
+            <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-xs font-extrabold shadow-2xs">
+              v3.5.0 (Produksjon)
+            </span>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Høydepunkter i v3.5.0:</span>
+            </div>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">📄</span>
+                <div>
+                  <strong className="text-slate-800">Ekte A4-Word-ark:</strong> Separate ark med 2,54 cm marger, topp-/bunntekst og automatisk sideoverføring.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🎛️</span>
+                <div>
+                  <strong className="text-slate-800">2-linjers verktøylinje:</strong> Angre/Gjenta, skrifttyper, linjeavstand, synlig Søk & erstatt og APA-kilder.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🔍</span>
+                <div>
+                  <strong className="text-slate-800">Zoom & Forstørrelse:</strong> Word-glidebryter (50 % - 175 %) og rask forstørrelsesmeny.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🧘‍♂️</span>
+                <div>
+                  <strong className="text-slate-800">Utvidet Fokusmodus:</strong> Valgfri bredde (Normal, Bred 1024px, Full) og skriftstørrelser (18px-28px).
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
         {/* Logg ut - Spesielt viktig for mobil */}
         {user && (
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 md:col-span-2">

@@ -691,6 +691,20 @@ function convertMarkdownToDocx(markdown: string, font: string = 'Times New Roman
       continue;
     }
 
+    // MANUELT SIDESKIFT (<!-- pagebreak -->, ---pagebreak---, [SIDESKIFT])
+    if (
+      trimmed === '<!-- pagebreak -->' ||
+      trimmed === '---pagebreak---' ||
+      trimmed === '--- sideskift ---' ||
+      trimmed === '[SIDESKIFT]' ||
+      trimmed === '***'
+    ) {
+      paragraphs.push(new Paragraph({
+        children: [new PageBreak()]
+      }));
+      continue;
+    }
+
     // OVERSKRIFT 1: 14pt, venstrestilt, fet, 18 pkt etter (360 twips). Starter ALLTID på ny side!
     if (line.startsWith('# ')) {
       const text = line.replace(/^#\s+/, '').trim();
@@ -1285,6 +1299,21 @@ export async function exportToPdf(config: ExportConfig): Promise<Blob> {
 
     if (!trimmed) {
       cursorY += 3;
+      continue;
+    }
+
+    // MANUELT SIDESKIFT (<!-- pagebreak -->, ---pagebreak---, [SIDESKIFT])
+    if (
+      trimmed === '<!-- pagebreak -->' ||
+      trimmed === '---pagebreak---' ||
+      trimmed === '--- sideskift ---' ||
+      trimmed === '[SIDESKIFT]' ||
+      trimmed === '***'
+    ) {
+      doc.addPage();
+      currentPage++;
+      renderHeaderAndFooter(currentPage);
+      cursorY = marginTop;
       continue;
     }
 

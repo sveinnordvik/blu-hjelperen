@@ -178,3 +178,45 @@
 .academic-editor-surface li {
   margin-bottom: 0.35rem !important;
 }
+
+/* Visuelt sideskift i Word-stil */
+.page-break-indicator {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 2.2rem 0 !important;
+  position: relative !important;
+  user-select: none !important;
+  cursor: pointer !important;
+}
+
+.page-break-indicator .page-break-line {
+  flex: 1 !important;
+  height: 2px !important;
+  background: repeating-linear-gradient(90deg, #94a3b8 0, #94a3b8 6px, transparent 6px, transparent 12px) !important;
+}
+
+.page-break-indicator .page-break-badge {
+  padding: 0.25rem 0.85rem !important;
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 9999px !important;
+  font-size: 0.72rem !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  margin: 0 0.85rem !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.page-break-indicator:hover .page-break-badge {
+  background-color: #ede9fe !important;
+  border-color: #c4b5fd !important;
+  color: #6d28d9 !important;
+}
+

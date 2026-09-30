@@ -30,6 +30,21 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
+    // Page break / Sideskift
+    if (
+      trimmed === '<!-- pagebreak -->' || 
+      trimmed === '---pagebreak---' || 
+      trimmed === '--- sideskift ---' || 
+      trimmed === '[SIDESKIFT]' ||
+      trimmed === '***'
+    ) {
+      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
+      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+      if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
+      htmlParts.push('<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>');
+      continue;
+    }
+
     // Heading 1
     if (trimmed.startsWith('# ')) {
       if (inUl) { htmlParts.push('</ul>'); inUl = false; }
@@ -163,6 +178,11 @@ function walkDomNodeToMarkdown(node: Node): string {
   const el = node as HTMLElement;
   const tag = el.tagName.toLowerCase();
 
+  // Sideskift element
+  if (el.getAttribute('data-pagebreak') === 'true' || el.classList.contains('page-break-indicator') || tag === 'hr') {
+    return '\n\n<!-- pagebreak -->\n\n';
+  }
+
   const childContent = Array.from(el.childNodes)
     .map(walkDomNodeToMarkdown)
     .join('');
@@ -234,3 +254,55 @@ export function stripMarkdownAndHtml(input: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/**
+ * Deler opp et dokument i ekte A4-sider (Word-ark).
+ * Tar hensyn til eksplisitte sideskift og automatisk sidekapasitet (~320 ord / 22 avsnittslinjer per A4-side).
+ */
+export function splitDocumentIntoPages(fullContent: string, targetWordsPerPage: number = 320): string[] {
+  if (!fullContent || typeof fullContent !== 'string' || !fullContent.trim()) {
+    return [''];
+  }
+
+  // 1. Del på eventuelle eksplisitte sideskift
+  const explicitSections = fullContent.split(/<!-- pagebreak -->|---pagebreak---|--- sideskift ---|\[SIDESKIFT\]/g);
+  const resultPages: string[] = [];
+
+  for (const section of explicitSections) {
+    const trimmedSection = section.trim();
+    if (!trimmedSection) {
+      if (resultPages.length === 0) resultPages.push('');
+      continue;
+    }
+
+    // Del seksjonen inn i avsnitt og overskriftsblokker
+    const blocks = trimmedSection.split(/\n\s*\n/);
+    let currentPageBlocks: string[] = [];
+    let currentWords = 0;
+
+    for (const block of blocks) {
+      const cleanBlock = block.trim();
+      if (!cleanBlock) continue;
+
+      const wordsInBlock = cleanBlock.split(/\s+/).filter(Boolean).length;
+      const isHeading1 = cleanBlock.startsWith('# ') || cleanBlock.startsWith('<h1>');
+
+      // Hvis blokken gjør at siden blir for lang (> targetWordsPerPage), eller H1 når siden allerede har innhold:
+      if (currentPageBlocks.length > 0 && (currentWords + wordsInBlock > targetWordsPerPage || (isHeading1 && currentWords > 160))) {
+        resultPages.push(currentPageBlocks.join('\n\n'));
+        currentPageBlocks = [cleanBlock];
+        currentWords = wordsInBlock;
+      } else {
+        currentPageBlocks.push(cleanBlock);
+        currentWords += wordsInBlock;
+      }
+    }
+
+    if (currentPageBlocks.length > 0) {
+      resultPages.push(currentPageBlocks.join('\n\n'));
+    }
+  }
+
+  return resultPages.length > 0 ? resultPages : [''];
+}
+

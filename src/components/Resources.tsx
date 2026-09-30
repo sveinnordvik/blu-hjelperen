@@ -446,6 +446,77 @@ export function Resources({
     }
   };
 
+  // Endre mappenavn
+  const handleRenameFolder = async (folderId: string, newName: string) => {
+    if (!newName.trim()) return;
+    const updated = items.map(it => it.id === folderId ? { ...it, name: newName.trim(), updatedAt: new Date().toISOString() } : it);
+    updateLocalCache(updated);
+    const currentUser = auth.currentUser;
+    if (currentUser && !folderId.startsWith('sample-')) {
+      try {
+        await updateDoc(doc(db, 'context_files', folderId), {
+          name: newName.trim(),
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Feil ved omdøping av mappe i Firestore:", err);
+      }
+    }
+  };
+
+  // Endre farge på mappe
+  const handleUpdateFolderColor = async (folderId: string, color: string) => {
+    const updated = items.map(it => it.id === folderId ? { ...it, color, updatedAt: new Date().toISOString() } : it);
+    updateLocalCache(updated);
+    const currentUser = auth.currentUser;
+    if (currentUser && !folderId.startsWith('sample-')) {
+      try {
+        await updateDoc(doc(db, 'context_files', folderId), {
+          color,
+          updatedAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Feil ved oppdatering av mappefarge i Firestore:", err);
+      }
+    }
+  };
+
+  // Arkiver element
+  const handleArchiveItem = async (itemId: string, isArchived: boolean) => {
+    if (itemId.startsWith('note_')) {
+      const realNoteId = itemId.replace('note_', '');
+      const note = fieldNotes.find(n => n.id === realNoteId);
+      if (note) {
+        await saveFieldNote({ ...note, isArchived, updatedAt: new Date().toISOString() });
+      }
+    } else {
+      const updated = items.map(it => it.id === itemId ? { ...it, isArchived, updatedAt: new Date().toISOString() } : it);
+      updateLocalCache(updated);
+      const currentUser = auth.currentUser;
+      if (currentUser && !itemId.startsWith('sample-')) {
+        try {
+          await updateDoc(doc(db, 'context_files', itemId), { isArchived, updatedAt: serverTimestamp() });
+        } catch (err) {
+          console.error("Feil ved arkivering i Firestore:", err);
+        }
+      }
+    }
+  };
+
+  // Arkiver mappe
+  const handleArchiveFolder = async (folderId: string, isArchived: boolean) => {
+    const updated = items.map(it => it.id === folderId ? { ...it, isArchived, updatedAt: new Date().toISOString() } : it);
+    updateLocalCache(updated);
+    const currentUser = auth.currentUser;
+    if (currentUser && !folderId.startsWith('sample-')) {
+      try {
+        await updateDoc(doc(db, 'context_files', folderId), { isArchived, updatedAt: serverTimestamp() });
+      } catch (err) {
+        console.error("Feil ved arkivering av mappe i Firestore:", err);
+      }
+    }
+  };
+
   // Flytt fil eller feltnotat til mappe
   const handleMoveItem = async (itemId: string, folderId: string | undefined) => {
     if (itemId.startsWith('note_')) {
@@ -789,9 +860,13 @@ export function Resources({
       folders={workspaceFolders}
       onAddFolder={() => setIsCreatingFolder(true)}
       onDeleteFolder={handleDeleteFolder}
+      onRenameFolder={handleRenameFolder}
+      onUpdateFolderColor={handleUpdateFolderColor}
+      onArchiveFolder={handleArchiveFolder}
       onMoveToFolder={handleMoveItem}
       onPinItem={handlePinItem}
       onRenameItem={handleRenameItem}
+      onArchiveItem={handleArchiveItem}
       onDeleteItem={handleDeleteItem}
       historyItems={workspaceHistoryItems}
       activeItemId={currentActiveItemId}

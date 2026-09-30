@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { WorkspaceLayout, HistoryItem, FolderType } from './WorkspaceLayout';
+import { WorkspaceLayout, HistoryItem, FolderType, FOLDER_COLORS } from './WorkspaceLayout';
 import { 
   Sparkles, 
   Send, 
@@ -48,7 +48,9 @@ import {
 import { saveFieldNote } from '../services/fieldNotesService';
 import { extractTextFromPdf } from '../lib/pdfUtils';
 import { extractTextFromDocx } from '../lib/docxUtils';
-import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, query, orderBy, where } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, updateDoc, query, orderBy, where } from 'firebase/firestore';
+import { FolderExportModal } from './tools/FolderExportModal';
+import { FolderContextModal } from './tools/FolderContextModal';
 import AIWarning from './AIWarning';
 import { cn } from '../lib/utils';
 
@@ -276,6 +278,7 @@ export function Superveileder({
   // Felles dialog- og skrive-state
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderColor, setNewFolderColor] = useState('indigo');
   const [input, setInput] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -532,12 +535,17 @@ export function Superveileder({
           : `📎 [Vedlagt fil: ${fileName}]\n\nVennligst gi meg faglig tilbakemelding på dette dokumentet med forankring i Rammeplanen for barnehagen, didaktisk refleksjon og faglitteratur.`)
       : rawInput;
 
-    // Fullt payload-innhold med documentContext sendt til API-et / modellene
-    const promptWithDocumentContext = fileContent
-      ? `${rawInput ? rawInput + '\n\n' : ''}--- VEDLAGT DOKUMENT (${fileName}) ---\n${fileContent.slice(0, 45000)}\n--- SLUTT PÅ DOKUMENT ---`
-      : displayUserText;
-
     const isFeltMode = activeAssistant === 'feltveileder';
+    const currentFolder = (isFeltMode ? feltFolders : folders).find(f => f.id === activeChat.folderId);
+    const folderContextPrompt = currentFolder?.customContext?.trim()
+      ? `\n\n[VIKTIG MAPPEKONTEKST OG PEDAGOGISKE FØRINGER FOR MAPPE "${currentFolder.name}"]:\n${currentFolder.customContext}\n[SLUTT PÅ MAPPEKONTEKST]\n`
+      : '';
+
+    // Fullt payload-innhold med documentContext og mappekontekst sendt til API-et / modellene
+    const promptWithDocumentContext = (fileContent
+      ? `${rawInput ? rawInput + '\n\n' : ''}--- VEDLAGT DOKUMENT (${fileName}) ---\n${fileContent.slice(0, 45000)}\n--- SLUTT PÅ DOKUMENT ---`
+      : displayUserText) + folderContextPrompt;
+
     let updatedSession: ChatSession | null = null;
 
     if (!isRetry) {
@@ -868,6 +876,7 @@ export function Superveileder({
     const newFolder: FolderType = {
       id: (isFeltMode ? 'ff_' : 'folder_') + Date.now(),
       name: newFolderName.trim(),
+      color: newFolderColor,
       isExpanded: true
     };
 
@@ -878,6 +887,7 @@ export function Superveileder({
     }
 
     setNewFolderName('');
+    setNewFolderColor('indigo');
     setIsCreatingFolder(false);
 
     if (user?.uid) {
@@ -887,6 +897,7 @@ export function Superveileder({
         await setDoc(doc(db, col, newFolder.id), {
           id: newFolder.id,
           name: newFolder.name,
+          color: newFolder.color,
           userId: user.uid,
           isExpanded: true,
           createdAt: new Date().toISOString()
@@ -916,6 +927,172 @@ export function Superveileder({
       } catch (err) {
         console.warn('Kunne ikke slette mappe fra Firestore:', err);
       }
+    }
+  };
+
+  // Endre mappenavn
+  const handleRenameFolder = async (folderId: string, newName: string) => {
+    if (!newName.trim()) return;
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName.trim() } : f));
+    } else {
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName.trim() } : f));
+    }
+
+    if (user?.uid) {
+      try {
+        const db = getFirestore();
+        const col = isFeltMode ? 'feltveileder_folders' : 'folders';
+        await updateDoc(doc(db, col, folderId), {
+          name: newName.trim(),
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Kunne ikke oppdatere mappenavn i Firestore:', err);
+      }
+    }
+  };
+
+  // Endre mappefarge
+  const handleUpdateFolderColor = async (folderId: string, color: string) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(prev => prev.map(f => f.id === folderId ? { ...f, color } : f));
+    } else {
+      setFolders(prev => prev.map(f => f.id === folderId ? { ...f, color } : f));
+    }
+
+    if (user?.uid) {
+      try {
+        const db = getFirestore();
+        const col = isFeltMode ? 'feltveileder_folders' : 'folders';
+        await updateDoc(doc(db, col, folderId), {
+          color,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Kunne ikke oppdatere mappefarge i Firestore:', err);
+      }
+    }
+  };
+
+  // Omorganisere mapper
+  const handleReorderFolders = (newFolders: FolderType[]) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(newFolders);
+    } else {
+      setFolders(newFolders);
+    }
+  };
+
+  // Dupliser / klon samtale
+  const handleDuplicateChat = (chatId: string) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    const list = isFeltMode ? feltChats : chats;
+    const original = list.find(c => c.id === chatId);
+    if (!original) return;
+    const newId = (isFeltMode ? 'felt_' : 'sv_') + Date.now();
+    const duplicated: ChatSession = {
+      ...original,
+      id: newId,
+      title: `${original.title} (kopi)`,
+      subtitle: `${original.activeMode} • Kopi`,
+      updatedAt: new Date().toISOString()
+    };
+    if (isFeltMode) {
+      setFeltChats(prev => [duplicated, ...prev]);
+      setActiveFeltChatId(newId);
+    } else {
+      setChats(prev => [duplicated, ...prev]);
+      setActiveChatId(newId);
+    }
+    saveChatToFirestore(duplicated, isFeltMode);
+  };
+
+  const [folderToExportId, setFolderToExportId] = useState<string | null>(null);
+
+  const handleArchiveChat = (chatId: string, isArchived: boolean) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltChats(prev => prev.map(c => {
+        if (c.id === chatId) {
+          const updated = { ...c, isArchived, updatedAt: new Date().toISOString() };
+          saveChatToFirestore(updated, true);
+          return updated;
+        }
+        return c;
+      }));
+    } else {
+      setChats(prev => prev.map(c => {
+        if (c.id === chatId) {
+          const updated = { ...c, isArchived, updatedAt: new Date().toISOString() };
+          saveChatToFirestore(updated, false);
+          return updated;
+        }
+        return c;
+      }));
+    }
+  };
+
+  const handleArchiveFolder = (folderId: string, isArchived: boolean) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(prev => prev.map(f => {
+        if (f.id === folderId) {
+          const updated = { ...f, isArchived };
+          if (user?.uid) {
+            const db = getFirestore();
+            updateDoc(doc(db, 'feltveileder_folders', folderId), { isArchived, updatedAt: new Date().toISOString() }).catch(console.warn);
+          }
+          return updated;
+        }
+        return f;
+      }));
+    } else {
+      setFolders(prev => prev.map(f => {
+        if (f.id === folderId) {
+          const updated = { ...f, isArchived };
+          if (user?.uid) {
+            const db = getFirestore();
+            updateDoc(doc(db, 'folders', folderId), { isArchived, updatedAt: new Date().toISOString() }).catch(console.warn);
+          }
+          return updated;
+        }
+        return f;
+      }));
+    }
+  };
+
+  const [folderForContextModalId, setFolderForContextModalId] = useState<string | null>(null);
+
+  const handleSaveFolderContext = async (folderId: string, customContext: string, focusArea?: string) => {
+    const isFeltMode = activeAssistant === 'feltveileder';
+    if (isFeltMode) {
+      setFeltFolders(prev => prev.map(f => {
+        if (f.id === folderId) {
+          const updated = { ...f, customContext, focusArea };
+          if (user?.uid) {
+            const db = getFirestore();
+            updateDoc(doc(db, 'feltveileder_folders', folderId), { customContext, focusArea, updatedAt: new Date().toISOString() }).catch(console.warn);
+          }
+          return updated;
+        }
+        return f;
+      }));
+    } else {
+      setFolders(prev => prev.map(f => {
+        if (f.id === folderId) {
+          const updated = { ...f, customContext, focusArea };
+          if (user?.uid) {
+            const db = getFirestore();
+            updateDoc(doc(db, 'folders', folderId), { customContext, focusArea, updatedAt: new Date().toISOString() }).catch(console.warn);
+          }
+          return updated;
+        }
+        return f;
+      }));
     }
   };
 
@@ -1132,6 +1309,14 @@ export function Superveileder({
       onAddFolder={() => setIsCreatingFolder(true)}
       onMoveToFolder={handleMoveChat}
       onDeleteFolder={handleDeleteFolder}
+      onRenameFolder={handleRenameFolder}
+      onUpdateFolderColor={handleUpdateFolderColor}
+      onArchiveFolder={handleArchiveFolder}
+      onExportFolder={(fId) => setFolderToExportId(fId)}
+      onEditFolderContext={(fId) => setFolderForContextModalId(fId)}
+      onReorderFolders={handleReorderFolders}
+      onDuplicateItem={handleDuplicateChat}
+      onArchiveItem={handleArchiveChat}
       historyItems={currentChats}
       activeItemId={currentActiveId}
       onItemClick={(id) => {
@@ -1142,12 +1327,14 @@ export function Superveileder({
       onRenameItem={handleRenameItem}
       onDeleteItem={handleDeleteItem}
     >
-      {({ isCollapsed, openMobileArchive }) => (
-        <>
-          <div className="flex flex-col h-full bg-slate-50/50">
-          
-          {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
-          <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
+      {({ isCollapsed, openMobileArchive }) => {
+        const activeFolder = currentFolders.find(f => f.id === activeChat?.folderId);
+        return (
+          <>
+            <div className="flex flex-col h-full bg-slate-50/50">
+            
+            {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
+            <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               {/* Mobilknapp for å åpne samtale-arkivet for denne veilederen */}
               <button
@@ -1322,6 +1509,25 @@ export function Superveileder({
                 className="text-[11px] underline font-bold text-purple-700 hover:text-purple-900 ml-4 shrink-0 cursor-pointer"
               >
                 Nullstill til Auto
+              </button>
+            </div>
+          )}
+
+          {/* Mappe-kontekst banner hvis samtalen er i en mappe */}
+          {activeFolder && (
+            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 border-b border-purple-500/30 px-4 md:px-6 py-2 flex items-center justify-between text-xs text-white shadow-xs">
+              <div className="flex items-center gap-2 truncate">
+                <Brain className="w-4 h-4 text-purple-300 shrink-0 animate-pulse" />
+                <span className="truncate text-xs font-semibold">
+                  <strong className="text-purple-200">Mappekontekst:</strong> {activeFolder.name} {activeFolder.customContext?.trim() ? `— «${activeFolder.customContext.slice(0, 75)}...»` : '— (Ingen føringer definert)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFolderForContextModalId(activeFolder.id)}
+                className="text-[11px] font-bold text-purple-200 hover:text-white underline ml-3 shrink-0 cursor-pointer bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-all"
+              >
+                {activeFolder.customContext?.trim() ? '⚙️ Tilpass føringer' : '+ Definer KI-føringer'}
               </button>
             </div>
           )}
@@ -1733,6 +1939,28 @@ export function Superveileder({
                 />
               </div>
 
+              {/* Fargevelger */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Velg fargekode
+                </label>
+                <div className="flex items-center gap-2">
+                  {FOLDER_COLORS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setNewFolderColor(c.id)}
+                      className={`w-7 h-7 rounded-full ${c.dot} transition-transform hover:scale-110 cursor-pointer flex items-center justify-center ${
+                        newFolderColor === c.id ? 'ring-2 ring-indigo-600 ring-offset-2 scale-110' : 'opacity-70'
+                      }`}
+                      title={c.name}
+                    >
+                      {newFolderColor === c.id && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -1757,8 +1985,44 @@ export function Superveileder({
           </div>
         </div>
       )}
-        </>
+
+      {/* MAPPE EKSPORT MODAL FOR VEILEDNINGSSAMTALER */}
+      {folderToExportId && (
+        <FolderExportModal
+          isOpen={Boolean(folderToExportId)}
+          onClose={() => setFolderToExportId(null)}
+          folderName={currentFolders.find(f => f.id === folderToExportId)?.name || 'Mappe'}
+          items={currentChats
+            .filter(c => c.folderId === folderToExportId)
+            .map(c => ({
+              id: c.id,
+              title: c.title,
+              subtitle: c.subtitle,
+              template: c.activeMode || 'Veiledningssamtale',
+              updatedAt: c.updatedAt,
+              content: (c.messages || [])
+                .map(m => `### ${m.role === 'user' ? 'Student' : 'Veileder'} (${m.timestamp || ''})\n\n${m.content}`)
+                .join('\n\n---\n\n')
+            }))}
+          userProfile={{
+            name: user?.displayName || '',
+            institution: 'Barnehagelærerutdanningen'
+          }}
+        />
       )}
+
+      {/* MAPPE KONTEKST MODAL */}
+      {folderForContextModalId && (
+        <FolderContextModal
+          isOpen={Boolean(folderForContextModalId)}
+          onClose={() => setFolderForContextModalId(null)}
+          folder={currentFolders.find(f => f.id === folderForContextModalId) || null}
+          onSaveContext={handleSaveFolderContext}
+        />
+      )}
+          </>
+        );
+      }}
     </WorkspaceLayout>
   );
 }
