@@ -2400,49 +2400,10 @@ ${activeDoc.content}`;
                     </div>
                   </div>
 
-                  {/* Høyre: Visningsmodus (Visuell / Markdown / Forhåndsvis) */}
-                  <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg text-xs font-semibold gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => { setEditorTab('write'); setEditorMode('wysiwyg'); }} 
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
-                        editorTab === 'write' && editorMode === 'wysiwyg' 
-                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Visuell redigering i Word-stil uten formateringskoder som #"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Visuell (Word)</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => { setEditorTab('write'); setEditorMode('markdown'); }} 
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
-                        editorTab === 'write' && editorMode === 'markdown' 
-                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Råtekst med Markdown-koder (#, ##, ###)"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Markdown (#)</span>
-                    </button>
-
-                    <button 
-                      type="button"
-                      onClick={() => setEditorTab('preview')} 
-                      className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
-                        editorTab === 'preview' 
-                          ? 'bg-white text-indigo-600 shadow-2xs font-bold' 
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                      title="Forhåndsvis ferdig formatert oppgave"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Forhåndsvis</span>
-                    </button>
+                  {/* Høyre: Word A4-oppsett indikator */}
+                  <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Word A4-oppsett</span>
                   </div>
                 </div>
               </div>
@@ -2563,119 +2524,77 @@ ${activeDoc.content}`;
                     />
                   </div>
 
-                  {editorTab === 'write' ? (
-                    (() => {
-                      const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
-                      const docPages = splitDocumentIntoPages(fullDocText, 320);
+                  {(() => {
+                    const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+                    const docPages = splitDocumentIntoPages(fullDocText, 320);
 
-                      return (
-                        <div 
-                          className="space-y-8 pb-12 transition-all origin-top flex flex-col items-center"
-                          style={{ zoom: `${zoomLevel}%` }}
-                        >
-                          {docPages.map((pageText, pageIdx) => {
-                            const pageNum = pageIdx + 1;
-                            const totalPages = docPages.length;
+                    return (
+                      <div 
+                        className="space-y-8 pb-12 transition-all origin-top flex flex-col items-center"
+                        style={{ zoom: `${zoomLevel}%` }}
+                      >
+                        {docPages.map((pageText, pageIdx) => {
+                          const pageNum = pageIdx + 1;
 
-                            return (
-                              <div
-                                key={`a4-page-sheet-${pageIdx}`}
-                                className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1050px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative transition-all"
-                              >
-                                {/* A4 Topptekst for dette arket */}
-                                <div className="flex items-center justify-between pb-3 mb-6 border-b border-slate-100 text-[11px] text-slate-400 select-none">
-                                  <span className="font-semibold text-slate-600 truncate max-w-[280px]">
-                                    {activeDoc.title || 'Uten tittel'}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded text-[10px]">
-                                      Side {pageNum} av {totalPages}
-                                    </span>
-                                    <span className="text-slate-300">•</span>
-                                    <span className="font-medium text-slate-400">
-                                      A4 (2,54 cm marg)
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Innhold / Skriveflate på dette arket */}
-                                <div className="flex-1">
-                                  {editorMode === 'wysiwyg' ? (
-                                    <div
-                                      contentEditable
-                                      suppressContentEditableWarning
-                                      dangerouslySetInnerHTML={{ __html: markdownToHtml(pageText) }}
-                                      onInput={(e) => {
-                                        const newHtml = e.currentTarget.innerHTML;
-                                        const updatedPageMd = htmlToMarkdown(newHtml);
-                                        const updatedPages = [...docPages];
-                                        updatedPages[pageIdx] = updatedPageMd;
-                                        const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
-                                        handleUpdateActiveDoc({ content: newFull });
-                                        checkActiveFormatting();
-                                      }}
-                                      onKeyDown={handleEditorKeyDown}
-                                      onKeyUp={checkActiveFormatting}
-                                      onMouseUp={checkActiveFormatting}
-                                      onSelect={checkActiveFormatting}
-                                      style={{
-                                        fontFamily: activeDoc.fontFamily === 'calibri'
-                                          ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
-                                          : activeDoc.fontFamily === 'arial'
-                                          ? 'Arial, Helvetica, sans-serif'
-                                          : activeDoc.fontFamily === 'georgia'
-                                          ? 'Georgia, serif'
-                                          : '"Times New Roman", Times, serif',
-                                        lineHeight: activeDoc.lineSpacing === '1.0'
-                                          ? '1.2'
-                                          : activeDoc.lineSpacing === '1.15'
-                                          ? '1.38'
-                                          : activeDoc.lineSpacing === '2.0'
-                                          ? '2.0'
-                                          : '1.6'
-                                      }}
-                                      className="academic-editor-surface w-full focus:outline-none min-h-[850px]"
-                                    />
-                                  ) : (
-                                    <textarea
-                                      value={pageText}
-                                      onChange={(e) => {
-                                        const updatedPages = [...docPages];
-                                        updatedPages[pageIdx] = e.target.value;
-                                        const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
-                                        handleUpdateActiveDoc({ content: newFull });
-                                      }}
-                                      onKeyDown={handleEditorKeyDown}
-                                      placeholder={`Skriv innhold på side ${pageNum}...`}
-                                      className="w-full bg-transparent resize-none border-none focus:outline-none text-slate-800 text-base leading-relaxed placeholder:text-slate-300 min-h-[850px] font-mono"
-                                    />
-                                  )}
-                                </div>
-
-                                {/* A4 Bunntekst for dette arket */}
-                                <div className="flex items-center justify-between pt-4 mt-8 border-t border-slate-100 text-[11px] text-slate-400 select-none">
-                                  <span className="font-medium text-slate-400">
-                                    {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
-                                  </span>
-                                  <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
-                                    Side {pageNum}
-                                  </span>
-                                </div>
+                          return (
+                            <div
+                              key={`a4-page-sheet-${pageIdx}`}
+                              className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1050px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative transition-all"
+                            >
+                              {/* Innhold / Skriveflate på dette arket */}
+                              <div className="flex-1">
+                                <div
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  dangerouslySetInnerHTML={{ __html: markdownToHtml(pageText) }}
+                                  onInput={(e) => {
+                                    const newHtml = e.currentTarget.innerHTML;
+                                    const updatedPageMd = htmlToMarkdown(newHtml);
+                                    const updatedPages = [...docPages];
+                                    updatedPages[pageIdx] = updatedPageMd;
+                                    const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
+                                    handleUpdateActiveDoc({ content: newFull });
+                                    checkActiveFormatting();
+                                  }}
+                                  onKeyDown={handleEditorKeyDown}
+                                  onKeyUp={checkActiveFormatting}
+                                  onMouseUp={checkActiveFormatting}
+                                  onSelect={checkActiveFormatting}
+                                  style={{
+                                    fontFamily: activeDoc.fontFamily === 'calibri'
+                                      ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                                      : activeDoc.fontFamily === 'arial'
+                                      ? 'Arial, Helvetica, sans-serif'
+                                      : activeDoc.fontFamily === 'georgia'
+                                      ? 'Georgia, serif'
+                                      : '"Times New Roman", Times, serif',
+                                    lineHeight: activeDoc.lineSpacing === '1.0'
+                                      ? '1.2'
+                                      : activeDoc.lineSpacing === '1.15'
+                                      ? '1.38'
+                                      : activeDoc.lineSpacing === '2.0'
+                                      ? '2.0'
+                                      : '1.6'
+                                  }}
+                                  className="academic-editor-surface w-full focus:outline-none min-h-[850px]"
+                                />
                               </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/90 p-8 md:p-12 min-h-[650px]">
-                      <div className="prose prose-slate max-w-none text-slate-800 leading-relaxed">
-                        <ReactMarkdown>
-                          {typeof activeDoc.content === 'string' ? (activeDoc.content || '*Ingen tekst skrevet enda.*') : '*Ingen tekst skrevet enda.*'}
-                        </ReactMarkdown>
+
+                              {/* A4 Bunntekst for dette arket */}
+                              <div className="flex items-center justify-between pt-4 mt-8 border-t border-slate-100 text-[11px] text-slate-400 select-none">
+                                <span className="font-medium text-slate-400">
+                                  {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
+                                </span>
+                                <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
+                                  Side {pageNum}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
 
