@@ -45,30 +45,18 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
-    // Heading 1
-    if (trimmed.startsWith('# ')) {
+    // Heading match (støtter #, ##, ### og rydder bort eventuelle doble koder som '# ###')
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
       if (inUl) { htmlParts.push('</ul>'); inUl = false; }
       if (inOl) { htmlParts.push('</ol>'); inOl = false; }
       if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
-      htmlParts.push(`<h1>${formatInlineMarkdownToHtml(trimmed.slice(2).trim())}</h1>`);
-      continue;
-    }
-
-    // Heading 2
-    if (trimmed.startsWith('## ')) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
-      if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
-      htmlParts.push(`<h2>${formatInlineMarkdownToHtml(trimmed.slice(3).trim())}</h2>`);
-      continue;
-    }
-
-    // Heading 3
-    if (trimmed.startsWith('### ')) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
-      if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
-      htmlParts.push(`<h3>${formatInlineMarkdownToHtml(trimmed.slice(4).trim())}</h3>`);
+      
+      const level = Math.min(3, headingMatch[1].length); // 1, 2 eller 3
+      // Fjern eventuelle gjenværende '#' fra tittelen så aldri rå-koder vises for studenten
+      const cleanTitle = headingMatch[2].replace(/^#+\s*/, '').trim();
+      
+      htmlParts.push(`<h${level}>${formatInlineMarkdownToHtml(cleanTitle)}</h${level}>`);
       continue;
     }
 
@@ -188,14 +176,20 @@ function walkDomNodeToMarkdown(node: Node): string {
     .join('');
 
   switch (tag) {
-    case 'h1':
-      return `\n\n# ${childContent.trim()}\n\n`;
+    case 'h1': {
+      const cleanHeading = childContent.replace(/^#+\s*/, '').trim();
+      return `\n\n# ${cleanHeading}\n\n`;
+    }
 
-    case 'h2':
-      return `\n\n## ${childContent.trim()}\n\n`;
+    case 'h2': {
+      const cleanHeading = childContent.replace(/^#+\s*/, '').trim();
+      return `\n\n## ${cleanHeading}\n\n`;
+    }
 
-    case 'h3':
-      return `\n\n### ${childContent.trim()}\n\n`;
+    case 'h3': {
+      const cleanHeading = childContent.replace(/^#+\s*/, '').trim();
+      return `\n\n### ${cleanHeading}\n\n`;
+    }
 
     case 'b':
     case 'strong':
@@ -257,15 +251,15 @@ export function stripMarkdownAndHtml(input: string): string {
 
 /**
  * Deler opp et dokument i ekte A4-sider (Word-ark).
- * Tar hensyn til eksplisitte sideskift og automatisk sidekapasitet (~320 ord / 22 avsnittslinjer per A4-side).
+ * Tar hensyn til eksplisitte sideskift og naturlig sidekapasitet (~380 ord per A4-side).
  */
-export function splitDocumentIntoPages(fullContent: string, targetWordsPerPage: number = 320): string[] {
+export function splitDocumentIntoPages(fullContent: string, targetWordsPerPage: number = 380): string[] {
   if (!fullContent || typeof fullContent !== 'string' || !fullContent.trim()) {
     return [''];
   }
 
   // 1. Del på eventuelle eksplisitte sideskift
-  const explicitSections = fullContent.split(/<!-- pagebreak -->|---pagebreak---|--- sideskift ---|\[SIDESKIFT\]/g);
+  const explicitSections = fullContent.split(/<!-- pagebreak -->|---pagebreak---|--- sideskift ---|\[SIDESKIFT\]|<div[^>]*data-pagebreak[^>]*>.*?<\/div>/gi);
   const resultPages: string[] = [];
 
   for (const section of explicitSections) {
@@ -285,10 +279,9 @@ export function splitDocumentIntoPages(fullContent: string, targetWordsPerPage: 
       if (!cleanBlock) continue;
 
       const wordsInBlock = cleanBlock.split(/\s+/).filter(Boolean).length;
-      const isHeading1 = cleanBlock.startsWith('# ') || cleanBlock.startsWith('<h1>');
 
-      // Hvis blokken gjør at siden blir for lang (> targetWordsPerPage), eller H1 når siden allerede har innhold:
-      if (currentPageBlocks.length > 0 && (currentWords + wordsInBlock > targetWordsPerPage || (isHeading1 && currentWords > 160))) {
+      // Hvis blokken gjør at siden blir for lang (> targetWordsPerPage):
+      if (currentPageBlocks.length > 0 && (currentWords + wordsInBlock > targetWordsPerPage)) {
         resultPages.push(currentPageBlocks.join('\n\n'));
         currentPageBlocks = [cleanBlock];
         currentWords = wordsInBlock;

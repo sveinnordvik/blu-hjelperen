@@ -1116,25 +1116,30 @@ ${activeDoc.content}`;
   });
 
   const wysiwygRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const activePageIdxRef = useRef<number>(0);
   const activeDocContentRef = useRef<string>('');
   activeDocContentRef.current = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
 
-  const wysiwygCallbackRef = useCallback((node: HTMLDivElement | null) => {
-    wysiwygRef.current = node;
-    if (node) {
-      const targetHtml = markdownToHtml(activeDocContentRef.current);
-      if (node.innerHTML !== targetHtml) {
-        node.innerHTML = targetHtml;
+  const getActiveEditorElement = (): HTMLDivElement | null => {
+    const sel = window.getSelection();
+    if (sel && sel.anchorNode) {
+      let node: Node | null = sel.anchorNode;
+      while (node) {
+        if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains('academic-editor-surface')) {
+          return node as HTMLDivElement;
+        }
+        node = node.parentNode;
       }
     }
-  }, []);
+    return pageRefs.current[activePageIdxRef.current] || pageRefs.current[0] || wysiwygRef.current || null;
+  };
 
   const isUserTypingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sjekker aktiv formatering for verktøylinje-knapper i sanntid
+  // Sjekker aktiv formatering for verktøylinje-knapper i sanntid på tvers av alle A4-ark
   const checkActiveFormatting = useCallback(() => {
-    if (editorMode !== 'wysiwyg' || !wysiwygRef.current) return;
     const selection = window.getSelection();
     if (!selection || !selection.anchorNode) return;
 
@@ -1142,7 +1147,7 @@ ${activeDoc.content}`;
     let foundHeading: 'h1' | 'h2' | 'h3' | 'p' | null = null;
     let isQuote = false;
 
-    while (node && node !== wysiwygRef.current) {
+    while (node && !(node as HTMLElement)?.classList?.contains('academic-editor-surface')) {
       if (node.nodeType === Node.ELEMENT_NODE) {
         const tag = (node as HTMLElement).tagName.toLowerCase();
         if (tag === 'h1') foundHeading = 'h1';
@@ -1166,7 +1171,7 @@ ${activeDoc.content}`;
       justifyRight: document.queryCommandState('justifyRight'),
       justifyFull: document.queryCommandState('justifyFull')
     });
-  }, [editorMode]);
+  }, []);
 
   // ==========================================
   // ANGRE (UNDO) & GJENTA (REDO) HISTORIKK
@@ -1478,25 +1483,72 @@ ${activeDoc.content}`;
     }
   }, [activeDoc?.id, activeDoc?.content, editorMode]);
 
-  // Håndterer endringer i WYSIWYG uten å miste markørposisjon
-  const handleWysiwygInput = () => {
-    if (!wysiwygRef.current) return;
+  // Håndterer endringer i en spesifikk A4-side uten å miste markørposisjon
+  const handlePageInput = (pageIdx: number, newHtml: string) => {
     isUserTypingRef.current = true;
-    const html = wysiwygRef.current.innerHTML;
-    const md = htmlToMarkdown(html);
-    handleUpdateActiveDoc({ content: md });
+    activePageIdxRef.current = pageIdx;
+    const pageMd = htmlToMarkdown(newHtml);
+    const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+    const currentPages = splitDocumentIntoPages(fullDocText, 380);
+    const updatedPages = [...currentPages];
+    updatedPages[pageIdx] = pageMd;
+    const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
+    handleUpdateActiveDoc({ content: newFull });
     checkActiveFormatting();
     setTimeout(() => {
       isUserTypingRef.current = false;
     }, 150);
   };
 
+  const handleWysiwygInput = () => {
+    const activeEditor = getActiveEditorElement();
+    if (!activeEditor) return;
+    const pageIdx = Math.max(0, pageRefs.current.findIndex(el => el === activeEditor));
+    handlePageInput(pageIdx, activeEditor.innerHTML);
+  };
+
   const applyFormatting = (type: string) => {
     const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
     pushHistorySnapshot(currentDocContent, true);
 
-    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
-      wysiwygRef.current.focus();
+    const activeEditor = getActiveEditorElement();
+    if (activeEditor) {
+      activeEditor.focus();
+
+      const stripLeadingHashesFromSelection = () => {
+        try {
+          const sel = window.getSelection();
+          if (!sel || !sel.anchorNode) return;
+          let node: Node | null = sel.anchorNode;
+          while (node && node !== activeEditor) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              const tag = el.tagName.toLowerCase();
+              if (/^(h[1-6]|p|div|blockquote)$/.test(tag)) {
+                if (/^#+\s*/.test(el.textContent || '')) {
+                  el.innerHTML = el.innerHTML.replace(/^#+\s*/, '');
+                }
+                break;
+              }
+            }
+            node = node.parentNode;
+          }
+        } catch {}
+      };
+
+      if (type === 'pagebreak') {
+        const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+        const currentPages = splitDocumentIntoPages(fullDocText, 380);
+        const activeIdx = Math.max(0, pageRefs.current.findIndex(el => el === activeEditor));
+        const updated = [...currentPages];
+        updated.splice(activeIdx + 1, 0, '');
+        const newFull = updated.join('\n\n<!-- pagebreak -->\n\n');
+        handleUpdateActiveDoc({ content: newFull });
+        setTimeout(() => {
+          pageRefs.current[activeIdx + 1]?.focus();
+        }, 100);
+        return;
+      }
 
       switch (type) {
         case 'bold':
@@ -1513,6 +1565,7 @@ ${activeDoc.content}`;
             document.execCommand('formatBlock', false, '<p>');
           } else {
             document.execCommand('formatBlock', false, '<h1>');
+            stripLeadingHashesFromSelection();
           }
           break;
         case 'h2':
@@ -1520,6 +1573,7 @@ ${activeDoc.content}`;
             document.execCommand('formatBlock', false, '<p>');
           } else {
             document.execCommand('formatBlock', false, '<h2>');
+            stripLeadingHashesFromSelection();
           }
           break;
         case 'h3':
@@ -1527,6 +1581,7 @@ ${activeDoc.content}`;
             document.execCommand('formatBlock', false, '<p>');
           } else {
             document.execCommand('formatBlock', false, '<h3>');
+            stripLeadingHashesFromSelection();
           }
           break;
         case 'list':
@@ -1542,11 +1597,7 @@ ${activeDoc.content}`;
             document.execCommand('formatBlock', false, '<blockquote>');
           }
           break;
-        case 'pagebreak': {
-          const pbHtml = '<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>';
-          document.execCommand('insertHTML', false, pbHtml);
-          break;
-        }
+
         case 'justifyLeft':
           document.execCommand('justifyLeft', false);
           break;
@@ -2524,37 +2575,45 @@ ${activeDoc.content}`;
                     />
                   </div>
 
+                  {/* Ekte Word A4-ark side-for-side med fysisk skille mellom arkene */}
                   {(() => {
                     const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
-                    const docPages = splitDocumentIntoPages(fullDocText, 320);
+                    const docPages = splitDocumentIntoPages(fullDocText, 380);
 
                     return (
                       <div 
-                        className="space-y-8 pb-12 transition-all origin-top flex flex-col items-center"
+                        className="space-y-8 pb-16 transition-all origin-top flex flex-col items-center"
                         style={{ zoom: `${zoomLevel}%` }}
                       >
                         {docPages.map((pageText, pageIdx) => {
                           const pageNum = pageIdx + 1;
+                          const totalPages = docPages.length;
 
                           return (
                             <div
-                              key={`a4-page-sheet-${pageIdx}`}
+                              key={`word-a4-sheet-${pageIdx}`}
                               className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1050px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative transition-all"
                             >
                               {/* Innhold / Skriveflate på dette arket */}
                               <div className="flex-1">
                                 <div
+                                  ref={(el) => {
+                                    pageRefs.current[pageIdx] = el;
+                                    if (el && !isUserTypingRef.current) {
+                                      const targetHtml = markdownToHtml(pageText);
+                                      if (el.innerHTML !== targetHtml) {
+                                        el.innerHTML = targetHtml;
+                                      }
+                                    }
+                                  }}
                                   contentEditable
                                   suppressContentEditableWarning
-                                  dangerouslySetInnerHTML={{ __html: markdownToHtml(pageText) }}
-                                  onInput={(e) => {
-                                    const newHtml = e.currentTarget.innerHTML;
-                                    const updatedPageMd = htmlToMarkdown(newHtml);
-                                    const updatedPages = [...docPages];
-                                    updatedPages[pageIdx] = updatedPageMd;
-                                    const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
-                                    handleUpdateActiveDoc({ content: newFull });
+                                  onFocus={() => {
+                                    activePageIdxRef.current = pageIdx;
                                     checkActiveFormatting();
+                                  }}
+                                  onInput={(e) => {
+                                    handlePageInput(pageIdx, e.currentTarget.innerHTML);
                                   }}
                                   onKeyDown={handleEditorKeyDown}
                                   onKeyUp={checkActiveFormatting}
@@ -2585,9 +2644,15 @@ ${activeDoc.content}`;
                                 <span className="font-medium text-slate-400">
                                   {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
                                 </span>
-                                <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
-                                  Side {pageNum}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-slate-400">
+                                    A4 (2,54 cm marg)
+                                  </span>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
+                                    Side {pageNum} av {totalPages}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
