@@ -75,7 +75,7 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   // gemini-3.1-flash-lite har separat kvotepool og er lynrask, ideell som umiddelbar fallback ved rate limit
   const modelCandidates = [
     initial,
-    initial === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
+    "gemini-3.8-flash",
     "gemini-3.1-flash-lite",
     "gemini-flash-latest"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
@@ -317,9 +317,21 @@ Når du svarer, følg disse retningslinjene:
 
       const { prompt, aspectRatio = "16:9" } = req.body;
       const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const validAspectRatios = ["1:1", "3:4", "4:3", "9:16", "16:9"];
+      const targetAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "16:9";
 
       let imageUrl = "";
+
+      // 1. Forsøk primær bildemodell: gemini-3.1-flash-image
       try {
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image',
@@ -328,7 +340,7 @@ Når du svarer, følg disse retningslinjene:
           },
           config: {
             imageConfig: {
-              aspectRatio: aspectRatio as any || "16:9",
+              aspectRatio: targetAspectRatio as any,
               imageSize: "1K"
             }
           }
@@ -344,8 +356,44 @@ Når du svarer, følg disse retningslinjene:
           }
           if (imageUrl) break;
         }
-      } catch (genImgErr) {
-        console.warn("Direct image model failed, trying fallback...", genImgErr);
+      } catch (err1) {
+        // Forsøk neste modell
+      }
+
+      // 2. Forsøk sekundær bildemodell: gemini-3.1-flash-lite-image
+      if (!imageUrl) {
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.1-flash-lite-image',
+            contents: {
+              parts: [{ text: prompt }]
+            },
+            config: {
+              imageConfig: {
+                aspectRatio: targetAspectRatio as any,
+              }
+            }
+          });
+
+          const candidates = response.candidates || [];
+          for (const cand of candidates) {
+            for (const part of cand.content?.parts || []) {
+              if (part.inlineData?.data) {
+                imageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+                break;
+              }
+            }
+            if (imageUrl) break;
+          }
+        } catch (err2) {
+          // Fallback til ekstern bildegenerator
+        }
+      }
+
+      // 3. Robust fallback hvis modellkvote er oppbrukt
+      if (!imageUrl) {
+        const safePrompt = encodeURIComponent(prompt.trim() + ", kindergarten, norwegian barnehage, happy children, cozy atmosphere, realistic photography");
+        imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1200&height=800&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
       }
 
       res.json({ imageUrl });

@@ -614,3 +614,107 @@ exports.superveilederenChat = functions.region('europe-west1').https.onCall(asyn
   }
 });
 
+/**
+ * =================================================================================
+ * FUNKSJON 5: checklistDispatcher (Scheduled Cloud Function)
+ * =================================================================================
+ * Kjører hvert 15. minutt hele døgnet.
+ * Sjekker checklists_templates i Firestore for maler med matcher activeDays og dispatchTime=="HH:mm",
+ * og oppretter automatisk aktive oppgaver (active_tasks) for alle avdelinger med dynamisk dueTime.
+ */
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+
+exports.checklistDispatcher = onSchedule(
+  {
+    schedule: "every 15 minutes",
+    timeZone: "Europe/Oslo",
+    region: "europe-west1",
+  },
+  async (event) => {
+    try {
+      const now = new Date();
+      // Finn gjeldende ukedag (1-7: Mandag=1 ... Søndag=7)
+      const currentDay = now.getDay() === 0 ? 7 : now.getDay(); 
+      const currentTimeString = now.toLocaleTimeString('no-NO', { timeZone: 'Europe/Oslo', hour: '2-digit', minute: '2-digit' });
+
+      // SJEKK DATABASEN: Hent KUN de malene styreren har satt til å sendes NÅ
+      let templatesSnapshot;
+      try {
+        templatesSnapshot = await db.collection("checklists_templates")
+          .where("activeDays", "array-contains", currentDay)
+          .where("dispatchTime", "==", currentTimeString)
+          .get();
+      } catch (queryErr) {
+        console.warn("[checklistDispatcher] Spørring feilet eller indekserer. Henter alle maler og filtrerer i minnet:", queryErr.message);
+        const allTemplates = await db.collection("checklists_templates").get();
+        const matchedDocs = [];
+        allTemplates.forEach(doc => {
+          const d = doc.data();
+          if (Array.isArray(d.activeDays) && d.activeDays.includes(currentDay) && d.dispatchTime === currentTimeString) {
+            matchedDocs.push(doc);
+          }
+        });
+        templatesSnapshot = { empty: matchedDocs.length === 0, forEach: cb => matchedDocs.forEach(cb) };
+      }
+
+      if (templatesSnapshot.empty) return; // Ingenting å sende ut akkurat nå
+
+      // Hent alle avdelinger
+      const departmentsSnapshot = await db.collection("departments").get();
+      let depList = [];
+      if (departmentsSnapshot.empty) {
+        depList = [
+          { name: "Trollstua (Småbarn)" },
+          { name: "Multemyra (Storebarn)" },
+          { name: "Klatremus (Storebarn)" },
+          { name: "Bjørnehiet (Mellomgruppe)" },
+          { name: "Kjøkken / Felles" }
+        ];
+      } else {
+        departmentsSnapshot.forEach((doc) => depList.push(doc.data()));
+      }
+
+      const batch = db.batch();
+      let totalCreated = 0;
+
+      // Generer oppgavene dynamisk basert på styrerens egne tidsfrister
+      templatesSnapshot.forEach((templateDoc) => {
+        const template = templateDoc.data();
+        
+        // Regn ut nøyaktig frist (Date-objekt) basert på styrerens 'dueTime' (f.eks. "16:45")
+        const dueTimeStr = template.dueTime || "16:45";
+        const [dueHour, dueMinute] = dueTimeStr.split(':').map(Number);
+        const dueDate = new Date(now);
+        dueDate.setHours(dueHour || 16, dueMinute || 45, 0, 0);
+
+        depList.forEach((dep) => {
+          const newTaskRef = db.collection("active_tasks").doc();
+          
+          batch.set(newTaskRef, {
+            templateId: templateDoc.id,
+            title: template.title || "Sjekkliste for barnehagen",
+            base: dep.name,
+            status: "pending",
+            dispatchTime: template.dispatchTime || currentTimeString,
+            dueDate: dueDate.toISOString(), // Dynamisk frist satt av styrer
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            snapshot: template.questions || template.sjekkpunkter || []
+          });
+          totalCreated++;
+        });
+      });
+
+      await batch.commit();
+      console.log(`[checklistDispatcher] Genererte ${totalCreated} sjekklisteoppgaver for ${depList.length} avdelinger.`);
+      return { success: true, count: totalCreated };
+    } catch (err) {
+      console.error("Feil i checklistDispatcher:", err);
+      return null;
+    }
+  }
+);
+
+exports.generateClosingChecklists = exports.checklistDispatcher;
+
+
+

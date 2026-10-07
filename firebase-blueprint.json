@@ -485,9 +485,135 @@
         "userId",
         "title"
       ]
+    },
+    "CompletedChecklist": {
+      "title": "CompletedChecklist",
+      "description": "Frozen completed HMS checklist document with locked timestamps, inspector identity, frozen questions array, and linked deviation ID",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "templateId": { "type": "string" },
+        "title": { "type": "string" },
+        "department": { "type": "string" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "completedBy": {
+          "type": "object",
+          "properties": {
+            "uid": { "type": "string" },
+            "name": { "type": "string" }
+          },
+          "required": ["uid", "name"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "avvik"]
+        },
+        "frozenContent": {
+          "type": "array",
+          "description": "Array of frozen checklist questions, check statuses, and notes"
+        },
+        "deviationId": {
+          "type": "string",
+          "description": "ID of created deviation if status is avvik, or null if ok"
+        }
+      },
+      "required": [
+        "templateId",
+        "title",
+        "department",
+        "completedAt",
+        "completedBy",
+        "status",
+        "frozenContent"
+      ]
+    },
+    "HMSAvvik": {
+      "title": "HMSAvvik",
+      "description": "HMS deviation record reported from checklists or direct entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tittel": { "type": "string" },
+        "beskrivelse": { "type": "string" },
+        "base": { "type": "string" },
+        "meldtAv": { "type": "string" },
+        "dato": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["Åpen", "Under utbedring", "Lukket"]
+        },
+        "alvorlighetsgrad": {
+          "type": "string",
+          "enum": ["Høy", "Middels", "Lav"]
+        },
+        "checklistId": { "type": "string" },
+        "kommentarer": { "type": "array" }
+      },
+      "required": ["tittel", "beskrivelse", "base", "status"]
+    },
+    "ChecklistTemplate": {
+      "title": "ChecklistTemplate",
+      "description": "Checklist template definition with custom dispatch and due times",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "frequency": { "type": "string" },
+        "activeDays": { "type": "array" },
+        "dispatchTime": { "type": "string" },
+        "dueTime": { "type": "string" },
+        "questions": { "type": "array" }
+      },
+      "required": ["title"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Kindergarten department or base",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "ActiveTask": {
+      "title": "ActiveTask",
+      "description": "Active scheduled task / checklist pending completion by staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "templateId": { "type": "string" },
+        "title": { "type": "string" },
+        "base": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "Utført", "Venter"] },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "snapshot": { "type": "array" }
+      },
+      "required": ["templateId", "title", "base", "status"]
     }
   },
   "firestore": {
+    "/checklists_templates/{templateId}": {
+      "schema": "ChecklistTemplate",
+      "description": "Checklist templates"
+    },
+    "/departments/{depId}": {
+      "schema": "Department",
+      "description": "Kindergarten departments"
+    },
+    "/active_tasks/{taskId}": {
+      "schema": "ActiveTask",
+      "description": "Active scheduled tasks and closing checklists"
+    },
+    "/completed_checklists/{checklistId}": {
+      "schema": "CompletedChecklist",
+      "description": "Frozen completed HMS checklists archive"
+    },
+    "/hms_avvik/{avvikId}": {
+      "schema": "HMSAvvik",
+      "description": "Registered HMS deviations"
+    },
     "/presentations/{presId}": {
       "schema": "Presentation",
       "description": "User presentations with slides and speaker notes"

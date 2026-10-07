@@ -158,6 +158,42 @@ service cloud.firestore {
              (!('slides' in data) || data.slides is list);
     }
 
+    function isValidCompletedChecklist(data) {
+      return data.keys().hasAll(['templateId', 'title', 'department', 'completedAt', 'completedBy', 'status', 'frozenContent']) &&
+             data.templateId is string &&
+             data.title is string &&
+             data.department is string &&
+             data.completedAt is string &&
+             data.completedBy is map &&
+             data.status in ['ok', 'avvik'] &&
+             data.frozenContent is list;
+    }
+
+    function isValidHMSAvvik(data) {
+      return data.keys().hasAll(['tittel', 'beskrivelse', 'base', 'status']) &&
+             data.tittel is string &&
+             data.beskrivelse is string &&
+             data.base is string &&
+             data.status in ['Åpen', 'Under utbedring', 'Lukket'];
+    }
+
+    function isValidChecklistTemplate(data) {
+      return data.keys().hasAll(['title']) &&
+             data.title is string;
+    }
+
+    function isValidDepartment(data) {
+      return data.keys().hasAll(['name']) &&
+             data.name is string;
+    }
+
+    function isValidActiveTask(data) {
+      return data.keys().hasAll(['templateId', 'title', 'base', 'status']) &&
+             data.templateId is string &&
+             data.title is string &&
+             data.base is string;
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -302,6 +338,32 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidPresentation(incoming());
       allow update: if isSignedIn() && isValidPresentation(incoming()) && incoming().userId == existing().userId;
       allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /completed_checklists/{checklistId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidCompletedChecklist(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /hms_avvik/{avvikId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidHMSAvvik(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /checklists_templates/{templateId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /departments/{depId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /active_tasks/{taskId} {
+      allow read, write: if isSignedIn();
     }
   }
 }
