@@ -193,7 +193,7 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
     notes: '# Felles notater for Bachelor 2027\n\nHer samler vi drøftinger, observasjoner fra praksis og kildehenvisninger.',
     sharedRagContext: 'Bacheloroppgave om barns medvirkning og demokratisk praksis i barnehagen.',
     members: [
-      { id: 'mem-1', name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
+      { id: 'mem-1', name: 'Navn Navnesen', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
       { id: 'mem-2', name: 'Kristin Berg', role: 'Medlem', color: 'bg-emerald-600', isOnline: true },
       { id: 'mem-3', name: 'Lars Holm', role: 'Medlem', color: 'bg-amber-600', isOnline: false },
       { id: 'mem-4', name: 'Praksis-agenten (AI)', role: 'KI-veileder', color: 'bg-blue-600', isOnline: true }
@@ -209,7 +209,7 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
       },
       {
         id: 'msg-2',
-        user: 'Svein Nordvik',
+        user: 'Navn Navnesen',
         content: 'Ja, jeg har lagt inn noen refleksjonsnotater i fellesnotatene.',
         time: '10:18',
         color: 'indigo',
@@ -217,7 +217,7 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
       }
     ],
     todos: [
-      { id: 'todo-1', task: 'Formulere problemstilling for prosjektet', assignee: 'Svein', dueDate: '2026-09-20', completed: true },
+      { id: 'todo-1', task: 'Formulere problemstilling for prosjektet', assignee: 'Navn', dueDate: '2026-09-20', completed: true },
       { id: 'todo-2', task: 'Finne 3 fagfellevurderte kilder i Oria', assignee: 'Kristin', dueDate: '2026-09-25', completed: false },
       { id: 'todo-3', task: 'Avtale tid for intervju med styrer', assignee: 'Lars', dueDate: '2026-09-30', completed: false }
     ],
@@ -239,7 +239,7 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
       }
     ],
     activity: [
-      { id: 'act-1', user: 'Svein Nordvik', action: 'opprettet gruppen og inviterte medlemmer', time: '1. sept' },
+      { id: 'act-1', user: 'Navn Navnesen', action: 'opprettet gruppen og inviterte medlemmer', time: '1. sept' },
       { id: 'act-2', user: 'Kristin Berg', action: 'la til et nytt gjøremål', time: 'I går' }
     ],
     meetingLink: 'https://teams.microsoft.com'
@@ -252,7 +252,7 @@ const DEFAULT_DEMO_GROUPS: Group[] = [
     notes: 'Observasjonsfokus: Barns utforsking i ulendt terreng og risikolek.',
     sharedRagContext: 'Praksisperiode 2: Natur, helse og bevegelse.',
     members: [
-      { id: 'mem-k1', name: 'Svein Nordvik', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
+      { id: 'mem-k1', name: 'Navn Navnesen', role: 'Oppretter', color: 'bg-indigo-600', isOnline: true },
       { id: 'mem-k2', name: 'Maria Sund', role: 'Medlem', color: 'bg-rose-600', isOnline: false },
       { id: 'mem-k3', name: 'Henrik Vang', role: 'Medlem', color: 'bg-teal-600', isOnline: true }
     ],
@@ -420,7 +420,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
   const handleCreateGroupConfirm = () => {
     if (!newGroupName.trim()) return;
     const newId = 'KOL-' + Math.floor(100 + Math.random() * 900);
-    const myName = user?.displayName || 'Svein Nordvik';
+    const myName = (user?.displayName && !user.displayName.includes('Svein')) ? user.displayName : 'Navn Navnesen';
     const newGroup: Group = {
       id: newId,
       name: newGroupName.trim(),

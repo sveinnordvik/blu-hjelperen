@@ -745,7 +745,15 @@ export default function StudentnApp() {
       college: ''
     };
     const saved = localStorage.getItem('blu_profile_guest');
-    return saved ? { ...emptyProfile, ...JSON.parse(saved) } : emptyProfile;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed?.name?.includes('Svein')) parsed.name = 'Navn Navnesen';
+        if (parsed?.email?.includes('svein')) parsed.email = 'student@barnehagelaerer.no';
+        return { ...emptyProfile, ...parsed };
+      } catch {}
+    }
+    return emptyProfile;
   });
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -4162,8 +4170,12 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         {user ? (
           <div className="flex items-center gap-3 ml-auto">
             <div className="hidden sm:flex flex-col items-end">
-              <span className="text-[10px] font-bold text-slate-900 leading-none">{user.displayName || 'Bruker'}</span>
-              <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 truncate max-w-[100px]">{user.email}</span>
+              <span className="text-[10px] font-bold text-slate-900 leading-none">
+                {user.displayName?.includes('Svein') ? 'Navn Navnesen' : (user.displayName || 'Bruker')}
+              </span>
+              <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 truncate max-w-[100px]">
+                {user.email?.includes('svein') ? 'student@barnehagelaerer.no' : user.email}
+              </span>
             </div>
             <button 
               onClick={() => setActiveTab('profile')}

@@ -1,7 +1,7 @@
 {
-  "name": "Pedleder'n - Fagstøtte for barnehagelærere",
-  "short_name": "Pedleder'n",
-  "description": "Pedleder'n er det helhetlige støtteverktøyet for pedagogiske ledere: Daglig drift, sokratisk sparring, didaktisk planlegger og to-trinnsraketten for foreldredokumentasjon.",
+  "name": "BLU-hjelperen",
+  "short_name": "BLU-hjelperen",
+  "description": "BLU-hjelperen - Din digitale skrivepartner gjennom barnehagelærerstudiet. Fra praksis til papir – vi hjelper deg med struktur, drøfting og kildebruk.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",

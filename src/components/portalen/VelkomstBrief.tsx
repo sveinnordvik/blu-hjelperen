@@ -116,7 +116,7 @@ export const buildCleanBriefMessage = (
   pauser: string
 ): string => {
   const navn = vikarNavn.trim() ? vikarNavn.trim() : 'vikar';
-  const person = kontaktperson.trim() ? kontaktperson.trim() : 'Svein (Pedleder)';
+  const person = kontaktperson.trim() ? kontaktperson.trim() : 'Ola (Pedleder)';
 
   // Formatér dagens plan med rene bindestreker hvis det er stikkord eller linjer
   const planLines = dagensPlan
@@ -218,7 +218,7 @@ export default function VelkomstBrief({ onOpenHandbok, avdelingNavn }: VelkomstB
     }
     return {
       vikarNavn: '',
-      kontaktperson: 'Svein (Pedleder)',
+      kontaktperson: 'Ola (Pedleder)',
       avdeling: avdelingNavn || 'Blåbærtua',
       ukedag: getTodayNorwegianWeekday(),
       fagomrade: 'Natur, miljø og teknologi',
@@ -446,13 +446,13 @@ Svar KUN i gyldig JSON-format uten markdown-ticks eller emojier:
   const handleLoadGoldStandard = () => {
     const exampleData = {
       vikarNavn: 'Kari',
-      kontaktperson: 'Svein (Pedleder)',
+      kontaktperson: 'Ola (Pedleder)',
       avdeling: formData.avdeling || 'Blåbærtua',
       ukedag: 'Mandag',
       fagomrade: 'Kropp, bevegelse, mat og helse',
       dagensPlan: 'Utetid fra kl 09:30. Turdag for 5-åringene. Varmmåltid kl 11:00.',
       hovedfokus: 'Vær tett på barna nede på gulvet. Lek, vær nysgjerrig og bygg relasjoner! Vi tar oss av bleieskift og rutiner i dag.',
-      pauser: 'Avtales fortløpende med Svein (ca. 30 min mellom 12:00 og 13:30).',
+      pauser: 'Avtales fortløpende med Ola (ca. 30 min mellom 12:00 og 13:30).',
       handbok: true
     };
     const goldOutput = `Hei Kari! Velkommen til oss, vi er veldig glade for å ha deg her i dag. 
@@ -464,7 +464,7 @@ Dagens plan:
 - Det er turdag for 5-åringene. 
 - Varmmåltid serveres kl. 11:00.
 
-Din kontaktperson i dag er Svein (Pedleder). Spør meg heller en gang for mye enn en gang for lite! Pausen din blir på ca. 30 minutter mellom 12:00 og 13:30, vi avtaler nøyaktig tidspunkt fortløpende.
+Din kontaktperson i dag er Ola (Pedleder). Spør meg heller en gang for mye enn en gang for lite! Pausen din blir på ca. 30 minutter mellom 12:00 og 13:30, vi avtaler nøyaktig tidspunkt fortløpende.
 
 All praktisk informasjon, husregler og vår personalhåndbok finner du i "Vikarn" her: [Sett inn lenke til Vikarn]
 
@@ -497,10 +497,10 @@ HER ER ET EKSEMPEL PÅ INPUT OG ØNSKET SVAR (GULLSTANDARD):
 
 Eksempel på Input (User Prompt):
 Vikarens navn: Kari
-Kontaktperson: Svein (Pedleder)
+Kontaktperson: Ola (Pedleder)
 Dagens plan: Utetid fra kl 09:30. Turdag for 5-åringene. Varmmåltid kl 11:00.
 Hovedfokus: Vær tett på barna nede på gulvet. Lek, vær nysgjerrig og bygg relasjoner! Vi tar oss av bleieskift og rutiner i dag.
-Pauser: Avtales fortløpende med Svein (ca. 30 min mellom 12:00 og 13:30).
+Pauser: Avtales fortløpende med Ola (ca. 30 min mellom 12:00 og 13:30).
 
 Eksempel på Output (Svar fra modellen):
 Hei Kari! Velkommen til oss, vi er veldig glade for å ha deg her i dag. 
@@ -512,7 +512,7 @@ Dagens plan:
 - Det er turdag for 5-åringene. 
 - Varmmåltid serveres kl. 11:00.
 
-Din kontaktperson i dag er Svein (Pedleder). Spør meg heller en gang for mye enn en gang for lite! Pausen din blir på ca. 30 minutter mellom 12:00 og 13:30, vi avtaler nøyaktig tidspunkt fortløpende.
+Din kontaktperson i dag er Ola (Pedleder). Spør meg heller en gang for mye enn en gang for lite! Pausen din blir på ca. 30 minutter mellom 12:00 og 13:30, vi avtaler nøyaktig tidspunkt fortløpende.
 
 All praktisk informasjon, husregler og vår personalhåndbok finner du i "Vikarn" her: [Sett inn lenke til Vikarn]
 
@@ -521,7 +521,7 @@ Ha en strålende vakt!
 ---
 NÅ ER DET DIN TUR MED FØLGENDE DATA:
 Vikarens navn: ${formData.vikarNavn || 'Kari'}
-Kontaktperson: ${formData.kontaktperson || 'Svein (Pedleder)'}
+Kontaktperson: ${formData.kontaktperson || 'Ola (Pedleder)'}
 Dagens plan: ${formData.dagensPlan}
 Hovedfokus: ${formData.hovedfokus}
 Pauser: ${formData.pauser}
@@ -860,10 +860,10 @@ Ha en strålende vakt!`
                 type="button"
                 onClick={handleLoadGoldStandard}
                 className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition flex items-center gap-1 shadow-sm"
-                title="Last inn Kari & Svein-eksempelet fra gullstandarden"
+                title="Last inn Kari & Ola-eksempelet fra gullstandarden"
               >
                 <Sparkles className="w-3 h-3 text-amber-600" />
-                <span>Last inn gullstandard (Kari & Svein)</span>
+                <span>Last inn gullstandard (Kari & Ola)</span>
               </button>
               <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                 {formData.ukedag || selectedDay}
