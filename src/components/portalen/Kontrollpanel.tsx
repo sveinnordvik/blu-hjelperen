@@ -171,8 +171,8 @@ const Kontrollpanel: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {ansatte.map((ansatt) => (
-              <tr key={ansatt.id} className="hover:bg-slate-50 transition-colors">
+            {ansatte.map((ansatt, aIdx) => (
+              <tr key={`ansatt-${ansatt.id}-${aIdx}`} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 font-medium text-slate-800">{ansatt.navn}</td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -228,8 +228,8 @@ const Kontrollpanel: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {baser.map((base) => (
-          <div key={base.id} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+        {baser.map((base, bIdx) => (
+          <div key={`base-${base.id}-${bIdx}`} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
                 <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">

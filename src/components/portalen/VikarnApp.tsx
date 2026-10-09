@@ -13,7 +13,11 @@ import {
   HeartHandshake, 
   FileCheck2,
   Calendar,
-  Plus
+  Plus,
+  UserPlus,
+  Heart,
+  Smartphone,
+  MessageSquare
 } from 'lucide-react';
 
 interface WorkLog {
@@ -34,6 +38,31 @@ export default function VikarnApp() {
       { id: '1', date: '2026-10-05', dept: 'Moseplassen (1-3 år)', hours: '08:30 - 16:00 (7.5 t)', pedleder: 'Morten Hansen', note: 'God dag. Var med på sovevakt og tur i nærområdet.' }
     ];
   });
+
+  const [dagensBrief, setDagensBrief] = useState<any>(() => {
+    const saved = localStorage.getItem('pedportalen_dagens_vikarbrief');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    const handleBriefUpdated = () => {
+      const saved = localStorage.getItem('pedportalen_dagens_vikarbrief');
+      if (saved) {
+        try {
+          setDagensBrief(JSON.parse(saved));
+        } catch {}
+      }
+    };
+    window.addEventListener('pedportalen_vikarbrief_updated', handleBriefUpdated);
+    return () => window.removeEventListener('pedportalen_vikarbrief_updated', handleBriefUpdated);
+  }, []);
 
   const [aiInput, setAiInput] = useState('');
   const [aiLog, setAiLog] = useState<{ role: 'user' | 'assistant'; text: string }[]>([
@@ -155,6 +184,107 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
         {activeTab === 'onboarding' && (
           <div className="space-y-6">
             <StaffMonthlyFocusWidget />
+
+            {/* Dagens Base-Brief fra pedleder hvis mottatt */}
+            {dagensBrief && (
+              <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white p-6 sm:p-7 rounded-3xl shadow-xl border border-emerald-700/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                  <Smartphone className="w-48 h-48 text-emerald-300" />
+                </div>
+                
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-emerald-800/80">
+                  <div className="flex items-center gap-3">
+                    <span className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300">
+                      <UserPlus className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold bg-emerald-400 text-emerald-950 px-2 py-0.5 rounded-full">
+                          Dagens Base-Brief mottatt!
+                        </span>
+                        <span className="text-xs text-emerald-200 font-semibold">
+                          {dagensBrief.avdeling || 'Avdelingen'}
+                        </span>
+                        {dagensBrief.ukedag && (
+                          <span className="text-[11px] bg-emerald-800/80 text-emerald-100 px-2 py-0.5 rounded-full border border-emerald-600/40 font-semibold">
+                            {dagensBrief.ukedag}
+                          </span>
+                        )}
+                        {dagensBrief.fagomrade && (
+                          <span className="text-[11px] bg-teal-800/80 text-teal-100 px-2 py-0.5 rounded-full border border-teal-600/40 font-semibold">
+                            {dagensBrief.fagomrade}
+                          </span>
+                        )}
+                        {dagensBrief.pedagogiskProfil && (
+                          <span className="text-[11px] bg-amber-400/20 text-amber-200 px-2 py-0.5 rounded-full border border-amber-300/30 font-semibold">
+                            {dagensBrief.pedagogiskProfil}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-xl font-black mt-1">
+                        Velkommen til oss, {dagensBrief.vikarNavn || 'kjære vikar'}!
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-emerald-300/90 sm:text-right">
+                    <span className="block font-semibold">Kontaktperson i dag:</span>
+                    <span className="font-bold text-white text-sm">{dagensBrief.kontaktperson}</span>
+                  </div>
+                </div>
+
+                {dagensBrief.briefMelding && (
+                  <div className="mt-4 p-4 rounded-2xl bg-emerald-950/60 border border-emerald-500/30 text-xs text-emerald-100 leading-relaxed whitespace-pre-line font-medium shadow-inner">
+                    <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Personlig velkomstbrief fra pedleder:
+                    </div>
+                    {dagensBrief.briefMelding}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+                  <div className="bg-emerald-800/40 border border-emerald-700/60 p-4 rounded-2xl">
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-300 mb-1.5">
+                      <Clock className="w-4 h-4 text-emerald-400" />
+                      Dagens plan & dagsrytme:
+                    </div>
+                    <p className="text-xs text-emerald-100 leading-relaxed whitespace-pre-line">
+                      {dagensBrief.dagensPlan}
+                    </p>
+                  </div>
+
+                  <div className="bg-amber-500/10 border border-amber-400/30 p-4 rounded-2xl">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-300 mb-1.5">
+                      <Heart className="w-4 h-4 text-rose-400" />
+                      Ditt viktigste fokus i dag:
+                    </div>
+                    <p className="text-xs text-amber-100 leading-relaxed font-medium">
+                      {dagensBrief.hovedfokus}
+                    </p>
+                  </div>
+
+                  <div className="bg-emerald-800/40 border border-emerald-700/60 p-4 rounded-2xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-300 mb-1.5">
+                        <Clock className="w-4 h-4 text-emerald-400" />
+                        Pauseavvikling:
+                      </div>
+                      <p className="text-xs text-emerald-100 leading-relaxed">
+                        {dagensBrief.pauser}
+                      </p>
+                    </div>
+
+                    {dagensBrief.handbok && (
+                      <div className="mt-3 pt-2 border-t border-emerald-700/40 text-[11px] text-emerald-300 flex items-center gap-1.5 font-bold">
+                        <span>Sjekk fanen "Viktige hensyn" for barnelister og rutiner</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <h2 className="text-xl font-black text-slate-900">De 4 Gyldne Reglene for Barnehagevikaren</h2>
               <p className="text-xs text-slate-500">Les gjennom dette før du går inn på avdelingen. Tar kun 2 minutter!</p>

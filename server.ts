@@ -255,12 +255,13 @@ Når du svarer, følg disse retningslinjene:
          return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren. Hvis du er i AI Studio: Gå til Settings -> Secrets. Hvis du er i Google Cloud Run: Gå til 'Edit & Deploy New Revision' -> fanen 'Containers' -> rull ned til 'Environment variables' og legg til GEMINI_API_KEY." });
       }
 
-      const { model, contents, config } = req.body;
+      const { model, contents, config, prompt } = req.body;
+      const actualContents = contents || prompt;
       
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
       
-      const response = await callGenAIWithFallback(ai, model, contents, config);
+      const response = await callGenAIWithFallback(ai, model, actualContents, config);
 
       res.json({ text: response.text || "" });
     } catch (error: any) {

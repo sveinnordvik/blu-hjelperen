@@ -4825,7 +4825,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                           {chapter.subchapters.length > 0 && (
                             <div key="ap-auto-10-2" className="p-2 pl-10 space-y-1 bg-white">
                               {chapter.subchapters.map((sub, sIndex) => (
-                                <div key={sub.id} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
+                                <div key={`sub-${chapter.id}-${sub.id}-${sIndex}`} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
                                   <span className="text-xs text-slate-500">{cIndex + 1}.{sIndex + 1} {sub.title}</span>
                                   <button onClick={() => deleteSubchapter(chapter.id, sub.id)} className="p-1 text-slate-300 hover:text-red-600 transition-all"><X className="w-3 h-3" /></button>
                                 </div>
@@ -5112,9 +5112,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                               </button>
                             </div>
                             <div className="space-y-3">
-                              {standardCriteria.map((item) => (
+                              {standardCriteria.map((item, scIdx) => (
                                 <div 
-                                  key={item.id} 
+                                  key={`std-crit-${item.id}-${scIdx}`} 
                                   onClick={() => toggleStandardCriteria(item.id)}
                                   className={cn(
                                     "flex items-start gap-3 p-3 rounded-xl transition-all cursor-pointer",
@@ -5161,9 +5161,9 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
                             <div className="mt-6 space-y-2">
                               {assessmentCriteriaList.length > 0 ? (
-                                assessmentCriteriaList.map((item) => (
+                                assessmentCriteriaList.map((item, aclIdx) => (
                                   <div 
-                                    key={item.id} 
+                                    key={`crit-item-${item.id}-${aclIdx}`} 
                                     onClick={() => toggleCriteria(item.id)}
                                     className={cn(
                                       "flex items-start gap-3 p-2.5 rounded-lg transition-all cursor-pointer",

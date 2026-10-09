@@ -1,26 +1,30 @@
 {
-  "name": "BLU-Hjelperen",
-  "short_name": "BLU-Hjelperen",
-  "description": "Din digitale mentor gjennom barnehagelærerutdanningen.",
+  "name": "Pedleder'n - Fagstøtte for barnehagelærere",
+  "short_name": "Pedleder'n",
+  "description": "Pedleder'n er det helhetlige støtteverktøyet for pedagogiske ledere: Daglig drift, sokratisk sparring, didaktisk planlegger og to-trinnsraketten for foreldredokumentasjon.",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "orientation": "any",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "lang": "no",
+  "categories": [
+    "education",
+    "productivity"
+  ],
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "/android-chrome-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

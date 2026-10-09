@@ -716,5 +716,106 @@ exports.checklistDispatcher = onSchedule(
 
 exports.generateClosingChecklists = exports.checklistDispatcher;
 
+/**
+ * =================================================================================
+ * FUNKSJON 7: kallGeminiAPI (Callable HTTPS Function)
+ * =================================================================================
+ * Kalles direkte fra React via getFunctions(app, 'europe-west1') & httpsCallable('kallGeminiAPI').
+ * Tar imot { prompt: string, model?: string } og returnerer { success: true, resultatTekst: string }.
+ */
+exports.kallGeminiAPI = functions
+  .region("europe-west1")
+  .https.onCall(async (data, context) => {
+    const prompt = (data && data.prompt) ? data.prompt : (typeof data === "string" ? data : "");
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      throw new functions.https.HttpsError("invalid-argument", "Mangler gyldig 'prompt' i data.");
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || functions.config().gemini?.api_key;
+    if (!apiKey) {
+      console.error("Mangler GEMINI_API_KEY i Cloud Functions miljø.");
+      throw new functions.https.HttpsError("failed-precondition", "Mangler GEMINI_API_KEY på serveren.");
+    }
+
+    try {
+      // Bruker @google/genai eller standard fetch
+      let responseText = "";
+      try {
+        const { GoogleGenAI } = require("@google/genai");
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: prompt,
+        });
+        responseText = response.text || "";
+      } catch (sdkErr) {
+        // Fallback til Google Generative AI REST endpoint
+        console.warn("Bruker REST fallback for Gemini:", sdkErr.message);
+        const fetch = global.fetch || require("node-fetch");
+        const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const restRes = await fetch(restUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        });
+        const restData = await restRes.json();
+        responseText = restData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      }
+
+      return {
+        success: true,
+        resultatTekst: responseText
+      };
+    } catch (error) {
+      console.error("Gemini Feil i kallGeminiAPI:", error);
+      throw new functions.https.HttpsError("internal", "Kunne ikke kontakte Gemini: " + (error.message || String(error)));
+    }
+  });
+
+// ============================================================================
+// PEDPORTALEN: Felles AI-motor for Pedleder'n (PPT-logg, Sparring, Ukeplan)
+// ============================================================================
+exports.pedlederAI = functions.region('europe-west1').https.onCall(async (data, context) => {
+  
+  // 1. Sikkerhetssjekk
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Du må være logget inn for å bruke KI-assistenten.');
+  }
+
+  // 2. Henter Gemini på samme måte som du gjør i de andre funksjonene dine
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const apiKey = process.env.GEMINI_API_KEY || functions.config().gemini?.key;
+  
+  if (!apiKey) {
+    throw new functions.https.HttpsError('internal', 'API-nøkkel mangler på serveren.');
+  }
+  
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+
+  try {
+    // 3. Henter teksten vi sender fra React-appen
+    const prompt = data.prompt;
+    if (!prompt) {
+      throw new functions.https.HttpsError('invalid-argument', 'Ingen prompt ble mottatt.');
+    }
+
+    // 4. Sender til Gemini og venter på svar
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    // 5. Sender svaret tilbake til nettleseren
+    return { success: true, resultatTekst: response.text() };
+    
+  } catch (error) {
+    console.error("Gemini Feil i pedlederAI:", error);
+    throw new functions.https.HttpsError('internal', 'Kunne ikke kontakte Gemini: ' + error.message);
+  }
+});
+
+
+
 
 

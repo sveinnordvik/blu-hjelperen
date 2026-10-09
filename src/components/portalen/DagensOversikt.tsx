@@ -9,9 +9,11 @@ import {
   AlertCircle, 
   Clock, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import MorgenPulsen from './MorgenPulsen';
+import MorgenPulsRadar from './MorgenPulsRadar';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 
 interface DagensOversiktProps {
@@ -21,6 +23,7 @@ interface DagensOversiktProps {
 
 const DagensOversikt: React.FC<DagensOversiktProps> = ({ onNavigate, widgetPosition = 'bottom' }) => {
   const [acknowledged, setAcknowledged] = useState(false);
+  const [visMorgenPulsModal, setVisMorgenPulsModal] = useState(false);
 
   // MOCK-DATA: Personalliste for i dag (synket med vaktplan)
   const personalliste = (() => {
@@ -202,7 +205,7 @@ const DagensOversikt: React.FC<DagensOversiktProps> = ({ onNavigate, widgetPosit
 
         {/* HØYRE KOLONNE: Morgen-pulsen */}
         <div className="h-full flex flex-col">
-          <MorgenPulsen />
+          <MorgenPulsRadar onOpenRegistrering={() => setVisMorgenPulsModal(true)} />
         </div>
 
       </div>
@@ -302,6 +305,27 @@ const DagensOversikt: React.FC<DagensOversiktProps> = ({ onNavigate, widgetPosit
         <StaffMonthlyFocusWidget 
           onReadFullPlan={() => onNavigate && onNavigate('aarshjul')}
         />
+      )}
+
+      {/* MODAL: Registrering av Morgen-pulsen */}
+      {visMorgenPulsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="relative w-full max-w-lg my-8">
+            <button
+              onClick={() => setVisMorgenPulsModal(false)}
+              className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-slate-700 hover:text-slate-900 w-9 h-9 rounded-full flex items-center justify-center shadow-md transition cursor-pointer"
+              title="Lukk"
+            >
+              <X size={20} />
+            </button>
+            <MorgenPulsen 
+              embedded={true} 
+              onSendSuccess={() => {
+                setTimeout(() => setVisMorgenPulsModal(false), 2000);
+              }}
+            />
+          </div>
+        </div>
       )}
 
     </div>

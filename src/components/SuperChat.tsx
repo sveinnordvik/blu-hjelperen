@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Volume2, Brain, BookOpen, Quote, PenTool, Sparkles, Square, Check, Copy, HeartHandshake, Mic } from 'lucide-react';
+import { Send, Loader2, Volume2, Brain, BookOpen, Quote, PenTool, Sparkles, Square, Check, Copy, HeartHandshake, Mic, RefreshCw, Trash2, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AIWarning from './AIWarning';
 import { 
@@ -87,6 +87,22 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
     navigator.clipboard.writeText(text);
     setCopiedId(idx);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleStartNySamtale = () => {
+    setMessages([
+      { 
+        role: 'assistant', 
+        agent: 'GENERELL',
+        content: 'Hei! Jeg er Super-Veilederen din. Still et åpent spørsmål eller velg modus ovenfor: Sokratisk sparring (refleksjon uten fasit), Rammeplan & Lovverk, Språkvask eller Auto-APA.' 
+      }
+    ]);
+    setInput('');
+  };
+
+  const handleSlettChat = () => {
+    setMessages([]);
+    setInput('');
   };
 
   const handleSend = async (overrideText?: string) => {
@@ -248,6 +264,27 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
           </button>
         </div>
 
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            type="button"
+            onClick={handleStartNySamtale}
+            className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl transition shadow-2xs flex items-center gap-1 cursor-pointer"
+            title="Start en ny samtale"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+            <span>Start ny samtale</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleSlettChat}
+            className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-white hover:bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-xl transition shadow-2xs flex items-center gap-1 cursor-pointer"
+            title="Slett chat-historikken"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Slett chat</span>
+          </button>
+        </div>
+
         {playingIndex !== null && (
           <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-blue-700 text-xs font-bold animate-pulse">
             <Volume2 className="w-4 h-4" />
@@ -281,7 +318,28 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
 
       {/* Messages Container */}
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
-        {messages.map((msg, idx) => {
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4 animate-fade-in my-auto">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+              <MessageSquare className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-800">Chatten er slettet</h3>
+              <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                Samtalen er tømt. Klikk under for å starte en ny veiledningsøkt.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartNySamtale}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Start ny samtale nå</span>
+            </button>
+          </div>
+        ) : (
+          messages.map((msg, idx) => {
           const isUser = msg.role === 'user';
           const agentStyle = !isUser ? getAgentStyling(msg.agent) : null;
           const isPlaying = playingIndex === idx;
@@ -337,7 +395,7 @@ export function SuperChat({ user, didacticProfile, initialMode = 'AUTO' }: Super
               </div>
             </div>
           );
-        })}
+        }))}
 
         {/* Hurtigforslag for Sokratisk refleksjon */}
         {selectedMode === 'SOKRATISK' && messages.length <= 2 && (

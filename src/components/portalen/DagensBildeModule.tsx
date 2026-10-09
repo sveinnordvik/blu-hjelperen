@@ -25,7 +25,8 @@ import {
   CheckCircle2,
   Wand2,
   ArrowRight,
-  Trees
+  Trees,
+  BookOpen
 } from 'lucide-react';
 import { callGoogleAIProxy } from '../../services/geminiService';
 import { 
@@ -158,6 +159,7 @@ export default function DagensBildeModule({ onNavigateToMonthlyLetter }: { onNav
   const [generatedBody, setGeneratedBody] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState<string | null>(null);
 
   // Bildehåndtering og Personverns-failsafe
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -201,6 +203,30 @@ export default function DagensBildeModule({ onNavigateToMonthlyLetter }: { onNav
         imagePrivacyProtected: true,
         blurApplied: true,
         theme: 'Mat & helse',
+        month: 'Oktober'
+      },
+      {
+        id: 'glimpse-3',
+        date: '2026-10-09',
+        keywords: 'Laget disse av et tre som knakk tidligere. 5 barn, må samarbeide, snakke sammen og vente på hverandre.',
+        title: 'Bakover – bakover – fart i skogs-dissa!',
+        text: 'På samarbeidsdissa i skogkanten krevdes det skikkelig samarbeid i dag! Barna fant rytmen sammen, hjalp hverandre å ta sats og lo så det gjallet mellom trærne.',
+        imageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80',
+        imagePrivacyProtected: true,
+        blurApplied: false,
+        theme: 'Samspill & lek',
+        month: 'Oktober'
+      },
+      {
+        id: 'glimpse-4',
+        date: '2026-10-14',
+        keywords: 'Plukket lønneblader ute, brukte fingermaling med høstfarger på store ark.',
+        title: 'Fargerike høstblader & malespor',
+        text: 'Vi samlet de fineste høstbladene i skogen og tok dem med inn. Med fingrene fulle av gul, rød og oransje maling trykket barna vakre spor på arket.',
+        imageUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=600&q=80',
+        imagePrivacyProtected: true,
+        blurApplied: false,
+        theme: 'Kunst & kreativitet',
         month: 'Oktober'
       }
     ];
@@ -415,8 +441,12 @@ Generer overskrift og kort tekst for foreldrene.`;
 
     setSavedGlimpses(prev => [newGlimpse, ...prev]);
 
-    // Gi feedback og tilbakestill eller behold for eksport
-    alert(`✅ Dagens Bilde er trygt lagret i månedsmappen for Oktober (${profil.plattformNavn})! Dette danner nå råmaterialet for Månedsbrevet.`);
+    // Send global hendelse slik at Månedsbrev umiddelbart oppdateres
+    try {
+      window.dispatchEvent(new CustomEvent('pedledern_daily_glimpses_updated', { detail: newGlimpse }));
+    } catch {}
+
+    setSavedFeedback(`Dagens Bilde er trygt lagret i månedsmappen for Oktober (${profil.plattformNavn}). Det er nå klart til Månedsbrevet!`);
   };
 
   // Håndter Drag-and-Drop fra desktop-filkortet
@@ -541,9 +571,9 @@ Generer overskrift og kort tekst for foreldrene.`;
               <textarea
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
-                rows={3}
-                placeholder="F.eks: Laget disse av et tre som knakk tidligere. 5 barn, må samarbeide, snakke sammen og vente på hverandre..."
-                className="w-full text-sm text-slate-800 bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 focus:outline-none transition leading-relaxed placeholder:text-slate-400"
+                rows={4}
+                placeholder="F.eks: Laget disse av et tre som knakk tidligere. 5 barn, må samarbeide, snakke sammen og vente på hverandre... (Enter gir sideskift/ny linje)"
+                className="w-full text-sm text-slate-800 bg-slate-50/60 border border-slate-200 rounded-xl p-3.5 focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 focus:outline-none transition leading-relaxed placeholder:text-slate-400 min-h-[100px] resize-y"
               />
             </div>
 
@@ -864,6 +894,26 @@ Generer overskrift og kort tekst for foreldrene.`;
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
                   <span>Lagre i Månedsmappen for Oktober</span>
                 </button>
+
+                {/* Tilbakemelding og snarvei til Månedsbrevet */}
+                {savedFeedback && (
+                  <div className="p-3.5 bg-emerald-50 border border-emerald-300/80 rounded-xl space-y-2 animate-fade-in shadow-2xs">
+                    <div className="flex items-start gap-2 text-xs text-emerald-950 font-semibold leading-relaxed">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>{savedFeedback}</span>
+                    </div>
+                    {onNavigateToMonthlyLetter && (
+                      <button
+                        type="button"
+                        onClick={onNavigateToMonthlyLetter}
+                        className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-xs"
+                      >
+                        <span>Gå direkte til Månedsbrev (Trinn 2)</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -926,14 +976,27 @@ Generer overskrift og kort tekst for foreldrene.`;
                         {item.text}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSavedGlimpses(prev => prev.filter(g => g.id !== item.id))}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition"
-                      title="Slett"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onNavigateToMonthlyLetter && (
+                        <button
+                          type="button"
+                          onClick={onNavigateToMonthlyLetter}
+                          className="text-[10px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 p-1.5 px-2 rounded-lg border border-teal-200 transition flex items-center gap-1"
+                          title="Åpne i Månedsbrev"
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          <span className="hidden sm:inline">I brev</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSavedGlimpses(prev => prev.filter(g => g.id !== item.id))}
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition"
+                        title="Slett"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}

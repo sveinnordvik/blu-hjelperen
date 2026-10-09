@@ -16,7 +16,10 @@ import {
   Palette,
   Target,
   Sun,
-  Award
+  Award,
+  CheckCircle2,
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { 
   BarnehageProfilData, 
@@ -25,6 +28,8 @@ import {
   getBarnehageProfil, 
   saveBarnehageProfil 
 } from '../../lib/pedagogiskPlattform';
+import { createDefaultChapters } from '../../lib/aarsplanDefaults';
+import { STORAGE_KEY_AARSPLAN_CHAPTERS } from '../../types/aarsplan';
 
 interface PedagogiskPlattformModalProps {
   isOpen: boolean;
@@ -39,11 +44,13 @@ export default function PedagogiskPlattformModal({
 }: PedagogiskPlattformModalProps) {
   const [profil, setProfil] = useState<BarnehageProfilData>(getBarnehageProfil);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setProfil(getBarnehageProfil());
       setSaveSuccess(false);
+      setSyncStatus(null);
     }
   }, [isOpen]);
 
@@ -63,6 +70,83 @@ export default function PedagogiskPlattformModal({
     }));
   };
 
+  // Hent årsplan automatisk fra Styrern
+  const handleHentAarsplanFraStyrern = () => {
+    try {
+      // 1. Sjekk lagrede kapitler fra Styrern (STORAGE_KEY_AARSPLAN_CHAPTERS)
+      const rawChapters = localStorage.getItem(STORAGE_KEY_AARSPLAN_CHAPTERS);
+      let chapters: any[] = [];
+      if (rawChapters) {
+        chapters = JSON.parse(rawChapters);
+      }
+      
+      // Hvis ikke lagret ennå, hent Styrerns standardkapitler
+      if (!chapters || chapters.length === 0) {
+        chapters = createDefaultChapters();
+      }
+
+      // 2. Sjekk Styrerns innstillinger (styrern_kontrollpanel_settings)
+      const rawSettings = localStorage.getItem('styrern_kontrollpanel_settings');
+      let settings: any = null;
+      if (rawSettings) {
+        settings = JSON.parse(rawSettings);
+      }
+
+      // 3. Finn visjon
+      let funnetVisjon = '';
+      const velkommenChap = chapters.find(c => c.id === 'chap_velkommen' || c.title?.toLowerCase().includes('velkommen'));
+      if (velkommenChap) {
+        const visjonBox = velkommenChap.boxes?.find((b: any) => b.id === 'b_visjon' || b.title?.toLowerCase().includes('visjon'));
+        if (visjonBox?.content) {
+          funnetVisjon = visjonBox.content;
+        } else if (velkommenChap.content) {
+          funnetVisjon = velkommenChap.content;
+        }
+      }
+
+      // Finn kjerneverdier
+      let funnetVerdier = '';
+      const verdiChap = chapters.find(c => c.id === 'chap_verdigrunnlag' || c.title?.toLowerCase().includes('verdi'));
+      if (verdiChap) {
+        const verdiBox = verdiChap.boxes?.find((b: any) => b.id === 'b_kjerneverdier' || b.title?.toLowerCase().includes('kjerneverdi'));
+        if (verdiBox?.content) {
+          funnetVerdier = verdiBox.content;
+        } else if (verdiChap.content) {
+          funnetVerdier = verdiChap.content;
+        }
+      }
+
+      // Finn satsingsområder / pedagogisk syn
+      let funnetForankring = '';
+      const satsingChap = chapters.find(c => c.id === 'chap_satsingsomraader' || c.title?.toLowerCase().includes('satsing'));
+      const pedChap = chapters.find(c => c.id === 'chap_pedagogisk_syn' || c.title?.toLowerCase().includes('pedagogisk'));
+      if (satsingChap?.content) {
+        funnetForankring = `Satsingsområder fra årsplanen: ${satsingChap.content}`;
+      } else if (pedChap?.content) {
+        funnetForankring = `Pedagogisk syn fra årsplanen: ${pedChap.content}`;
+      }
+
+      const barnehageNavnFraStyrern = settings?.barnehageNavn || settings?.navn || profil.barnehageNavn || 'Furutoppen Barnehage';
+
+      // 4. Oppdater profil
+      setProfil(prev => ({
+        ...prev,
+        barnehageNavn: barnehageNavnFraStyrern,
+        visjon: funnetVisjon || prev.visjon || '«Med naturen som lekeplass og undring som drivkraft.»',
+        kjerneverdier: funnetVerdier || prev.kjerneverdier || 'Naturglede, mestring i ulendt terreng, risikomestring og fellesskap.',
+        fagligForankringsMal: funnetForankring || prev.fagligForankringsMal,
+        opplastetFilnavn: `Vedtatt Årsplan (${chapters.length} kapitler fra Styrern)`,
+        opplastetDato: new Date().toLocaleDateString('no-NO'),
+        aarsplanUtdrag: `Synkronisert fra Styrerns Årsplan (${chapters.length} kapitler). Visjon: ${funnetVisjon || prev.visjon}`
+      }));
+
+      setSyncStatus(`Årsplanen ble automatisk hentet fra Styrern (${chapters.length} kapitler synkronisert)!`);
+    } catch (err) {
+      console.error('Feil ved henting av årsplan:', err);
+      setSyncStatus('Kunne ikke hente årsplan. Prøv igjen.');
+    }
+  };
+
   // Simuler eller håndter opplasting av årsplan-PDF
   const handleAarsplanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -72,6 +156,7 @@ export default function PedagogiskPlattformModal({
         opplastetFilnavn: file.name,
         opplastetDato: new Date().toLocaleDateString('no-NO')
       }));
+      setSyncStatus(`Filen "${file.name}" ble lastet opp!`);
     }
   };
 
@@ -171,7 +256,8 @@ export default function PedagogiskPlattformModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { type: 'friluft', label: 'Friluftsbarnehage', tag: 'Standard', desc: 'Natur, årstider, Skoggruppemetoden og risikomestring', icon: Trees },
+                { type: 'friluft', label: 'Friluftsbarnehage', tag: 'Standard', desc: 'Natur, årstider, sansemotorikk og risikomestring', icon: Trees },
+                { type: 'skogsgruppe', label: 'Skoggruppemetoden', tag: 'Metodikk', desc: 'Læring gjennom mestring, PLAGG og personlig Arbeidsbok', icon: BookOpen },
                 { type: 'montessori', label: 'Montessori', tag: 'Metode', desc: 'Selvstendighet, frihet under ansvar og tilrettelagt miljø', icon: Award },
                 { type: 'reggio_emilia', label: 'Reggio Emilia', tag: 'Filosofi', desc: 'De 100 språk, rommet som 3. pedagog og utforskning', icon: Palette },
                 { type: 'steiner', label: 'Steinerpedagogikk', tag: 'Tradisjon', desc: 'Rytme, danning, årstidsfester og naturlige materialer', icon: Sun },
@@ -241,42 +327,75 @@ export default function PedagogiskPlattformModal({
             </div>
           </div>
 
-          {/* 4. Opplasting av Årsplan (PDF) */}
-          <div className="bg-amber-50/60 rounded-2xl border border-amber-200/80 p-5 space-y-3">
+          {/* 4. Årsplan fra Styrern & Opplasting */}
+          <div className="bg-amber-50/70 rounded-2xl border border-amber-200/90 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-amber-950 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-amber-600" />
-                Last opp barnehagens vedtatte Årsplan (PDF)
+                Barnehagens Vedtatte Årsplan
               </h3>
               {profil.opplastetFilnavn && (
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-700" /> {profil.opplastetFilnavn}
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                  <Check className="w-3.5 h-3.5 text-emerald-700" /> {profil.opplastetFilnavn}
                 </span>
               )}
             </div>
 
             <p className="text-xs text-amber-900 leading-relaxed">
-              Last opp barnehagens offisielle årsplan (PDF). Systemet henter automatisk ut barnehagens visjon, 
+              Barnehagens offisielle årsplan danner det felles fundamentet. Du kan hente den direkte fra Styrern, eller laste opp en PDF. Systemet henter automatisk ut barnehagens visjon, 
               satsingsområder og verdigrunnlag slik at KI-motoren speiler barnehagens unike profil.
             </p>
 
-            <label className="border-2 border-dashed border-amber-300 hover:border-amber-400 bg-white/70 hover:bg-white rounded-xl p-4 text-center cursor-pointer transition flex items-center justify-center gap-3">
-              <Upload className="w-5 h-5 text-amber-700" />
-              <div className="text-left">
-                <span className="text-xs font-bold text-slate-900 block">
-                  {profil.opplastetFilnavn ? `Lastet opp: ${profil.opplastetFilnavn}` : 'Klikk for å laste opp Årsplan (PDF)'}
-                </span>
-                <span className="text-[10px] text-slate-500">
-                  {profil.opplastetDato ? `Sist oppdatert: ${profil.opplastetDato}` : 'Maks 25 MB • PDF format'}
-                </span>
+            {/* KNAPPEVALG: Hent fra Styrern ELLER Last opp PDF */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* KNAPP 1: Hent årsplan fra Styrern */}
+              <button
+                type="button"
+                onClick={handleHentAarsplanFraStyrern}
+                className="p-4 rounded-xl border-2 border-emerald-500/80 bg-emerald-50/90 hover:bg-emerald-100 text-left transition flex items-center gap-3.5 group shadow-xs cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition">
+                  <Sparkles className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-emerald-950 block">
+                    Hent årsplan fra Styrern
+                  </span>
+                  <span className="text-[11px] text-emerald-800 font-medium leading-snug block mt-0.5">
+                    Henter automatisk vedtatt plan, visjon og satsingsområder
+                  </span>
+                </div>
+              </button>
+
+              {/* KNAPP 2: Last opp fil (PDF / Word) */}
+              <label className="p-4 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-400 bg-white/80 hover:bg-white text-left transition flex items-center gap-3.5 cursor-pointer group shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">
+                    Last opp årsplan (PDF)
+                  </span>
+                  <span className="text-[11px] text-slate-500 leading-snug block mt-0.5">
+                    Maks 25 MB • PDF eller Word
+                  </span>
+                </div>
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.txt"
+                  onChange={handleAarsplanUpload} 
+                  className="hidden" 
+                />
+              </label>
+            </div>
+
+            {/* Suksessmelding hvis synkronisert eller opplastet */}
+            {syncStatus && (
+              <div className="p-3 bg-emerald-100/90 border border-emerald-300 rounded-xl text-xs text-emerald-900 flex items-center gap-2 animate-fade-in font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{syncStatus}</span>
               </div>
-              <input 
-                type="file" 
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={handleAarsplanUpload} 
-                className="hidden" 
-              />
-            </label>
+            )}
           </div>
 
         </div>

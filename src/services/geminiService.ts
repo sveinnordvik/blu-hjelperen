@@ -9,6 +9,44 @@ import {
 
 export { Type }; // Re-export Type for components that use it from here
 
+/**
+ * Kaller Firebase Cloud Functions 'pedlederAI' eller 'kallGeminiAPI' (Callable Function),
+ * med automatisk fallback til server-proxyen (/api/gemini/generate) ved lokale tester.
+ */
+export async function kallGeminiCloudFunction(prompt: string): Promise<{ success: boolean; resultatTekst: string }> {
+  try {
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const { app } = await import('../firebaseConfig');
+    const functions = getFunctions(app, 'europe-west1');
+    
+    // Prøver først pedlederAI, deretter kallGeminiAPI
+    try {
+      const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'pedlederAI');
+      const response = await callable({ prompt });
+      if (response?.data?.resultatTekst) {
+        return { success: true, resultatTekst: response.data.resultatTekst };
+      }
+    } catch {
+      const callableFallback = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
+      const response = await callableFallback({ prompt });
+      if (response?.data?.resultatTekst) {
+        return { success: true, resultatTekst: response.data.resultatTekst };
+      }
+    }
+  } catch (cloudErr) {
+    console.warn("Cloud Function pedlederAI / kallGeminiAPI utilgjengelig eller feilet, bruker server-proxy fallback:", cloudErr);
+  }
+
+  // Robust fallback til express server-proxy
+  const res = await callGoogleAIProxy({
+    model: 'gemini-3.8-flash',
+    contents: prompt
+  });
+  return { success: true, resultatTekst: res.text || '' };
+}
+
+export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
+
 // Hjelpefunksjon for å kalle via Google sin egen API direkte
 export async function callGoogleAIProxy(params: {
   model: string;
@@ -1244,6 +1282,700 @@ STUDENTENS SPESIFIKKE PROFIL:
   } catch (error: any) {
     console.error("Feil i askSocraticAgent:", error);
     throw new Error(error?.message || "Klarte ikke å få kontakt med den sokratiske partneren akkurat nå.");
+  }
+}
+
+/**
+ * Strips all emojis from text to guarantee 100% emoji-free output
+ */
+export function stripAllEmojis(text: string): string {
+  if (!text) return '';
+  return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B50}\u{2B55}\u{FE0F}]/gu, '').trim();
+}
+
+export interface SokratiskHovedaktivitet {
+  id: string;
+  type: 'hovedaktivitet';
+  tittel: string;
+  kildeForankring: string;
+  hvaOgHvordan: string;
+  hvorfor: string;
+}
+
+export interface SokratiskGjenkalling {
+  id: string;
+  type: 'gjenkalling';
+  tittel: string;
+  plaggFokus: string;
+  gjennomforing: string;
+}
+
+export interface SokratiskFagdrypp {
+  id: string;
+  type: 'fagdrypp';
+  tekst: string;
+}
+
+export interface SokratiskKortPakke {
+  raw: string;
+  preamble: string;
+  hovedaktiviteter: SokratiskHovedaktivitet[];
+  gjenkallinger: SokratiskGjenkalling[];
+  fagdrypp: SokratiskFagdrypp[];
+  hasCards: boolean;
+}
+
+/**
+ * Parser for Den Sokratiske Planleggerens kortformat
+ */
+export function parseSokratiskeKort(responseText: string): SokratiskKortPakke {
+  const cleanText = stripAllEmojis(responseText);
+  const cardBlockRegex = /---\s*START KORT\s*---([\s\S]*?)---\s*SLUTT KORT\s*---/i;
+  const match = cleanText.match(cardBlockRegex);
+
+  const hovedaktiviteter: SokratiskHovedaktivitet[] = [];
+  const gjenkallinger: SokratiskGjenkalling[] = [];
+  const fagdrypp: SokratiskFagdrypp[] = [];
+
+  let cardContent = match ? match[1] : '';
+  let preamble = match ? cleanText.replace(cardBlockRegex, '').trim() : cleanText;
+
+  // Fallback hvis modellen ikke inkluderte START/SLUTT-markører
+  if (!match) {
+    if (/(?:\[?\s*HOVEDAKTIVITET\s*\]?|\[?\s*GJENKALLING|\[?\s*FAG-DRYPP)/i.test(cleanText)) {
+      cardContent = cleanText;
+      const firstHeadingIndex = cleanText.search(/(?:\[?\s*HOVEDAKTIVITET\s*\]?|\[?\s*GJENKALLING|\[?\s*FAG-DRYPP)/i);
+      if (firstHeadingIndex > 0) {
+        preamble = cleanText.substring(0, firstHeadingIndex).trim();
+      } else {
+        preamble = '';
+      }
+    }
+  }
+
+  if (cardContent) {
+    // Splitt etter kort-markører, både med og uten klammer eller undertekster som (PLAGG) eller (Push-varsel til base)
+    const sections = cardContent.split(/(?=(?:\[?\s*HOVEDAKTIVITET\s*\]?|\[?\s*GJENKALLING(?:\s*\([^)]*\))?\s*\]?|\[?\s*FAG-DRYPP(?:\s*\([^)]*\))?\s*\]?))/i);
+
+    sections.forEach((sec, idx) => {
+      const trimmed = sec.trim();
+      if (!trimmed) return;
+
+      if (/^\[?\s*HOVEDAKTIVITET\s*\]?/i.test(trimmed)) {
+        const tittelMatch = trimmed.match(/(?:Tittel|Navn)[:\s*]+([^\n\r]+)/i);
+        const kildeMatch = trimmed.match(/(?:Kilde\/Forankring|Forankring|Kilde)[:\s*]+([^\n\r]+)/i);
+        const hvaMatch = trimmed.match(/(?:Hva og Hvordan|Hva\/hvordan|Hvordan|Hva)[:\s*]+([\s\S]*?)(?=(?:Hvorfor|Begrunnelse|\[|---|$))/i);
+        const hvorforMatch = trimmed.match(/(?:Hvorfor|Begrunnelse)[:\s*]+([\s\S]*?)(?=(?:\[|---|$))/i);
+
+        hovedaktiviteter.push({
+          id: `hoved-${idx}-${Date.now()}`,
+          type: 'hovedaktivitet',
+          tittel: tittelMatch ? tittelMatch[1].replace(/^\*+|\*+$/g, '').trim() : `Hovedaktivitet ${hovedaktiviteter.length + 1}`,
+          kildeForankring: kildeMatch ? kildeMatch[1].replace(/^\*+|\*+$/g, '').trim() : 'Rammeplanen / Barnehagens profil',
+          hvaOgHvordan: hvaMatch ? hvaMatch[1].replace(/^\*+|\*+$/g, '').trim() : 'Utforskende aktivitet med aktiv voksenrolle.',
+          hvorfor: hvorforMatch ? hvorforMatch[1].replace(/^\*+|\*+$/g, '').trim() : 'Forankret i Rammeplanens mål for barns medvirkning og læring.'
+        });
+      } else if (/^\[?\s*GJENKALLING/i.test(trimmed)) {
+        const tittelMatch = trimmed.match(/(?:Tittel|Navn)[:\s*]+([^\n\r]+)/i);
+        const plaggMatch = trimmed.match(/(?:PLAGG-fokus|PLAGG|Fokus)[:\s*]+([^\n\r]+)/i);
+        const gjennomforingMatch = trimmed.match(/(?:Gjennomføring|Gjennomforing|Hva og Hvordan)[:\s*]+([\s\S]*?)(?=(?:\[|---|$))/i);
+
+        gjenkallinger.push({
+          id: `gjenkall-${idx}-${Date.now()}`,
+          type: 'gjenkalling',
+          tittel: tittelMatch ? tittelMatch[1].replace(/^\*+|\*+$/g, '').trim() : `Gjenkallingsøkt ${gjenkallinger.length + 1}`,
+          plaggFokus: plaggMatch ? plaggMatch[1].replace(/^\*+|\*+$/g, '').trim() : 'Språklig bevisstgjøring',
+          gjennomforing: gjennomforingMatch ? gjennomforingMatch[1].replace(/^\*+|\*+$/g, '').trim() : 'Samtale og bearbeiding av erfaringer.'
+        });
+      } else if (/^\[?\s*FAG-DRYPP/i.test(trimmed)) {
+        const tekstMatch = trimmed.match(/(?:Tekst|Drypp|Spørsmål)[:\s*]+([\s\S]*?)(?=(?:\[|---|$))/i);
+        const rawTekst = tekstMatch 
+          ? tekstMatch[1].replace(/^\*+|\*+$/g, '').trim() 
+          : trimmed.replace(/^\[?\s*FAG-DRYPP(?:\s*\([^)]*\))?\s*\]?\s*/i, '').trim();
+
+        fagdrypp.push({
+          id: `fagdrypp-${idx}-${Date.now()}`,
+          type: 'fagdrypp',
+          tekst: rawTekst.slice(0, 160)
+        });
+      }
+    });
+  }
+
+  return {
+    raw: cleanText,
+    preamble,
+    hovedaktiviteter,
+    gjenkallinger,
+    fagdrypp,
+    hasCards: hovedaktiviteter.length > 0 || gjenkallinger.length > 0 || fagdrypp.length > 0
+  };
+}
+
+/**
+ * Den Sokratiske Planleggeren
+ * Pedagogisk sparringspartner for barnehagens pedagogiske leder.
+ */
+export async function askDenSokratiskePlanleggeren(
+  chatHistory: Array<{ role: string; content: string }>,
+  context?: {
+    barnehagePlattform?: string;
+    aarshjulFokus?: string;
+    barnasInteresser?: string;
+    kilder?: string;
+    inkluderPlagg?: boolean;
+    plattformType?: string;
+  }
+): Promise<string> {
+  const plattform = context?.barnehagePlattform || 'Friluftsbarnehage med vekt på lek, natur og mestring.';
+  const aarshjul = context?.aarshjulFokus || 'Natur, miljø og teknologi samt sanseopplevelser.';
+  const interesser = context?.barnasInteresser || 'Barna er opptatt av å utforske skogen, samle naturmaterialer og bygge.';
+  const kilder = context?.kilder ? `\nEgne kilder:\n${context.kilder}` : '';
+  const isSkog = context?.plattformType === 'skogsgruppe' || plattform.toLowerCase().includes('skogsgruppe');
+  const inkluderPlagg = context?.inkluderPlagg !== false;
+
+  const systemInstruction = `Du er "Den Sokratiske Planleggeren", en høyt kvalifisert pedagogisk veileder for en pedagogisk leder i en norsk barnehage. Din oppgave er å veilede brukeren frem til konkrete, didaktiske ukeplaner gjennom dialog.
+
+TONE OG STIL:
+- Varm, profesjonell og støttende ("Kreativt Verksted"-tonen).
+- Du skal IKKE bruke emojier under noen omstendigheter. Overhold dette 100 % strengt: absolutt INGEN emojier i teksten.
+
+BARNEHAGENS RAMMER FOR PLANEN:
+- Barnehagens pedagogiske plattform og verdigrunnlag: ${plattform}
+- Månedens tema og årshjul: ${aarshjul}
+- Barnas nåværende interesser i barnegruppa: ${interesser}${kilder}
+- PLAGG-status: ${inkluderPlagg ? 'PLAGG er aktivert som didaktisk standard for gjenkalling.' : 'PLAGG er deaktivert – generer generell ettermiddagsrefleksjon uten PLAGG-krav.'}
+
+PEDAGOGISK PLATTFORM OG ARBEIDSBOKEN (KRITISK REGEL):
+- Planene skal ALLTID baseres på og speile barnehagens valgte pedagogiske plattform.
+- "Arbeidsboken" er et spesifikt verktøy som kun tilhører Skoggruppemetoden som pedagogisk plattform.
+${isSkog 
+  ? '- Siden barnehagen har valgt Skoggruppemetoden, kan du foreslå gjenkallingsøkter i barnas Arbeidsbok.' 
+  : '- Siden barnehagen IKKE har Skoggruppemetoden (eller har standard profil), skal "Arbeidsbok" ALDRI nevnes eller foreslås. All gjenkalling/refleksjon skal skje i samlingsstund, felles samtale, visning av sansegjenstander eller tegning – aldri med ordet "arbeidsbok".'}
+
+HVORFOR PLAGG OG HVA DET INNEBÆRER:
+- PLAGG står for: Planlegging, Gjennomføring, Gjenkalling (inspirert av High/Scopes Plan-Do-Review).
+- Gjenkallingsøktene trener: Oppmerksomhet, Hukommelse, Leseforståelse/symboltolkning, Språklig bevisstgjøring, eller Kontakt/relasjon.
+- Hvis brukeren spør om PLAGG, forklar dette vennlig, pedagogisk og tydelig.
+
+DINE REGLER FOR SPARRING:
+1. Still åpne, utforskende spørsmål ("Hva er barna opptatt av?", "Hvordan kan vi koble barnas interesse for X mot Rammeplanens mål om Y?").
+2. Ikke generer hele planen før pedlederen har fått komme med sine innspill og retningsvalg.
+3. Sørg alltid for at aktivitetene speiler Barnehagens pedagogiske plattform.
+
+ARBEIDSFLYT:
+Fase 1: Sokratisk Sparring
+Når brukeren starter samtalen (og systemet sender over månedens årshjul, barnehagens plattform og evt. egne kilder), skal du IKKE generere ferdige aktiviteter. Du skal starte med å stille 1-2 åpne, utforskende spørsmål for å hjelpe pedlederen med å koble barnas nåværende interesser opp mot det faglige rammeverket. Vent på svar.
+
+Fase 2: Generering av plan
+Når pedlederen ber om konkrete forslag (eller dere har spikret et konsept), skal du generere nøyaktig 3 Hovedaktiviteter, 3 Gjenkallingsøkter og 2 Fag-drypp. For at systemet skal kunne gjøre disse om til dra-og-slipp-kort på skjermen, MÅ du pakke inn forslagene i følgende eksakte format:
+
+--- START KORT ---
+
+[HOVEDAKTIVITET]
+Tittel: [Kort, fengende navn]
+Kilde/Forankring: [Hvilken del av plattformen/kildene bygger dette på]
+Hva og Hvordan: [Kort beskrivelse av innhold og voksenrolle]
+Hvorfor: [Pedagogisk begrunnelse, f.eks. Rammeplanen]
+
+[HOVEDAKTIVITET]
+Tittel: [Kort, fengende navn]
+Kilde/Forankring: [Hvilken del av plattformen/kildene bygger dette på]
+Hva og Hvordan: [Kort beskrivelse av innhold og voksenrolle]
+Hvorfor: [Pedagogisk begrunnelse, f.eks. Rammeplanen]
+
+[HOVEDAKTIVITET]
+Tittel: [Kort, fengende navn]
+Kilde/Forankring: [Hvilken del av plattformen/kildene bygger dette på]
+Hva og Hvordan: [Kort beskrivelse av innhold og voksenrolle]
+Hvorfor: [Pedagogisk begrunnelse, f.eks. Rammeplanen]
+
+[GJENKALLING]
+Tittel: [Kort navn på aktiviteten]
+PLAGG-fokus: [Velg ÉN: Oppmerksomhet / Hukommelse / Leseforståelse / Språklig bevisstgjøring / Kontakt]
+Gjennomføring: [Hvordan gjenkallingen gjøres i samling, samtale eller sansing - HUSK: Ingen arbeidsbok med mindre Skoggruppemetoden er valgt]
+
+[GJENKALLING]
+Tittel: [Kort navn på aktiviteten]
+PLAGG-fokus: [Velg ÉN: Oppmerksomhet / Hukommelse / Leseforståelse / Språklig bevisstgjøring / Kontakt]
+Gjennomføring: [Hvordan gjenkallingen gjøres i samling, samtale eller sansing]
+
+[GJENKALLING]
+Tittel: [Kort navn på aktiviteten]
+PLAGG-fokus: [Velg ÉN: Oppmerksomhet / Hukommelse / Leseforståelse / Språklig bevisstgjøring / Kontakt]
+Gjennomføring: [Hvordan gjenkallingen gjøres i samling, samtale eller sansing]
+
+[FAG-DRYPP]
+Tekst: [Maks 150 tegn. Et kort, motiverende refleksjonsspørsmål til personalet som kan sendes som push-varsel. Eks: "Husk å sette ord på det barna gjør med hendene i dag."]
+
+[FAG-DRYPP]
+Tekst: [Maks 150 tegn. Et kort, motiverende refleksjonsspørsmål til personalet som kan sendes som push-varsel. Eks: "Husk å sette ord på det barna gjør med hendene i dag."]
+
+--- SLUTT KORT ---
+
+VIKTIG PÅMINNELSE: ALDRI BRUK EMOJIER I NOEN DEL AV SVARET DITT.`;
+
+  try {
+    const formattedHistory = chatHistory.map(msg => ({
+      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+      parts: [{ text: stripAllEmojis(msg.content) }],
+    }));
+
+    const response = await callGoogleAIProxy({
+      model: SUPER_VEILEDEREN_CONFIG.model,
+      contents: formattedHistory,
+      config: {
+        systemInstruction,
+        temperature: 0.65,
+        maxOutputTokens: 3000,
+      },
+    });
+
+    return stripAllEmojis(response.text || '');
+  } catch (error: any) {
+    console.error("Feil i askDenSokratiskePlanleggeren:", error);
+    throw new Error(error?.message || "Klarte ikke å opprette kontakt med Den Sokratiske Planleggeren.");
+  }
+}
+
+export interface ForskningsbasertAktivitet {
+  id: number | string;
+  type: 'hoved' | 'gjenkalling' | 'fagdrypp';
+  tittel: string;
+  kilde: string;
+  beskrivelse?: string;
+  hva?: string;
+  hvordan?: string;
+  hvorfor?: string;
+  begrepslaering?: string;
+  mestring?: string;
+  plaggFokus?: string;
+  refleksjon?: string;
+}
+
+/**
+ * Genererer forskningsbaserte pedagogiske aktiviteter basert på tema, aldersgruppe og utvalgte kilder.
+ */
+export async function generateForskningsbaserteAktiviteter(params: {
+  tema: string;
+  alder: string;
+  kilder: string[];
+  barnehagePlattform?: string;
+  plattformType?: string;
+  inkluderPlagg?: boolean;
+}): Promise<ForskningsbasertAktivitet[]> {
+  const { tema, alder, kilder, barnehagePlattform, plattformType, inkluderPlagg = true } = params;
+  const kildeListe = kilder.length > 0 ? kilder.join(', ') : 'Udir (Rammeplanen), Forskerfrø, Språkløyper, Matematikksenteret, Voksne for Barn';
+  const isSkog = plattformType === 'skogsgruppe' || (barnehagePlattform?.toLowerCase().includes('skogsgruppe') ?? false);
+  const plattformNavn = barnehagePlattform || 'Friluftsbarnehage (Standard)';
+
+  const fallbackAktiviteter: ForskningsbasertAktivitet[] = [
+    {
+      id: `fallback-1-${Date.now()}`,
+      type: 'hoved',
+      tittel: `Sporjakt og utforsking: ${tema}`,
+      kilde: 'Forskerfrø (Naturfagsenteret) / Rammeplanen',
+      hva: `Barna leter etter spor og fenomener knyttet til ${tema.toLowerCase()} med forstørrelsesglass og oppsamlingsbokser.`,
+      hvordan: 'Pedlederen leder an som medoppdager, stiller åpne undrespørsmål og lar barna ta ledelsen i sporsøket.',
+      hvorfor: 'Rammeplanen: Natur, miljø og teknologi. Barna skal oppleve nysgjerrighet og undring over naturens mangfold.',
+      begrepslaering: 'Spor, avtrykk, kamuflasje, underlag',
+      mestring: 'Barna mestrer å finne og dokumentere spor selvstendig i ulendt terreng.'
+    },
+    {
+      id: `fallback-2-${Date.now()}`,
+      type: 'hoved',
+      tittel: `Konstruksjon og skaperglede: Hi og ly`,
+      kilde: 'Udir (Rammeplanen) & Matematikksenteret',
+      hva: 'Bygge skjulested eller hi med pinner, granbar, mose og snø/stein tilpasset dyrene i nærområdet.',
+      hvordan: 'De voksne støtter med bæring av tyngre greiner, veiledning i stabilitet og måling av størrelse sammen med barna.',
+      hvorfor: 'Rammeplanen: Antall, rom og form samt Kropp, bevegelse, mat og helse.',
+      begrepslaering: 'Balanse, fundament, romslig, lunt',
+      mestring: 'Samarbeid der hvert barn bidrar med materialer og ser det felles resultatet reise seg.'
+    },
+    {
+      id: `fallback-3-${Date.now()}`,
+      type: 'hoved',
+      tittel: `Sanseløype og vennskap i naturen`,
+      kilde: 'Voksne for Barn & Rammeplanen',
+      hva: 'Gå en sanseløype to og to, der barna lytter til naturlyder og kjenner på naturmaterialer sammen.',
+      hvordan: 'Voksen tilrettelegger for trygg pardanning, oppmuntrer til gjensidig hjelp og setter ord på vennlige handlinger.',
+      hvorfor: 'Rammeplanen: Nærmiljø og samfunn samt Livsmestring og helse.',
+      begrepslaering: 'Samspill, støtte, lytte, varme',
+      mestring: 'Opplevelse av fellesskap og at man mestrer å hjelpe en venn i terrenget.'
+    },
+    {
+      id: `fallback-4-${Date.now()}`,
+      type: 'gjenkalling',
+      tittel: isSkog ? `Tegne og gjenkalle i arbeidsboken` : `Samlingsstund: Dagens høydepunkt og opplevelser`,
+      kilde: 'PLAGG-metoden',
+      plaggFokus: 'Hukommelse & Språklig bevisstgjøring',
+      hva: isSkog 
+        ? 'Etter dagens tur samles barna i småbord og tegner ett konkret minne i arbeidsboken.' 
+        : 'I ettermiddagssamlingen reflekterer barna sammen over dagens tur og deler opplevelser med konkreter.',
+      hvordan: 'Den voksne stiller åpne gjenkallingsspørsmål som "Hva husker du best fra i formiddag?" og fanger barnas egne formuleringer.',
+      hvorfor: 'Aktiv gjenkalling styrker langtidsminnet og gir barna eierskap til egne erfaringer.'
+    },
+    {
+      id: `fallback-5-${Date.now()}`,
+      type: 'gjenkalling',
+      tittel: `Gjenkallingssirkel med sanseting`,
+      kilde: 'PLAGG-metoden',
+      plaggFokus: 'Oppmerksomhet & Kontakt',
+      hva: 'I ettermiddagssamlingen sendes en pose med dagens naturfunn rundt. Barna gjetter og mimrer.',
+      hvordan: 'Voksen guider rolig turtaking og sikrer at hvert barn får ordet uten avbrytelser.',
+      hvorfor: 'Fremmer auditiv oppmerksomhet og sosial trygghet i storgruppe.'
+    },
+    {
+      id: `fallback-6-${Date.now()}`,
+      type: 'gjenkalling',
+      tittel: `Fortellerstund: Bildevisning fra dagen`,
+      kilde: 'PLAGG-metoden & Språkløyper',
+      plaggFokus: 'Leseforståelse & Begrepsdybde',
+      hva: 'Barna ser 3-4 utvalgte fotografier tatt under formiddagens økt på storskjerm/nettbrett og rekonstruerer rekkefølgen.',
+      hvordan: 'Voksen stiller tidsspørsmål: "Hva gjorde vi først? Hva skjedde etterpå?".',
+      hvorfor: 'Støtter narrativ kompetanse og tidsrekkefølgeforståelse.'
+    },
+    {
+      id: `fallback-7-${Date.now()}`,
+      type: 'fagdrypp',
+      tittel: `Fag-drypp: Begrepet "kamuflasje"`,
+      kilde: 'Språkløyper (Lesesenteret)',
+      hva: 'Bruk begrepet kamuflasje i garderoben, ved lunsjbordet og på tur.',
+      refleksjon: 'Hvordan kan vi hjelpe barna med å oppdage farger i naturen som skjuler dyr og insekter?'
+    },
+    {
+      id: `fallback-8-${Date.now()}`,
+      type: 'fagdrypp',
+      tittel: `Fag-drypp: Matematiske sammenligninger`,
+      kilde: 'Matematikksenteret',
+      hva: 'Bruk begrepene tykkere, tynnere, tyngre og lettere aktivt i påklednings- og spisesituasjonen.',
+      refleksjon: 'Hvilke hverdagsgjenstander kan vi sammenligne størrelsen på sammen med barna i dag?'
+    }
+  ];
+
+  try {
+    const prompt = `Du er "Den Didaktiske Planleggeren", en spesialisert pedagogisk veileder for en pedagogisk leder i en norsk barnehage.
+Din oppgave er å ta imot et tema og en aldersgruppe, og generere strukturert, forskningsbasert innhold som skal dras direkte inn i barnehagens faste dagsrytme.
+
+BARNEHAGENS RAMMER:
+Barnehagens pedagogiske plattform: "${plattformNavn}"
+Tema: "${tema}"
+Aldersgruppe: "${alder}"
+Inkluderte kilder: ${kildeListe}
+PLAGG-status: ${inkluderPlagg ? 'PLAGG er aktivert (inkluder gjenkallingsøkter med PLAGG-fokus)' : 'PLAGG er deaktivert av bruker'}
+
+KRITISK REGEL OM ARBEIDSBOKEN:
+Ordet og konseptet "Arbeidsbok" er strengt spesifikt for Skoggruppemetoden som pedagogisk plattform.
+${isSkog 
+  ? '- Barnehagen har valgt Skoggruppemetoden: Du KAN inkludere Arbeidsboken i gjenkallingsøkten.' 
+  : '- Barnehagen bruker en annen plattform eller standard: Ordet "Arbeidsbok" er STRENGT FORBUDT i alle forslag! Gjenkalling og refleksjon skal gjøres i samling, felles samtale, visning av sansegjenstander, bildevisning eller frilek – ALDRI i en arbeidsbok.'}
+
+GRUNNLAG FOR DITT INNHOLD:
+Bygg forslagene aktivt på barnehagens pedagogiske plattform og følgende kilder:
+1. Udir (Rammeplanen): For fagområder og formål.
+2. Forskerfrø (Naturfagsenteret): For eksperimenter, natur og friluftsliv.
+3. Språkløyper (Lesesenteret): For strukturert begrepslæring og språkmiljø.
+4. Matematikksenteret: For romforståelse, telling og form i lek.
+5. Voksne for Barn: For vennskap, sosial kompetanse og psykososialt miljø.
+
+FORMAT OG STRUKTUR:
+Generer nøyaktig:
+- 3 Hovedaktiviteter (type: "hoved") for kjernetid (10:00 - 14:00)
+- 3 Gjenkallingsøkter (type: "gjenkalling") for ettermiddag/refleksjon (15:00 - 16:30)
+- 2 Fag-drypp (type: "fagdrypp") for assistenter/barnehagelærere
+
+Returner KUN et gyldig JSON-array med nøyaktig disse 8 objektene. Ingen introduksjon, ingen markdown-forklaring utenom JSON.
+
+Krav til feltene i hvert objekt:
+- id: et unikt tall eller ID-streng
+- type: "hoved" | "gjenkalling" | "fagdrypp"
+- tittel: Kort, fengende navn
+- kilde: Spesifiser hvilken kilde denne bygger på
+
+For HOVEDAKTIVITET (type: "hoved"):
+- hva: Hva skal barna gjøre/observere
+- hvordan: Metode og voksenrolle
+- hvorfor: Pedagogisk begrunnelse knyttet til fagområde i Rammeplanen og barnehagens plattform (${plattformNavn})
+- begrepslaering: 3-4 konkrete ord det skal jobbes med (inspirert av Språkløyper)
+- mestring: Hvordan aktiviteten fremmer læring gjennom mestring og medvirkning
+
+For GJENKALLING (type: "gjenkalling"):
+- plaggFokus: ${inkluderPlagg ? 'Velg ÉN (Oppmerksomhet / Hukommelse / Leseforståelse / Språklig bevisstgjøring / Kontakt)' : 'Refleksjon'}
+- hva: Hva skal barna gjenkalle, samtale om eller bearbeide (HUSK: Ingen arbeidsbok med mindre Skoggruppemetoden er valgt)
+- hvordan: Konkret metode for voksenrollen under økten (samling, sansing, samtale)
+- hvorfor: Pedagogisk begrunnelse for gjenkalling
+
+For FAG-DRYPP (type: "fagdrypp"):
+- hva: Kort, motiverende faglig instruks for assistenter og kolleger
+- refleksjon: 1 konkret refleksjonspørsmål personalet kan stille seg
+
+REGLER:
+1. ALDRI BRUK EMOJIER I NOEN DEL AV TEKSTEN.
+2. Varm, profesjonell, forskningsbasert tone på feilfri norsk bokmål.`;
+
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: "Du er Den Didaktiske Planleggeren for barnehagen. Returner KUN en gyldig JSON-array med nøyaktig 8 forskningsbaserte aktiviteter (3 hoved, 3 gjenkalling, 2 fagdrypp). ALDRI BRUK EMOJIER.",
+        responseMimeType: "application/json",
+        temperature: 0.65
+      }
+    });
+
+    const text = stripAllEmojis(response.text || '').trim();
+    if (text) {
+      const cleanJson = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item, i) => ({
+          id: `gen-${item.id || (i + 1)}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          type: item.type === 'gjenkalling' ? 'gjenkalling' : item.type === 'fagdrypp' ? 'fagdrypp' : 'hoved',
+          tittel: stripAllEmojis(item.tittel || `Aktivitet ${i + 1}`),
+          kilde: stripAllEmojis(item.kilde || 'Rammeplanen'),
+          beskrivelse: stripAllEmojis(item.beskrivelse || item.hva || ''),
+          hva: item.hva ? stripAllEmojis(item.hva) : undefined,
+          hvordan: item.hvordan ? stripAllEmojis(item.hvordan) : undefined,
+          hvorfor: item.hvorfor ? stripAllEmojis(item.hvorfor) : undefined,
+          begrepslaering: item.begrepslaering ? stripAllEmojis(item.begrepslaering) : undefined,
+          mestring: item.mestring ? stripAllEmojis(item.mestring) : undefined,
+          plaggFokus: item.plaggFokus ? stripAllEmojis(item.plaggFokus) : undefined,
+          refleksjon: item.refleksjon ? stripAllEmojis(item.refleksjon) : undefined
+        }));
+      }
+    }
+    return fallbackAktiviteter;
+  } catch (err) {
+    console.warn("Kunne ikke generere aktiviteter via Gemini, bruker forskningsbasert fallback:", err);
+    return fallbackAktiviteter;
+  }
+}
+
+/**
+ * PPT-Veileder: Spesialpedagogisk rådgiver og sparringspartner for pedagogisk leder.
+ * Mottar KUN lokalt vasket tekst der barnets navn er erstattet med [BARNET] via klient-skjoldet.
+ */
+export async function askPPTVeileder(
+  chatHistory: Array<{ role: string; content: string }>,
+  context?: {
+    alder?: string;
+    fokusomraade?: string;
+    tidligereTiltak?: string;
+    vasketObservasjon?: string;
+  }
+): Promise<string> {
+  const alder = context?.alder || '3-5 år';
+  const fokus = context?.fokusomraade || 'Sosioemosjonell utvikling og lek';
+  const tidligere = context?.tidligereTiltak ? `Tidligere utprøvde tiltak: "${context.tidligereTiltak}"` : 'Ingen formelle tiltak er loggført ennå.';
+
+  const systemInstruction = `Du er PPT-Veilederen – en spesialisert spesialpedagogisk rådgiver og sparringspartner for pedagogiske ledere (barnehagelærere) i norske barnehager.
+Din oppgave er å veilede pedlederen i tidlig innsats, tilrettelegging og vurdering av observasjoner rundt et barn.
+
+KRITISK PERSONVERN OG ANONYMITET:
+Teksten du mottar er allerede vasket på brukerens enhet via et lokalt personvernskjold, slik at barnet alltid omtales som "[BARNET]".
+Du skal ALLTID opprettholde denne anonymiteten og konsekvent omtale barnet som "[BARNET]".
+
+DITT FAGLIGE FUNDAMENT:
+- Barnehageloven: § 31 (Rett til spesialpedagogisk hjelp), § 44 (Taushetsplikt), og formålsparagrafen.
+- Rammeplan for barnehagen: Inkluderende fellesskap, tilpasset pedagogisk tilbud, omsorg, lek og livsmestring.
+- Veilederen fra Udir om tidlig innsats og spesialpedagogisk hjelp.
+- Faglige prinsipper fra Statped og PPT: Atferd er kommunikasjon, relasjonelt perspektiv (ikke individforklaring), og miljøtilrettelegging i førskolealder.
+
+KONTEKST:
+Barnets aldersgruppe: ${alder}
+Hovedfokus: ${fokus}
+${tidligere}
+
+STRUKTUR PÅ VEILEDNINGSSVARET DITT:
+Gi et strukturert, faglig solid og varmt svar inndelt i følgende tydelige bolker (unngå overdreven sjargong, bruk ren norsk pedagogisk terminologi):
+
+1. FAGLIG FORSTÅELSE OG HYPOTESE
+- Hva kan ligge til grunn for det som observeres hos [BARNET]? (Sansemotorisk overstimulering, språklig frustrasjon, emosjonell regulering, overganger, lekekoder).
+- Se situasjonen fra [BARNET]s perspektiv: Hva opplever barnet i situasjonen?
+
+2. KONKRETE FØRSTELINJETILTAK PÅ AVDELINGEN (Her og nå)
+- Miljøtilrettelegging: Skjerming, mindre lekegrupper, tilrettelegging i overganger og rutinesituasjoner.
+- Visuell og pedagogisk støtte: Dagsplaner med bilder, tegn-til-tale eller forutsigbarhetskort.
+- Voksenrollen: Proaktiv samregulering, fysisk nærhet, stillasbygging i lek og lavaffektiv tilnærming (Low Arousal).
+
+3. MÅLRETTET VIDERE OBSERVASJON & KARTLEGGING
+- Hva bør pedleder og personalet loggføre systematisk de neste 2-3 ukene? (Triggere, tidspunkter, foranledning/atferd/konsekvens - ABC-observasjon).
+- Aktuelle anerkjente verktøy dersom relevant (f.eks. TRAS, Alle Med, observasjonsskjema).
+
+4. SAMARBEID MED FORELDRENE (Trygg bekymringssamtale)
+- Hvordan kan pedleder ta opp observasjonene i en omsorgsfull, likeverdig og uformell foreldresamtale uten å sykeliggjøre barnet?
+- Konkrete åpningsspørsmål og råd for å bygge tillit.
+
+5. NÅR BØR SAKEN LØFTES TIL PPT?
+- Hvilke tegn tilsier at avdelingens tilrettelegging ikke strekker til, slik at saken bør drøftes anonymt i barnehagens ressursteam / tverrfaglige team eller henvises til PPT for sakkyndig vurdering etter § 31?
+
+REGLER:
+- ALDRI BRUK EMOJIER I TEKSTEN.
+- Hold en støttende, anerkjennende og faglig trygg tone som styrker pedlederens handlingskompetanse.`;
+
+  try {
+    const formattedHistory = chatHistory.map(msg => ({
+      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+      parts: [{ text: stripAllEmojis(msg.content) }],
+    }));
+
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents: formattedHistory,
+      config: {
+        systemInstruction,
+        temperature: 0.65,
+        maxOutputTokens: 3500,
+      },
+    });
+
+    return stripAllEmojis(response.text || '');
+  } catch (error: any) {
+    console.error("Feil i askPPTVeileder:", error);
+    throw new Error(error?.message || "Klarte ikke å opprette kontakt med PPT-Veilederen. Vennligst prøv igjen.");
+  }
+}
+
+export interface StrukturertPPTLogg {
+  situasjonsbeskrivelse: string;
+  observertAtferd: string;
+  pedagogensTiltak: string;
+  barnetsRespons: string;
+  refleksjonssporsmal: string;
+  fullTekst: string;
+}
+
+/**
+ * Objektiviserings-motor for PPT:
+ * Strukturerer anonymiserte notater til formell observasjonslogg klargjort for PPT.
+ * Fjerner synsing og oversetter til observerbar atferd.
+ */
+export async function formatObjektivPPTLogg(
+  vasketTekst: string,
+  kontekst?: { alder?: string; fokusomraade?: string }
+): Promise<StrukturertPPTLogg> {
+  const alder = kontekst?.alder || '3-5 år';
+  const fokus = kontekst?.fokusomraade || 'Observasjon';
+
+  const prompt = `Du er en objektiv, faglig rådgiver for en pedagogisk leder i en barnehage. Din oppgave er å ta imot anonymiserte observasjonsnotater og strukturere dem til en profesjonell logg, klargjort for PPT (Pedagogisk-psykologisk tjeneste).
+
+REGLER FOR DITT SVAR:
+1. Objektivitet: Fjern all synsing, tolkning og følelser (f.eks. "han var slem" eller "hun var lei seg"). Oversett dette utelukkende til observerbar atferd (f.eks. "[BARNET] slo med åpen hånd" eller "[BARNET] gråt og trakk seg unna").
+2. Anonymitet: Du vil motta tekst der navnet er byttet ut med taggen [BARNET]. Du SKAL bruke [BARNET] i din tekst. Du må aldri forsøke å gjette eller dikte opp et navn.
+3. Ingen emojier. Språket skal være formelt, konsist og presist.
+
+STRUKTUR:
+Du SKAL formatere svaret ditt nøyaktig slik:
+
+SITUASJONSBESKRIVELSE: 
+[Kort om rammen: Hva skjedde i forkant, hvor var de, hvem var til stede?]
+
+OBSERVERT ATFERD: 
+[Nøytral, konkret beskrivelse av hva [BARNET] faktisk gjorde/sa]
+
+PEDAGOGENS TILTAK I SITUASJONEN: 
+[Hva gjorde den voksne for å støtte, avverge eller veilede?]
+
+BARNETS RESPONS PÅ TILTAK: 
+[Hvordan reagerte [BARNET] på den voksnes inngripen?]
+
+REFLEKSJONSSPØRSMÅL TIL PEDLEDER:
+[Still ETT kort, analytisk spørsmål for å hjelpe pedlederen med å se mønstre. F.eks: "Skjer dette oftest i ustrukturerte overganger?"]
+
+RAMME:
+Aldersgruppe: ${alder}
+Fokusområde: ${fokus}
+
+OBSERVASJONSNOTAT TIL BEHANDLING:
+${vasketTekst}`;
+
+  try {
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: "Du er en objektiv, faglig rådgiver for en pedagogisk leder i en barnehage. Din oppgave er å ta imot anonymiserte observasjonsnotater og strukturere dem til en profesjonell logg, klargjort for PPT (Pedagogisk-psykologisk tjeneste). Følg reglene for objektivitet, bruk [BARNET] og ALDRI bruk emojier.",
+        temperature: 0.25,
+        maxOutputTokens: 2500,
+      }
+    });
+
+    const fullTekst = stripAllEmojis(response.text || '');
+
+    const sitMatch = fullTekst.match(/SITUASJONSBESKRIVELSE:\s*([\s\S]*?)(?=OBSERVERT ATFERD:|$)/i);
+    const atfMatch = fullTekst.match(/OBSERVERT ATFERD:\s*([\s\S]*?)(?=PEDAGOGENS TILTAK I SITUASJONEN:|$)/i);
+    const tilMatch = fullTekst.match(/PEDAGOGENS TILTAK I SITUASJONEN:\s*([\s\S]*?)(?=BARNETS RESPONS PÅ TILTAK:|$)/i);
+    const resMatch = fullTekst.match(/BARNETS RESPONS PÅ TILTAK:\s*([\s\S]*?)(?=REFLEKSJONSSPØRSMÅL TIL PEDLEDER:|$)/i);
+    const refMatch = fullTekst.match(/REFLEKSJONSSPØRSMÅL TIL PEDLEDER:\s*([\s\S]*?)$/i);
+
+    return {
+      situasjonsbeskrivelse: sitMatch ? sitMatch[1].trim() : '',
+      observertAtferd: atfMatch ? atfMatch[1].trim() : '',
+      pedagogensTiltak: tilMatch ? tilMatch[1].trim() : '',
+      barnetsRespons: resMatch ? resMatch[1].trim() : '',
+      refleksjonssporsmal: refMatch ? refMatch[1].trim() : '',
+      fullTekst
+    };
+  } catch (error: any) {
+    console.error("Feil i formatObjektivPPTLogg:", error);
+    throw new Error(error?.message || "Kunne ikke formatere til objektiv PPT-logg.");
+  }
+}
+
+/**
+ * Sokratisk Samtalementor for pedagogiske ledere:
+ * Forbereder vanskelige samtaler (enten personalsamtaler eller foreldresamtaler).
+ * Følger de 5 reglene: Still spørsmål først, utforsk perspektiv, tilby konkrete verktøy,
+ * tilby rollespill og hold en støttende, ubyråkratisk og tryggende tone uten emojier.
+ */
+export async function askSamtaleMentor(
+  chatHistory: Array<{ role: string; content: string }>,
+  kontekst?: {
+    samtaleType?: 'personalsamtale' | 'foreldresamtale' | 'generell';
+    tema?: string;
+    erRollespillAktivt?: boolean;
+    motpartRolle?: string;
+  }
+): Promise<string> {
+  const samtaleType = kontekst?.samtaleType || 'generell';
+  const tema = kontekst?.tema || '';
+  const erRollespill = kontekst?.erRollespillAktivt || false;
+  const motpart = kontekst?.motpartRolle || 'motpart';
+
+  const systemInstruction = `Du er en erfaren, klok og empatisk mentor for en pedagogisk leder. Din oppgave er å være en sokratisk sparringspartner for å forberede vanskelige samtaler (enten personalsamtaler eller foreldresamtaler).
+
+DINE REGLER FOR SPARRING:
+1. Still spørsmål først: Start alltid med å be pedlederen utdype kjernen i problemet, og hva målet med samtalen er. 
+2. Ikke gi fasiten umiddelbart: Hjelp pedlederen til å reflektere over den andres perspektiv ("Hva tror du er den bakenforliggende årsaken til at forelderen reagerer slik?").
+3. Tilby konkrete verktøy: Når dere har utforsket situasjonen, foreslå 1-2 spesifikke kommunikasjonsteknikker (f.eks. "Jeg-budskap", "Aktiv lytning" eller "Anerkjennelse før korrigering"). Gi et konkret eksempel på en åpningsreplikk.
+4. Rollespill: Tilby deg alltid å rollespille samtalen. Hvis brukeren takker ja, innta rollen som den utfordrende forelderen eller ansatte, og la pedlederen øve seg.
+5. Tone: Støttende, ubyråkratisk og tryggende. Helt fri for emojier.
+
+VIKTIGE TILLEGGSINSTRUKSJONER:
+- ALDRI BRUK EMOJIER I NOEN DEL AV SVARET DITT.
+${erRollespill ? `- ROLLESPILL ER NÅ AKTIVT: Du spiller rollen som [${motpart}]. Vær troverdig, uttrykk motpartens innvendinger, frustrasjoner eller usikkerhet slik det oppleves i en barnehage, men responder naturlig når pedlederen bruker gode samtaletaktikker. Hold deg i rollen til pedlederen ber om pause, evaluering eller råd.` : ''}
+${tema ? `- Kontekst valgt av pedleder: Samtaletypen er ${samtaleType}, tema: "${tema}".` : ''}`;
+
+  try {
+    const formattedHistory = chatHistory.map(msg => ({
+      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
+      parts: [{ text: stripAllEmojis(msg.content) }],
+    }));
+
+    const response = await callGoogleAIProxy({
+      model: "gemini-3.8-flash",
+      contents: formattedHistory,
+      config: {
+        systemInstruction,
+        temperature: 0.65,
+        maxOutputTokens: 3000,
+      },
+    });
+
+    return stripAllEmojis(response.text || '');
+  } catch (error: any) {
+    console.error("Feil i askSamtaleMentor:", error);
+    throw new Error(error?.message || "Klarte ikke å opprette kontakt med samtalementoren akkurat nå.");
   }
 }
 

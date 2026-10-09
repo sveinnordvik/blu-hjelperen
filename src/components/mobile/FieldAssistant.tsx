@@ -240,21 +240,26 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     }
   };
 
-  const handleClearChat = async () => {
-    if (window.confirm('Vil du starte en ny samtale med Feltveilederen?')) {
-      const reset: ChatMessage[] = [
-        {
-          id: `msg-${Date.now()}`,
-          role: 'assistant',
-          content: 'Hei igjen! Hva lurer du på i praksishverdagen din i dag?',
-          timestamp: new Date().toISOString()
-        }
-      ];
-      setMessages(reset);
-      localStorage.setItem('blu_field_assistant_chat', JSON.stringify(reset));
-      await saveChatToFirebase(reset);
-      showToast('Samtalen er tilbakestilt.');
-    }
+  const handleStartNySamtale = async () => {
+    const reset: ChatMessage[] = [
+      {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: 'Hei igjen! Hva lurer du på i praksishverdagen din i dag?',
+        timestamp: new Date().toISOString()
+      }
+    ];
+    setMessages(reset);
+    localStorage.setItem('blu_field_assistant_chat', JSON.stringify(reset));
+    await saveChatToFirebase(reset);
+    showToast('✨ Ny samtale startet.');
+  };
+
+  const handleSlettChat = async () => {
+    setMessages([]);
+    localStorage.removeItem('blu_field_assistant_chat');
+    await saveChatToFirebase([]);
+    showToast('🗑️ Chatten ble slettet.');
   };
 
   const handleSaveToKladdebok = async (msg: ChatMessage) => {
@@ -462,14 +467,24 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={handleClearChat}
-              className="py-1.5 px-3 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Tøm og start ny samtale"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Ny samtale</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleStartNySamtale}
+                className="py-1.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Start ny samtale"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Ny samtale</span>
+              </button>
+              <button
+                onClick={handleSlettChat}
+                className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Slett samtale-historikken"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Slett chat</span>
+              </button>
+            </div>
           </div>
 
           {/* Meldinger */}
@@ -611,13 +626,22 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
               Rammeplan, didaktikk og teori i lomma.
             </p>
           </div>
-          <button
-            onClick={handleClearChat}
-            title="Tøm samtale"
-            className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleStartNySamtale}
+              title="Start ny samtale"
+              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleSlettChat}
+              title="Slett samtale"
+              className="p-2 bg-rose-500/30 hover:bg-rose-500/50 text-white rounded-xl transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Suggestion Chips */}

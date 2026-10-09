@@ -2851,7 +2851,7 @@ ${activeDoc.content}`;
                       </div>
                     ) : (
                       getCurrentOutline().map((sec, idx) => (
-                        <div key={sec.id || idx} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 transition-all">
+                        <div key={`outline-sec-${sec.id || 'sec'}-${idx}`} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2 transition-all">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
                               <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
@@ -3081,7 +3081,7 @@ ${activeDoc.content}`;
                     ) : (
                       <div className="space-y-1.5 py-1">
                         {getCurrentOutline().map((ch, idx) => (
-                          <div key={ch.id || idx} className="space-y-1">
+                          <div key={`outline-toc-ch-${ch.id || 'ch'}-${idx}`} className="space-y-1">
                             {/* Hovedkapittel (Nivå 1 - Fet, tydelig markert) */}
                             <div className="flex items-baseline justify-between text-xs font-bold text-slate-900 pt-1.5">
                               <span className="flex-shrink-0">{idx + 1}. {ch.title}</span>

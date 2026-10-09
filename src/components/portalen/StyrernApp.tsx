@@ -563,7 +563,7 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
                 const isActive = activeTab === item.id;
                 return (
                   <button
-                    key={item.id}
+                    key={`nav-xl-${item.id}`}
                     onClick={() => setActiveTab(item.id)}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                       isActive 
@@ -611,7 +611,7 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
             const isActive = activeTab === item.id;
             return (
               <button
-                key={item.id}
+                key={`nav-mob-${item.id}`}
                 onClick={() => setActiveTab(item.id)}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-semibold whitespace-nowrap transition-all ${
                   isActive ? 'bg-indigo-600 text-white shadow' : 'text-indigo-200 hover:bg-[#2e2a5f]'

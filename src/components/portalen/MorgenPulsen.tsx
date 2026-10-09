@@ -1,160 +1,282 @@
 import React, { useState } from 'react';
 import { 
-  Activity, 
-  RefreshCw, 
-  Smartphone, 
-  CheckCircle2, 
-  Clock, 
+  Sunrise, 
   Users, 
-  Baby 
+  UserCheck, 
+  Plus, 
+  Minus, 
+  Send, 
+  CheckCircle2, 
+  MessageSquare,
+  Building,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
-interface BasePuls {
-  id: number;
-  base: string;
-  status: 'Mottatt' | 'Venter';
-  tid: string | null;
-  barn: number | null;
-  voksne: number | null;
-}
-
 interface MorgenPulsenProps {
-  onDataUpdated?: (totalBarn: number, totalVoksne: number) => void;
+  embedded?: boolean;
+  defaultBase?: string;
+  onSendSuccess?: (payload: {
+    avdeling: string;
+    antallBarn: number;
+    antallVoksne: number;
+    kommentar: string;
+    tidspunkt: string;
+  }) => void;
 }
 
-const MorgenPulsen: React.FC<MorgenPulsenProps> = ({ onDataUpdated }) => {
-  // STATE: Status for innhenting av data fra avdelingene
-  const [pulsData, setPulsData] = useState<BasePuls[]>([
-    { id: 1, base: 'Trollstua', status: 'Mottatt', tid: '08:15', barn: 9, voksne: 3 },
-    { id: 2, base: 'Multemyra', status: 'Mottatt', tid: '08:22', barn: 10, voksne: 2 },
-    { id: 3, base: 'Klatremus', status: 'Venter', tid: null, barn: null, voksne: null },
-    { id: 4, base: 'Bjørnehiet', status: 'Venter', tid: null, barn: null, voksne: null },
-  ]);
+const AVDELINGER = [
+  { id: 'blaabaertua', navn: 'Blåbærtua (3-6 år)', base: 'Blåbærtua' },
+  { id: 'klatremus', navn: 'Klatremus (3-6 år)', base: 'Klatremus' },
+  { id: 'bjoernehiet', navn: 'Bjørnehiet (3-6 år)', base: 'Bjørnehiet' },
+  { id: 'trollstua', navn: 'Trollstua (0-3 år)', base: 'Trollstua' },
+  { id: 'multemyra', navn: 'Multemyra (0-3 år)', base: 'Multemyra' }
+];
 
-  const [simulerer, setSimulerer] = useState(false);
+export default function MorgenPulsen({ 
+  embedded = false, 
+  defaultBase = 'Blåbærtua', 
+  onSendSuccess 
+}: MorgenPulsenProps) {
+  const [valgtAvdeling, setValgtAvdeling] = useState(defaultBase);
+  const [antallBarn, setAntallBarn] = useState(12); // Standardverdi basert på historikk
+  const [antallVoksne, setAntallVoksne] = useState(3); // Standard for en vanlig base
+  const [kommentar, setKommentar] = useState('');
+  const [erSendt, setErSendt] = useState(false);
+  const [sisteInnsending, setSisteInnsending] = useState<{ tid: string; barn: number; voksne: number } | null>(() => {
+    const saved = localStorage.getItem('morgenpulsen_siste_innsending');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          tid: parsed.tidspunkt,
+          barn: parsed.antallBarn,
+          voksne: parsed.antallVoksne
+        };
+      } catch {}
+    }
+    return null;
+  });
 
-  // FUNKSJON: Simulerer at de to siste avdelingene sender inn sine tall
-  const simulerMottak = () => {
-    setSimulerer(true);
+  const handleSend = () => {
+    // Data-pakken som sendes til Styrerens Bemanningsradar:
+    const payload = {
+      avdeling: valgtAvdeling,
+      antallBarn,
+      antallVoksne,
+      kommentar,
+      tidspunkt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    };
     
-    // Simulerer Klatremus (etter 1.2 sek)
-    setTimeout(() => {
-      setPulsData(prev => prev.map(base => 
-        base.id === 3 ? { ...base, status: 'Mottatt' as const, tid: '08:42', barn: 17, voksne: 3 } : base
-      ));
-    }, 1200);
+    console.log("Sender til Bemanningsradar:", payload);
 
-    // Simulerer Bjørnehiet (etter 2.5 sek)
-    setTimeout(() => {
-      setPulsData(prev => {
-        const oppdatert = prev.map(base => 
-          base.id === 4 ? { ...base, status: 'Mottatt' as const, tid: '08:45', barn: 12, voksne: 2 } : base
-        );
-        if (onDataUpdated) {
-          const totalBarn = oppdatert.reduce((sum, b) => sum + (b.barn || 0), 0);
-          const totalVoksne = oppdatert.reduce((sum, b) => sum + (b.voksne || 0), 0);
-          onDataUpdated(totalBarn, totalVoksne);
-        }
-        return oppdatert;
-      });
-      setSimulerer(false);
-    }, 2500);
+    // Lagre i localStorage slik at Styrern og MorgenPulsRadar synkroniseres
+    try {
+      localStorage.setItem('morgenpulsen_siste_innsending', JSON.stringify(payload));
+      
+      // Oppdater baseliste i Bemanningsradaren dersom navnet matcher
+      const savedBaser = localStorage.getItem('styrern_radar_baser');
+      if (savedBaser) {
+        const baser = JSON.parse(savedBaser);
+        const oppdatert = baser.map((b: any) => {
+          if (b.navn.toLowerCase() === valgtAvdeling.toLowerCase()) {
+            return {
+              ...b,
+              barnTilStede: antallBarn,
+              voksneTilStede: antallVoksne
+            };
+          }
+          return b;
+        });
+        localStorage.setItem('styrern_radar_baser', JSON.stringify(oppdatert));
+      }
+
+      // Send et vindusevent så aktive lyttere oppdateres direkte
+      window.dispatchEvent(new CustomEvent('morgenpuls-oppdatert', { detail: payload }));
+    } catch (e) {
+      console.error("Kunne ikke lagre morgenpuls:", e);
+    }
+
+    setSisteInnsending({
+      tid: payload.tidspunkt,
+      barn: payload.antallBarn,
+      voksne: payload.antallVoksne
+    });
+    setErSendt(true);
+
+    if (onSendSuccess) {
+      onSendSuccess(payload);
+    }
+    
+    // Tilbakestiller knappen etter 3 sekunder
+    setTimeout(() => setErSendt(false), 3000);
   };
 
-  const alleMottatt = pulsData.every(base => base.status === 'Mottatt');
+  // Beregn voksentetthet (barn per voksen)
+  const ratio = antallVoksne > 0 ? (antallBarn / antallVoksne).toFixed(1) : '-';
+  const normStatus = antallVoksne > 0 && (antallBarn / antallVoksne) <= 6;
 
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-      
-      {/* HEADER */}
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-[#1e1b4b] text-white">
-        <div className="flex items-center space-x-3">
-          <div className="bg-indigo-500/30 p-2 rounded-lg">
-            <Activity size={20} className="text-indigo-200" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Morgen-pulsen</h3>
-            <p className="text-xs text-indigo-200 font-medium">Automatisk datainnhenting fra avdelingene</p>
-          </div>
+  const content = (
+    <div className="max-w-md w-full">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4 shadow-sm ring-4 ring-amber-50">
+          <Sunrise className="text-amber-500 w-8 h-8" />
         </div>
+        <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Morgen-pulsen</h1>
+        <p className="text-slate-500 text-sm max-w-sm mx-auto">
+          Registrer status på avdelingen. Oppdaterer automatisk Styrerens bemanningsradar.
+        </p>
+      </div>
+
+      {/* Hovedkort */}
+      <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden">
         
-        <button 
-          onClick={simulerMottak}
-          disabled={simulerer || alleMottatt}
-          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm border border-indigo-400/30 cursor-pointer"
-        >
-          <RefreshCw size={14} className={simulerer ? "animate-spin" : ""} />
-          <span>{alleMottatt ? 'Oppdatert' : 'Hent data'}</span>
-        </button>
-      </div>
-
-      {/* LIVE FEED-LISTE */}
-      <div className="p-4 bg-slate-50 flex-1">
-        <div className="space-y-3">
-          {pulsData.map((base) => (
-            <div 
-              key={base.id} 
-              className={`flex items-center justify-between p-3.5 rounded-xl border transition-all duration-500 ${
-                base.status === 'Mottatt' 
-                  ? 'bg-white border-emerald-200 shadow-sm' 
-                  : 'bg-white/50 border-slate-200 border-dashed opacity-70'
-              }`}
+        {/* Avdelingsvelger */}
+        <div className="mb-6 pb-6 border-b border-slate-100">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-center gap-1.5">
+            <Building className="w-3.5 h-3.5" /> Velg din avdeling / base
+          </label>
+          <div className="relative">
+            <select
+              value={valgtAvdeling}
+              onChange={(e) => setValgtAvdeling(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm font-bold rounded-xl py-2.5 px-3.5 appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition cursor-pointer text-center"
             >
-              
-              {/* Avdelingsnavn og status-ikon */}
-              <div className="flex items-center space-x-3 w-1/3">
-                {base.status === 'Mottatt' ? (
-                  <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
-                ) : (
-                  <Clock size={18} className="text-slate-400 shrink-0" />
-                )}
-                <span className={`font-bold ${base.status === 'Mottatt' ? 'text-slate-800' : 'text-slate-500'}`}>
-                  {base.base}
-                </span>
-              </div>
+              {AVDELINGER.map(avd => (
+                <option key={avd.id} value={avd.base}>
+                  {avd.navn}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-              {/* Data eller Venter-tekst */}
-              <div className="flex-1 flex items-center justify-end">
-                {base.status === 'Mottatt' ? (
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-1.5 bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-sm font-bold border border-blue-100" title="Antall barn tilstede">
-                      <Baby size={14} />
-                      <span>{base.barn} barn</span>
-                    </div>
-                    <div className="flex items-center space-x-1.5 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-sm font-bold border border-emerald-100" title="Antall voksne på jobb">
-                      <Users size={14} />
-                      <span>{base.voksne} voksne</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-xs text-slate-400 font-medium ml-2 w-16" title="Tidspunkt rapportert">
-                      <Smartphone size={12} />
-                      <span>{base.tid}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 text-sm text-slate-400 italic">
-                    <Activity size={14} className="animate-pulse" />
-                    <span>Venter på inntasting...</span>
-                  </div>
-                )}
-              </div>
-
+        {/* Barn-teller */}
+        <div className="mb-8 border-b border-slate-100 pb-8">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-center gap-2">
+            <Users className="w-4 h-4 text-blue-500" /> Barn til stede
+          </h2>
+          <div className="flex items-center justify-center gap-6">
+            <button 
+              onClick={() => setAntallBarn(prev => Math.max(0, prev - 1))}
+              className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all cursor-pointer shadow-sm"
+              aria-label="Reduser antall barn"
+            >
+              <Minus className="w-6 h-6" />
+            </button>
+            <div className="w-24 text-center text-6xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {antallBarn}
             </div>
-          ))}
+            <button 
+              onClick={() => setAntallBarn(prev => prev + 1)}
+              className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all cursor-pointer shadow-sm"
+              aria-label="Øk antall barn"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </div>
         </div>
+
+        {/* Voksne-teller */}
+        <div className="mb-8 border-b border-slate-100 pb-8">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center justify-center gap-2">
+            <UserCheck className="w-4 h-4 text-emerald-500" /> Voksne på jobb
+          </h2>
+          <div className="flex items-center justify-center gap-6">
+            <button 
+              onClick={() => setAntallVoksne(prev => Math.max(0, prev - 1))}
+              className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all cursor-pointer shadow-sm"
+              aria-label="Reduser antall voksne"
+            >
+              <Minus className="w-6 h-6" />
+            </button>
+            <div className="w-24 text-center text-6xl font-bold text-slate-900 tabular-nums tracking-tight">
+              {antallVoksne}
+            </div>
+            <button 
+              onClick={() => setAntallVoksne(prev => prev + 1)}
+              className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-95 transition-all cursor-pointer shadow-sm"
+              aria-label="Øk antall voksne"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </div>
+
+          {/* Sanntids bemanningsnorm-indikasjon */}
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold inline-flex items-center gap-1 ${
+              normStatus 
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`}>
+              <Sparkles className="w-3 h-3" />
+              {ratio} barn per voksen
+            </span>
+          </div>
+        </div>
+
+        {/* Kommentar */}
+        <div className="mb-8">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5" /> Kommentar (valgfritt)
+          </label>
+          <textarea
+            value={kommentar}
+            onChange={(e) => setKommentar(e.target.value)}
+            placeholder="F.eks. 1 barn sover, vikar på plass fra kl 10, turdag..."
+            rows={2}
+            className="w-full p-3.5 bg-slate-50 rounded-2xl border border-slate-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm text-slate-800 transition resize-none placeholder:text-slate-400"
+          />
+        </div>
+
+        {/* Send-knapp */}
+        <button
+          onClick={handleSend}
+          disabled={erSendt}
+          className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2.5 transition-all duration-200 shadow-lg cursor-pointer ${
+            erSendt
+              ? 'bg-emerald-600 text-white shadow-emerald-500/25 scale-[0.99]'
+              : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/15 active:scale-[0.98]'
+          }`}
+        >
+          {erSendt ? (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+              <span>Sendt til Bemanningsradar!</span>
+            </>
+          ) : (
+            <>
+              <Send className="w-5 h-5" />
+              <span>Send inn morgen-puls</span>
+            </>
+          )}
+        </button>
+
+        {/* Status forrige innsending */}
+        {sisteInnsending && (
+          <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+            <span className="text-[11px] text-slate-400">
+              Sist rapportert kl. {sisteInnsending.tid} ({sisteInnsending.barn} barn, {sisteInnsending.voksne} voksne)
+            </span>
+          </div>
+        )}
+
       </div>
-
-      {/* FOOTER-STATUS */}
-      {alleMottatt && (
-        <div className="bg-emerald-50 p-3 text-center border-t border-emerald-100 animate-in slide-in-from-bottom-2 fade-in duration-300">
-          <span className="text-sm font-bold text-emerald-700 flex items-center justify-center space-x-1.5">
-            <CheckCircle2 size={16} />
-            <span>Alle avdelinger har rapportert inn for dagen. Bemanningsradaren er oppdatert!</span>
-          </span>
-        </div>
-      )}
-
     </div>
   );
-};
 
-export default MorgenPulsen;
+  if (embedded) {
+    return (
+      <div className="w-full flex justify-center py-2">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-12 font-sans text-slate-800">
+      {content}
+    </div>
+  );
+}

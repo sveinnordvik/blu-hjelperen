@@ -6,7 +6,11 @@ import {
   Sparkles,
   ShieldCheck,
   Users,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Trash2,
+  CheckCircle2,
+  MessageSquare
 } from 'lucide-react';
 
 interface Melding {
@@ -81,6 +85,7 @@ Dersom dette berører tariffavtaler (f.eks. PBL eller KS) eller endring i ansett
 
 const StyrerAI: React.FC = () => {
   const [input, setInput] = useState('');
+  const [toastFeedback, setToastFeedback] = useState<string | null>(null);
   const [meldinger, setMeldinger] = useState<Melding[]>([
     { 
       id: 1, 
@@ -88,6 +93,29 @@ const StyrerAI: React.FC = () => {
       tekst: 'Hei, Karoline! Jeg er din digitale sparringspartner for barnehageledelse, personalhåndtering og lovverk. Hvordan kan jeg hjelpe deg med å fjerne tidstyver eller løse et dilemma i dag?' 
     }
   ]);
+
+  const visToast = (msg: string) => {
+    setToastFeedback(msg);
+    setTimeout(() => setToastFeedback(null), 3000);
+  };
+
+  const handleStartNySparring = () => {
+    setMeldinger([
+      {
+        id: Date.now(),
+        avsender: 'ai',
+        tekst: 'Hei, Karoline! Ny sparringsøkt startet. Hvilket administrativt, juridisk eller personalmessig tema vil du at vi skal se på sammen?'
+      }
+    ]);
+    setInput('');
+    visToast('✨ Ny sparringsøkt startet!');
+  };
+
+  const handleSlettChat = () => {
+    setMeldinger([]);
+    setInput('');
+    visToast('🗑️ Chatten ble slettet.');
+  };
 
   // Hurtigvalg for vanlige problemstillinger
   const forslag = [
@@ -116,8 +144,16 @@ const StyrerAI: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[800px] max-h-[85vh] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="flex flex-col h-[800px] max-h-[85vh] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
       
+      {/* Toast-varsel */}
+      {toastFeedback && (
+        <div className="absolute top-4 right-4 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs font-bold animate-fade-in border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastFeedback}</span>
+        </div>
+      )}
+
       {/* HEADER */}
       <div className="bg-[#1e1b4b] p-6 text-white flex items-center justify-between shadow-md z-10">
         <div className="flex items-center space-x-4">
@@ -132,11 +168,53 @@ const StyrerAI: React.FC = () => {
             <p className="text-indigo-200 text-sm">Din juridiske og administrative sparringspartner</p>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleStartNySparring}
+            className="text-xs font-bold text-indigo-100 hover:text-white bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 rounded-xl transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Start en ny sparring"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-300" />
+            <span>Start ny sparring</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleSlettChat}
+            className="text-xs font-bold text-rose-300 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 px-3 py-1.5 rounded-xl transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Slett chat-historikken"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>Slett chat</span>
+          </button>
+        </div>
       </div>
 
       {/* CHAT-OMRÅDET */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
-        {meldinger.map((msg) => (
+        {meldinger.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4 animate-fade-in my-auto">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+              <MessageSquare className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-slate-800">Chatten er slettet</h3>
+              <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                Samtalen er tømt. Klikk under for å starte en ny sparringsøkt med Styrer AI.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartNySparring}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Start ny sparring nå</span>
+            </button>
+          </div>
+        ) : (
+          meldinger.map((msg) => (
           <div key={msg.id} className={`flex ${msg.avsender === 'bruker' ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex max-w-[85%] ${msg.avsender === 'bruker' ? 'flex-row-reverse' : 'flex-row'}`}>
               
@@ -159,7 +237,7 @@ const StyrerAI: React.FC = () => {
               </div>
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* INPUT-OMRÅDET */}

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#065f46" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Bakgrunn med myke hjørner -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Subtil lyssirkel -->
+  <circle cx="256" cy="220" r="160" fill="#ffffff" fill-opacity="0.05" />
+
+  <!-- Hovedemblem (Kamera & spire / bok) -->
+  <g filter="url(#shadow)" transform="translate(106, 96)">
+    <!-- Ytre ramme -->
+    <rect x="0" y="30" width="300" height="210" rx="40" fill="#ffffff" />
+    
+    <!-- Linse / kikkert -->
+    <circle cx="150" cy="135" r="64" fill="#064e3b" />
+    <circle cx="150" cy="135" r="48" fill="#047857" />
+    <circle cx="150" cy="135" r="28" fill="#10b981" />
+    <circle cx="138" cy="123" r="10" fill="#ffffff" fill-opacity="0.8" />
+    
+    <!-- Søker / blits -->
+    <circle cx="240" cy="75" r="14" fill="url(#goldGrad)" />
+    
+    <!-- Spire / pedagogisk vekst -->
+    <path d="M150 0 C150 0 170 20 170 34 C170 44 162 50 150 50 C138 50 130 44 130 34 C130 20 150 0 150 0 Z" fill="url(#goldGrad)" />
+  </g>
+
+  <!-- Tekstbranding -->
+  <text x="256" y="390" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="44" fill="#ffffff" letter-spacing="1">Pedleder'n</text>
+  <text x="256" y="430" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="20" fill="#a7f3d0" letter-spacing="3">FAGPORTAL</text>
+</svg>

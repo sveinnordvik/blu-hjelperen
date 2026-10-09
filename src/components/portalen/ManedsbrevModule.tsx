@@ -40,7 +40,9 @@ import {
   Sun,
   Trees,
   ShieldCheck,
-  Award
+  Award,
+  Camera,
+  ChevronDown
 } from 'lucide-react';
 import { callGoogleAIProxy } from '../../services/geminiService';
 import { DailyGlimpse } from './DagensBildeModule';
@@ -226,101 +228,105 @@ const compressImage = (dataUrl: string, maxDim = 900, quality = 0.72): Promise<s
   });
 };
 
-// Gullstandarden - Standard initialdata basert på Friluftsbarnehage (Standard pedagogisk plattform)
-const GOLD_STANDARD_MARS_DATA: MonthlyLetterData = {
-  id: 'letter-mars-2026',
+// Gullstandarden - Standard initialdata for Månedsbrev direkte speilet fra Dagens Bilde (Oktober)
+const GOLD_STANDARD_OKTOBER_DATA: MonthlyLetterData = {
+  id: 'letter-oktober-2026',
   baseName: 'Blåbærtua (3-6 år)',
-  month: 'Mars',
+  month: 'Oktober',
   year: '2026',
-  coverTitle: 'Månedsbrev, mars',
+  coverTitle: 'Månedsbrev, oktober',
   coverSubtitle: 'Furutoppen Friluftsbarnehage • Blåbærtua',
-  coverIntro: 'Sola varmer, snøen smelter og naturen våkner! Mars har vært en utrolig innholdsrik måned i barnehagen, preget av at vi endelig går lysere og varmere tider i møte. Som friluftsbarnehage har vi brukt naturens oppvåkning og det varierte terrenget som vår aller beste lekeplass. Her er hverdagsglimtene fra måneden som har gått, et dypdykk i tålmodighet, og planene våre for april.',
-  coverImage: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=1200&q=80',
-  coverImageCaption: 'Vårstemning og friluftsliv på uteområdet',
+  coverIntro: 'Høsten har meldt sin ankomst med knitrende løv, frisk skogsluft og spennende hverdagsøyeblikk i barnehagen! Som friluftsbarnehage har vi brukt høstskogen og det varierte terrenget som vår aller beste leke- og læringsarena. Her er de utvalgte hverdagsglimtene fra måneden som har gått – fra trehyttebygging og duften av nystekt eplekake, til samarbeid på tre-dissa og fargerike kunstuttrykk på store ark.',
+  coverImage: 'https://images.unsplash.com/photo-1507371341162-763b5e419408?auto=format&fit=crop&w=1200&q=80',
+  coverImageCaption: 'Høststemning og friluftsliv på uteområdet i Eventyrskogen',
   glimpses: [
     {
       id: 'glimpse-1',
-      title: 'Oj, hva har skjedd på uteområdet i dag?',
-      description: 'Da vi kom ut i formiddag, var plassen foran gapahuken forvandlet til et gedigent «svømmebasseng»! Bekken hadde gått over sine bredder i vårløsninga og laget en helt ny vannvei tvers over lekeområdet. Dette ble naturligvis møtt med massiv begeistring – barna var raskt på plass med støvler midt i vannet. Det ble plasket, stampet, utforsket og undret. I et slikt herlig kaos skjer de virkelige sanseerfaringene!',
-      reflectionQuestion: 'Hvorfor tror dere det plutselig ble så innmari mye vann i bekken akkurat i dag?',
-      academicAnchor: 'Som friluftsbarnehage vektlegger vi autentiske opplevelser i barnas naturlige miljø. Dette er direkte forankret i Rammeplanens fagområde Natur, miljø og teknologi samt Kropp, bevegelse, mat og helse. Naturen er uforutsigbar, og byr på sansemotoriske utfordringer som stimulerer barnets helhetlige utvikling.',
-      imageUrl: 'https://images.unsplash.com/photo-1516214104703-d870798883c5?auto=format&fit=crop&w=800&q=80',
-      imageTag: 'Natur, miljø og teknologi',
-      imageCaption: 'Bekken forvandles til lekearena',
+      title: 'Se hva vi snekret i dag! 🪵🌲',
+      description: 'I dag har vi forvandlet skogkanten til vår egen lille hytte! Barna samarbeidet om å bære store pinner, sortere pinner etter lengde og kjenne på den ru barken. Full jubel da taket endelig holdt seg oppe på egen hånd! Slike felles byggeprosjekter gir barna en enorm mestringsfølelse i ulendt terreng.',
+      reflectionQuestion: 'Hvordan klarte dere å få taket på trehytta til å stå støtt uten at det falt ned?',
+      academicAnchor: 'Direkte forankret i Rammeplanens fagområde Natur, miljø og teknologi samt Kropp, bevegelse, mat og helse. Barna erfarer fysiske prinsipper som likevekt, friksjon og tyngdekraft gjennom autentiske erfaringer i naturen.',
+      imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=800&q=80',
+      imageTag: 'Natur & utelek',
+      imageCaption: 'Trehyttebygging og felles mestring i skogen',
       layoutVariant: 'image-left',
       imagePrivacyProtected: true
     },
     {
       id: 'glimpse-2',
-      title: 'Tunge spadetak og demningsbygging',
-      description: 'I dag var det endelig mulig å sette en spade i sandkassa igjen etter en lang frostperiode. Fra det første tunge spadetaket til den største demningen var et faktum, så vi et fantastisk samarbeid mellom barna. Det graves dype grøfter, og bøtter og trillebårer fylles til randen med vann. Det bæres, det tømmes strategisk, og når vannet uunngåelig bryter gjennom veggen, må demningen raskt utbedres og utvides.',
-      reflectionQuestion: 'Hvorfor måtte vi bære så mange bøtter med vann for å få demningen til å virke?',
-      academicAnchor: 'Slike felles problemløsningsprosjekter trener Antall, rom og form (Rammeplanen) i praksis. I tråd med vår pedagogiske plattform skjer læring i sosial samhandling; barna løser utfordringer i fellesskap før de internaliserer kunnskapen og klarer det alene.',
-      imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=800&q=80',
-      imageTag: 'Antall, rom og form',
-      imageCaption: 'Samarbeid om demningsbygging',
+      title: 'Mmm... lukten av nystekt eplekake! 🍎🥧',
+      description: 'Det har luktet himmelsk på basen i formiddag! Barna har kuttet epler med epledeler, smakt på kanel og rørt i bollen. Mestringsglede på høyt nivå! Å lage mat sammen fra bunnen gir barna stolthet over egne ferdigheter og styrker fellesskapet rundt måltidet.',
+      reflectionQuestion: 'Hvilken hemmelig ingrediens var det som gjorde at eplekaka luktet så utrolig godt?',
+      academicAnchor: 'Forankret i Rammeplanens fagområde Kropp, bevegelse, mat og helse samt Antall, rom og form. Barna deltar i matlaging, utforsker måleenheter og sanser, og opplever gleden ved å skape noe alle kan dele.',
+      imageUrl: 'https://images.unsplash.com/photo-1568571780765-9276ac8b75a2?auto=format&fit=crop&w=800&q=80',
+      imageTag: 'Mat & helse',
+      imageCaption: 'Nystekt eplekake bakt med epler fra hagen',
       layoutVariant: 'image-right',
       imagePrivacyProtected: true
     },
     {
       id: 'glimpse-3',
-      title: 'Bakover – bakover – bakoveeeeeeer… fart i lufta!',
-      description: 'På samarbeidsdissa i skogkanten er det ikke bare fart og kiling i magen som står i fokus – her kreves det hardt arbeid og samarbeid! For å få opp farten må barna snakke sammen, bli enige og kjenne etter rytmen: Hvor langt bak skal vi trekke før vi er klare til å rope «go»? Når timingen endelig sitter, blir det full fart fremover, og følelsen av å nesten fly fyller skogen med latter.',
-      reflectionQuestion: 'Er det lettest å få god fart på dissa helt alene, eller når vi samarbeider om å ta sats?',
-      academicAnchor: 'Leken fremmer grovmotorikk, balanse og koordinasjon (Kropp, bevegelse, mat og helse). Samtidig trener barna avansert sosial kompetanse, ettersom friluftspedagogikken bygger på at fysisk samspill utvikler evnen til å lytte og samarbeide.',
+      title: 'Bakover – bakover – fart i skogs-dissa!',
+      description: 'På den store samarbeidsdissa i skogkanten krevdes det skikkelig samarbeid i dag! For å få god fart måtte barna snakke sammen, bli enige og kjenne etter rytmen: Hvor langt bak skal vi trekke før vi er klare til å rope «go»? Latteren runget da de fant flyten og kjente suget i magen sammen.',
+      reflectionQuestion: 'Er det lettest å få god fart på dissa alene, eller når alle hjelper til med å dytte og holde takten?',
+      academicAnchor: 'Forankret i Kropp, bevegelse, mat og helse samt sosial kompetanse. Friluftspedagogikken bygger på at fysisk samspill og risikomestring i naturen utvikler evnen til empati, turtaking og gjensidig tillit.',
       imageUrl: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=800&q=80',
-      imageTag: 'Kropp, bevegelse og helse',
-      imageCaption: 'Samarbeid på den store disse-stokken',
+      imageTag: 'Samspill & lek',
+      imageCaption: 'Samarbeid på tre-dissa i skogen',
       layoutVariant: 'hero-top',
       imagePrivacyProtected: true
     },
     {
       id: 'glimpse-4',
-      title: 'Er våren virkelig på vei nå?',
-      description: 'Selv om det fortsatt er litt kjølig i skyggepartiene, begynner vi å ane at våren nærmer seg. I dag har vi hatt hendene dypt i jorda og sådd små tomatfrø. Barna har fylt potter, vannet forsiktig og satt dem lyst til spiring. Nå venter vi spent på hvor lang tid det tar før de første små, grønne spirene titter opp.',
-      reflectionQuestion: 'Hva trenger det lille frøet vårt for at det skal klare å vokse seg til en stor plante?',
-      academicAnchor: 'Gjennom vår friluftsprofil og fokus på konkret erfaring får barna dypere forståelse for livssykluser, noe som oppfyller Rammeplanens mål for Natur, miljø og teknologi. De voksne fungerer som med-undrere som stimulerer nysgjerrigheten.',
-      imageUrl: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80',
-      imageTag: 'Natur, miljø og teknologi',
-      imageCaption: 'Frø og spiring i jorda',
+      title: 'Fargerike høstblader & malespor',
+      description: 'Vi samlet de fineste høstbladene i skogen og tok dem med inn. Med fingrene fulle av gul, rød og oransje maling trykket barna vakre spor på store ark. Det oppstod spennende samtaler om hvorfor bladene skifter farge når kulda kommer.',
+      reflectionQuestion: 'Hva skjedde da vi blandet den gule og den røde malingen sammen med bladene?',
+      academicAnchor: 'Forankret i Rammeplanens fagområde Kunst, kultur og kreativitet samt Natur, miljø og teknologi. Barna utforsker estetiske uttrykksformer med naturens egne materialer som utgangspunkt.',
+      imageUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=800&q=80',
+      imageTag: 'Kunst & kreativitet',
+      imageCaption: 'Høstblader og fingermaling på store ark',
       layoutVariant: 'text-focus',
       imagePrivacyProtected: true
     }
   ],
-  pedagogicalReviewTitle: 'Naturforståelse, samspill og magien i å undre seg',
-  pedagogicalReviewText: `Gjennom hverdagsglimtene fra mars ser vi en tydelig rød tråd: samarbeid, undring og mestring i naturen. Vi har gått fra snødekte skoger til å studere knopper og insekter i vårsola. Barns nysgjerrighet og initiativ har stått i sentrum. Enten det var å bygge den perfekte demningen, justere tyngdepunktet på samarbeidsdissa, eller undre seg over små spirer, har vi sett hvordan naturens udefinerte rammer stimulerer til kreativ problemløsning og språk.
+  pedagogicalReviewTitle: 'Samarbeid, sanser og skaperglede i høstskogen',
+  pedagogicalReviewText: `Gjennom hverdagsglimtene fra oktober ser vi en tydelig rød tråd: Samarbeid, sansing og mestring i og med naturen. Enten barna har løftet greiner til trehytta, delt opp epler til felles eplekake, funnet rytmen på skogsdissa eller trykket høstblader på papir, har det sosiale samspillet og nysgjerrigheten stått i sentrum.
 
 I tråd med barnehagens pedagogiske plattform er vi opptatt av at læring skjer best når barna er aktive med noe som interesserer dem i samspill med andre. Barna har utviklet en sterk fellesskapsfølelse hvor de unner hverandre suksess; de har erfart at når fellesskapet lykkes, lykkes vi alle. Mestringsglede i et inkluderende og aksepterende miljø ute i naturen er en av de viktigste nøklene til god selvfølelse.`,
-  nextMonthName: 'April',
-  nextMonthTitle: 'PLANER FOR APRIL: Vekst, knopper og insekter',
-  nextMonthIntro: 'Etter en velfortjent ferie retter vi blikket for fullt mot våren. I tråd med vår didaktiske plan for april er hovedtemaet naturens oppvåkning, med et spesielt fokus på det yrende livet som begynner å titte frem.',
+  nextMonthName: 'November',
+  nextMonthTitle: 'PLANER FOR NOVEMBER: Mørketid, lys og undring',
+  nextMonthIntro: 'Når november kommer med kortere dager og mørkere ettermiddager, flytter vi fokuset mot lys, skygger, eventyr og lune samlingsstunder med lykter og bålkos.',
   nextMonthFocusAreas: [
     {
       id: 'f-1',
-      title: 'De første vårblomstene',
-      description: 'Målrettet jakt etter hestehov og de første grønne skuddene. Vi introduserer og trener på begreper som «stamme», «blad» og «blomstre».'
+      title: 'Lykter og lysvandring i skogen',
+      description: 'Vi lager egne lykter og tar med barna på ettermiddagstur i skumringen for å oppleve mørket på en trygg og spennende måte.'
     },
     {
       id: 'f-2',
-      title: 'Småkrypene våkner (Natur, miljø og teknologi)',
-      description: 'Vi tar med forstørrelsesglass og luper på tur for å studere insektene i vårsola, og jobber med empati og omsorg for levende skapninger.'
+      title: 'Småkrypene går i dvale (Natur og miljø)',
+      description: 'Hvor blir det av maurene og sneglene når kulda setter inn? Vi undersøker stubber og mose for å forstå naturens vintersøvn.'
     },
     {
       id: 'f-3',
-      title: 'Fysisk aktivitet og motorikk',
-      description: 'Det mildere været gir oss muligheter for enda mer variert utelek. Vi bygger hinderløyper, trener balanse og bruker trær og terreng til kreativ utfoldelse.'
+      title: 'Bålkos og varm mat på tur',
+      description: 'Vi øver på bålvett, varmer suppe over flammene og kjenner på fellesskapet rundt ilden i gapahuken.'
     },
     {
       id: 'f-4',
-      title: 'Gjenkalling og refleksjon hver dag',
-      description: 'Vi samles til daglig refleksjon rundt fruktmåltidet for å bearbeide dagens opplevelser i fellesskap, noe som styrker barnas hukommelse og språk.'
+      title: 'Daglige gjenkallingsøkter (PLAGG)',
+      description: 'Vi samles hver ettermiddag rundt felles fruktmåltid for å gjenkalle dagens høydepunkter og styrke barnas ordforråd.'
     }
   ],
-  nextMonthClosing: 'Vi gleder oss stort til en aktiv, varm og lærerik april sammen med barna!',
+  nextMonthClosing: 'Vi ser frem til en lun, stemningsfull og lærerik november sammen med barna!',
   birthdayKids: []
 };
 
-export default function ManedsbrevModule() {
+export default function ManedsbrevModule({ 
+  onNavigateToDagensBilde 
+}: { 
+  onNavigateToDagensBilde?: () => void 
+} = {}) {
   // Barnehagens pedagogiske plattform (synkronisert på tvers av portalen)
   const [profil, setProfil] = useState<BarnehageProfilData>(getBarnehageProfil);
   const [isPlattformModalOpen, setIsPlattformModalOpen] = useState(false);
@@ -331,6 +337,7 @@ export default function ManedsbrevModule() {
   const [activeThemeId, setActiveThemeId] = useState<string>('skog');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [showDailyGlimpsesDrawer, setShowDailyGlimpsesDrawer] = useState(true);
 
   // Synkroniser profilendringer i sanntid
   useEffect(() => {
@@ -356,32 +363,102 @@ export default function ManedsbrevModule() {
   const [aiStyleOption, setAiStyleOption] = useState<'photo' | 'illustration' | 'warm'>('photo');
   const [isGeneratingAiImage, setIsGeneratingAiImage] = useState(false);
   const fileUploadInputRef = useRef<HTMLInputElement>(null);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
-  // Månedsbrev-data med localStorage synk
+  // Månedsbrev-data med localStorage synk (v3 for Oktober og direkte kobling til Dagens Bilde)
   const [letterData, setLetterData] = useState<MonthlyLetterData>(() => {
     try {
-      const saved = localStorage.getItem('pedledern_monthly_letter_data_v2');
-      if (saved) return JSON.parse(saved);
-      const savedV1 = localStorage.getItem('pedledern_monthly_letter_data');
-      if (savedV1) return JSON.parse(savedV1);
+      const savedV3 = localStorage.getItem('pedledern_monthly_letter_data_v3');
+      if (savedV3) return JSON.parse(savedV3);
     } catch {
       // Ignorer
     }
-    return GOLD_STANDARD_MARS_DATA;
+    return GOLD_STANDARD_OKTOBER_DATA;
   });
 
   const currentTheme = THEMES[activeThemeId as keyof typeof THEMES] || THEMES.skog;
 
-  // Hent eventuelt lagrede Dagens Bilde-glimt fra Trinn 1
+  // Hent eventuelt lagrede Dagens Bilde-glimt fra Trinn 1 med sanntidssynkronisering
   const [storedDailyGlimpses, setStoredDailyGlimpses] = useState<DailyGlimpse[]>([]);
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('pedledern_daily_glimpses');
-      if (raw) setStoredDailyGlimpses(JSON.parse(raw));
-    } catch {
-      // Ignorer
-    }
+    const loadGlimpses = () => {
+      try {
+        const raw = localStorage.getItem('pedledern_daily_glimpses');
+        if (raw) {
+          setStoredDailyGlimpses(JSON.parse(raw));
+        }
+      } catch {
+        // Ignorer
+      }
+    };
+
+    loadGlimpses();
+
+    const handleUpdated = () => {
+      loadGlimpses();
+    };
+
+    window.addEventListener('pedledern_daily_glimpses_updated', handleUpdated);
+    window.addEventListener('storage', handleUpdated);
+
+    return () => {
+      window.removeEventListener('pedledern_daily_glimpses_updated', handleUpdated);
+      window.removeEventListener('storage', handleUpdated);
+    };
   }, []);
+
+  // Speil alle samlede hverdagsglimt fra Dagens Bilde direkte inn i månedsbrevet
+  const handleSyncAllDailyGlimpsesToLetter = () => {
+    if (storedDailyGlimpses.length === 0) return;
+    const mappedGlimpses: MonthlyLetterGlimpse[] = storedDailyGlimpses.map((glimpse, idx) => {
+      const variants: LayoutVariant[] = ['image-left', 'image-right', 'hero-top', 'text-focus'];
+      return {
+        id: glimpse.id || `glimpse-${idx + 1}`,
+        title: glimpse.title || `Hverdagsglimt ${idx + 1}`,
+        description: glimpse.text || glimpse.keywords || 'En minnerik opplevelse fra avdelingen.',
+        reflectionQuestion: `Husker dere da vi opplevde «${glimpse.title || 'dette'}»? Hva var det mest spennende?`,
+        academicAnchor: `Rammeplanen: ${glimpse.theme || 'Lek, utforskning og danning'} — Forankret i ${profil.plattformNavn} med fokus på barns medvirkning, fellesskap og undring.`,
+        imageUrl: glimpse.imageUrl || CURATED_GALLERY_IMAGES[idx % CURATED_GALLERY_IMAGES.length].url,
+        imageTag: glimpse.theme || 'Utelek & hverdagsmagi',
+        imageCaption: glimpse.title || 'Hverdagsglimt fra barnehagen',
+        imagePrivacyProtected: true,
+        layoutVariant: variants[idx % variants.length]
+      };
+    });
+
+    setLetterData(prev => ({
+      ...prev,
+      glimpses: mappedGlimpses
+    }));
+    setCurrentPage(2);
+    setSyncFeedback(`Alle ${storedDailyGlimpses.length} hverdagsglimt fra Dagens Bilde er nå speilet inn i månedsbrevet!`);
+    setTimeout(() => setSyncFeedback(null), 4500);
+  };
+
+  // Legg til et spesifikt hverdagsglimt fra Dagens Bilde direkte som en side i månedsbrevet
+  const handleAddSingleDailyGlimpseToLetter = (glimpse: DailyGlimpse) => {
+    const newPage: MonthlyLetterGlimpse = {
+      id: 'glimpse-' + Date.now(),
+      title: glimpse.title || 'Hverdagsglimt fra barnehagen',
+      description: glimpse.text || glimpse.keywords || 'En spennende opplevelse fra avdelingen.',
+      reflectionQuestion: `Husker du da vi opplevde ${glimpse.title || 'dette'}? Hva likte du best?`,
+      academicAnchor: `Rammeplanen: ${glimpse.theme || 'Lek og danning'} — Barnehagen skal fremme undring, nysgjerrighet og fellesskapsfølelse i tråd med barnehagens profil (${profil.plattformNavn}).`,
+      imageUrl: glimpse.imageUrl || CURATED_GALLERY_IMAGES[0].url,
+      imageTag: glimpse.theme || 'Utelek & hverdagsmagi',
+      imagePrivacyProtected: true,
+      layoutVariant: 'image-left'
+    };
+
+    setLetterData(prev => ({
+      ...prev,
+      glimpses: [...prev.glimpses, newPage]
+    }));
+
+    // Bla direkte til den nye siden
+    setCurrentPage(2 + letterData.glimpses.length);
+    setSyncFeedback(`Hverdagsglimtet «${glimpse.title}» ble lagt til som side ${2 + letterData.glimpses.length}!`);
+    setTimeout(() => setSyncFeedback(null), 3500);
+  };
 
   useEffect(() => {
     try {
@@ -393,7 +470,7 @@ export default function ManedsbrevModule() {
           imageUrl: g.imageUrl?.startsWith('data:') && g.imageUrl.length > 25000 ? '' : g.imageUrl
         }))
       };
-      localStorage.setItem('pedledern_monthly_letter_data_v2', JSON.stringify(safeData));
+      localStorage.setItem('pedledern_monthly_letter_data_v3', JSON.stringify(safeData));
     } catch {
       // Ignorer
     }
@@ -842,6 +919,151 @@ Returner KUN gyldig JSON i følgende format:
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Suksessvarsel for synkronisering */}
+      {syncFeedback && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-900 flex items-center gap-2.5 animate-fade-in shadow-xs font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{syncFeedback}</span>
+        </div>
+      )}
+
+      {/* =========================================================================
+          TO-TRINNSRAKETTEN: RÅMATERIALE FRA DAGENS BILDE (TRINN 1 -> TRINN 2)
+         ========================================================================= */}
+      <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/80 to-amber-50/60 rounded-3xl border border-teal-200/90 p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-teal-700 text-white flex items-center justify-center shadow-xs shrink-0">
+              <Camera className="w-5 h-5 text-amber-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-800 text-white">
+                  To-trinnsraketten
+                </span>
+                <span className="text-xs font-bold text-teal-950">
+                  Råmateriale fra Dagens Bilde
+                </span>
+                <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-amber-200 text-amber-950">
+                  {storedDailyGlimpses.length} {storedDailyGlimpses.length === 1 ? 'glimt' : 'glimt'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Her samles hverdagsglimtene pedlederen lagret fortløpende. Bruk dem direkte som sider i magasinet eller la KI sy sammen et helhetlig brev.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {storedDailyGlimpses.length > 0 && (
+              <button
+                type="button"
+                onClick={handleSyncAllDailyGlimpsesToLetter}
+                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+                title="Speil alle samlede hverdagsglimt direkte inn som sider i magasinet"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Gjenspeil alle i brevet</span>
+              </button>
+            )}
+            {onNavigateToDagensBilde && (
+              <button
+                type="button"
+                onClick={onNavigateToDagensBilde}
+                className="bg-white hover:bg-slate-50 text-teal-800 text-xs font-bold px-3 py-2 rounded-xl border border-teal-200 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nytt Dagens Bilde</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowDailyGlimpsesDrawer(!showDailyGlimpsesDrawer)}
+              className="text-xs font-bold text-teal-900 hover:text-teal-950 bg-teal-100/80 hover:bg-teal-200/80 px-3 py-2 rounded-xl transition flex items-center gap-1 cursor-pointer"
+            >
+              <span>{showDailyGlimpsesDrawer ? 'Skjul glimt' : 'Vis glimt'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDailyGlimpsesDrawer ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Listen over glimt */}
+        {showDailyGlimpsesDrawer && (
+          <div className="pt-2 border-t border-teal-200/60 space-y-3 animate-fade-in">
+            {storedDailyGlimpses.length === 0 ? (
+              <div className="p-4 text-center bg-white/70 rounded-2xl border border-dashed border-teal-200">
+                <p className="text-xs text-slate-600 font-medium">
+                  Ingen hverdagsglimt er lagret fra Dagens Bilde ennå denne måneden.
+                </p>
+                {onNavigateToDagensBilde && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToDagensBilde}
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 underline"
+                  >
+                    Gå til Dagens Bilde for å opprette månedens første glimt ➔
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {storedDailyGlimpses.map((glimpse) => (
+                  <div 
+                    key={glimpse.id}
+                    className="bg-white rounded-2xl border border-teal-200/70 p-3.5 shadow-2xs flex flex-col justify-between gap-3 hover:border-teal-300 transition"
+                  >
+                    <div className="flex items-start gap-3">
+                      {glimpse.imageUrl ? (
+                        <img 
+                          src={glimpse.imageUrl} 
+                          alt="" 
+                          className="w-16 h-16 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center shrink-0 text-teal-600">
+                          <Camera className="w-6 h-6" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 text-[10px] text-teal-800 font-bold">
+                          <span className="bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">{glimpse.date}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="truncate">{glimpse.theme || 'Utelek'}</span>
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-900 truncate mt-1">
+                          {glimpse.title || 'Hverdagsglimt'}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-snug">
+                          {glimpse.text || glimpse.keywords}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                      {letterData.glimpses.some(g => g.id === glimpse.id || g.title.toLowerCase().trim() === glimpse.title.toLowerCase().trim()) ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1 w-full justify-center">
+                          <Check className="w-3.5 h-3.5 text-emerald-600" /> Speilet i månedsbrevet
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAddSingleDailyGlimpseToLetter(glimpse)}
+                          className="flex-1 py-1.5 px-2 bg-teal-50 hover:bg-teal-100 text-teal-900 rounded-lg text-[11px] font-bold border border-teal-200 transition flex items-center justify-center gap-1 cursor-pointer"
+                          title="Legg til som en ny side i månedsbrevet"
+                        >
+                          <Plus className="w-3 h-3 text-teal-700" />
+                          <span>Legg til som side i brevet</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* =========================================================================
@@ -1372,8 +1594,9 @@ Returner KUN gyldig JSON i følgende format:
               <textarea 
                 value={letterData.coverIntro}
                 onChange={(e) => setLetterData(prev => ({ ...prev, coverIntro: e.target.value }))}
-                rows={3}
-                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed"
+                rows={4}
+                placeholder="Skriv en varm og innbydende forsideingress... (Enter gir sideskift/ny linje)"
+                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3.5 leading-relaxed min-h-[96px] resize-y"
               />
             </div>
           </div>
@@ -1459,8 +1682,9 @@ Returner KUN gyldig JSON i følgende format:
                           glimpses: prev.glimpses.map(g => g.id === glimpse.id ? { ...g, description: val } : g)
                         }));
                       }}
-                      rows={3}
-                      className="w-full text-xs text-slate-700 bg-white border border-slate-200 rounded-xl p-3 leading-relaxed"
+                      rows={4}
+                      placeholder="Beskriv hendelsen i detalj... (Enter gir sideskift/ny linje)"
+                      className="w-full text-xs text-slate-700 bg-white border border-slate-200 rounded-xl p-3.5 leading-relaxed min-h-[96px] resize-y"
                     />
                   </div>
 
@@ -1469,8 +1693,8 @@ Returner KUN gyldig JSON i følgende format:
                     <label className="text-[11px] font-black text-amber-900 block mb-1">
                       💬 Refleksjon med barna (Spørsmålet til middagsbordet):
                     </label>
-                    <input 
-                      type="text"
+                    <textarea 
+                      rows={4}
                       value={glimpse.reflectionQuestion}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1479,7 +1703,8 @@ Returner KUN gyldig JSON i følgende format:
                           glimpses: prev.glimpses.map(g => g.id === glimpse.id ? { ...g, reflectionQuestion: val } : g)
                         }));
                       }}
-                      className="w-full text-xs font-semibold bg-white border border-amber-300 rounded-lg p-2 text-slate-900"
+                      placeholder="Et undrende spørsmål foreldrene kan stille... (Enter gir sideskift)"
+                      className="w-full text-xs font-semibold bg-white border border-amber-300 rounded-xl p-3 text-slate-900 leading-relaxed min-h-[96px] resize-y"
                     />
                   </div>
 
@@ -1497,8 +1722,9 @@ Returner KUN gyldig JSON i følgende format:
                           glimpses: prev.glimpses.map(g => g.id === glimpse.id ? { ...g, academicAnchor: val } : g)
                         }));
                       }}
-                      rows={2}
-                      className="w-full text-xs text-slate-700 bg-white border border-teal-300 rounded-lg p-2 leading-relaxed"
+                      rows={4}
+                      placeholder="Faglig forankring i Rammeplanen... (Enter gir sideskift/ny linje)"
+                      className="w-full text-xs text-slate-700 bg-white border border-teal-300 rounded-xl p-3 leading-relaxed min-h-[96px] resize-y"
                     />
                   </div>
                 </div>
@@ -1556,14 +1782,15 @@ Returner KUN gyldig JSON i følgende format:
               <textarea 
                 value={letterData.nextMonthIntro}
                 onChange={(e) => setLetterData(prev => ({ ...prev, nextMonthIntro: e.target.value }))}
-                rows={2}
-                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed"
+                rows={4}
+                placeholder="Introduser månedens planer... (Enter gir sideskift/ny linje)"
+                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3.5 leading-relaxed min-h-[96px] resize-y"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               {letterData.nextMonthFocusAreas.map((focus) => (
-                <div key={focus.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div key={focus.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                   <input 
                     type="text"
                     value={focus.title}
@@ -1574,7 +1801,7 @@ Returner KUN gyldig JSON i følgende format:
                         nextMonthFocusAreas: prev.nextMonthFocusAreas.map(fa => fa.id === focus.id ? { ...fa, title: val } : fa)
                       }));
                     }}
-                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-lg p-1.5"
+                    className="w-full text-xs font-bold bg-white border border-slate-200 rounded-lg p-2"
                   />
                   <textarea 
                     value={focus.description}
@@ -1585,8 +1812,9 @@ Returner KUN gyldig JSON i følgende format:
                         nextMonthFocusAreas: prev.nextMonthFocusAreas.map(fa => fa.id === focus.id ? { ...fa, description: val } : fa)
                       }));
                     }}
-                    rows={2}
-                    className="w-full text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-2 leading-relaxed"
+                    rows={4}
+                    placeholder="Beskriv fokusområdet... (Enter gir sideskift/ny linje)"
+                    className="w-full text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-3 leading-relaxed min-h-[96px] resize-y"
                   />
                 </div>
               ))}
@@ -1692,9 +1920,9 @@ Returner KUN gyldig JSON i følgende format:
                     <textarea 
                       value={aiPromptInput}
                       onChange={(e) => setAiPromptInput(e.target.value)}
-                      rows={3}
-                      placeholder="F.eks: Barn som samarbeider om å bygge demning i sandkassa, sollys og støvler i vann..."
-                      className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed"
+                      rows={4}
+                      placeholder="F.eks: Barn som samarbeider om å bygge demning i sandkassa, sollys og støvler i vann... (Enter gir sideskift/ny linje)"
+                      className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl p-3.5 leading-relaxed min-h-[96px] resize-y"
                     />
                   </div>
 

@@ -4,6 +4,7 @@
 
 export type PedagogiskPlattformType = 
   | 'friluft' 
+  | 'skogsgruppe'
   | 'montessori' 
   | 'reggio_emilia' 
   | 'steiner' 
@@ -44,6 +45,15 @@ export const PEDAGOGISKE_PLATTFORMER: Record<PedagogiskPlattformType, Pedagogisk
     kjerneverdier: 'Naturglede, mestring i ulendt terreng, risikomestring, omsorg for miljøet og fellesskap i flokk.',
     fagligForankringsMal: 'Som friluftsbarnehage forankrer vi aktiviteten i Rammeplanens fagområder (spesielt Natur, miljø og teknologi samt Kropp, bevegelse, mat og helse). Autentiske opplevelser i naturen gir helhetlig læring, der barna får utforske naturens kretsløp, teste fysiske grenser og utvikle samhold.',
     eksempelAvdelinger: ['Blåbærtua (3-6 år)', 'Konglestua (0-3 år)', 'Tiurtoppen (5-6 år)']
+  },
+  skogsgruppe: {
+    id: 'skogsgruppe',
+    navn: 'Skoggruppemetoden (Læring gjennom mestring)',
+    kortBeskrivelse: 'Friluftspedagogikk med sansemotorisk mestring, den med-undrende voksne, PLAGG-strukturen og bruk av egen Arbeidsbok for systematisk gjenkalling og danning.',
+    visjon: '«Læring gjennom mestring i naturen, der barna eier egne erfaringer.»',
+    kjerneverdier: 'Mestring i terreng, risikomestring, medvirkning, PLAGG-modellen og systematisk gjenkalling med Arbeidsboken.',
+    fagligForankringsMal: 'Forankret i Skoggruppemetoden og Rammeplanen. Bygger på den treleddede PLAGG-modellen (Planlegging, Gjennomføring, Gjenkalling) og den med-undrende voksne. Barna reflekterer og dokumenterer i sin personlige Arbeidsbok etter tur.',
+    eksempelAvdelinger: ['Skoggjengen', 'Mestringsgruppa']
   },
   montessori: {
     id: 'montessori',
@@ -129,6 +139,203 @@ export function getBarnehageProfil(): BarnehageProfilData {
   };
 }
 
+// Sjekk om valgt pedagogisk plattform er Skoggruppemetoden
+export function isSkogsgruppePlattform(profil?: BarnehageProfilData | null): boolean {
+  if (!profil) return false;
+  return profil.plattformType === 'skogsgruppe' || 
+    profil.plattformNavn.toLowerCase().includes('skogsgruppe') ||
+    profil.plattformNavn.toLowerCase().includes('skoggruppe');
+}
+
+export interface DagsrytmeSlot {
+  id: string;
+  tid: string;
+  navn: string;
+  beskrivelse?: string;
+  erEgendefinert?: boolean;
+}
+
+export const DAGSRYTME_STORAGE_KEY = 'didaktisk_egendefinert_dagsrytme';
+
+/**
+ * Returnerer dagsrytme tilpasset barnehagens valgte pedagogiske plattform.
+ * MERK: Arbeidsboken er SPESIFIKK for Skoggruppemetoden.
+ * For alle standardplaner og øvrige profiler benyttes "Gjenkalling & Refleksjon".
+ */
+export function getDagsrytmeForProfil(profil?: BarnehageProfilData | null): DagsrytmeSlot[] {
+  const isSkog = isSkogsgruppePlattform(profil);
+  return [
+    { id: 'slot-0', tid: '09:30', navn: 'Påkledning & Forberedelse' },
+    { id: 'slot-1', tid: '10:00', navn: 'Aktivitet 1 (Hovedfokus)' },
+    { id: 'slot-2', tid: '11:00', navn: 'Felles Lunsj' },
+    { id: 'slot-3', tid: '11:45', navn: 'Aktivitet 2 / Utetid' },
+    { id: 'slot-4', tid: '14:00', navn: 'Fruktmåltid' },
+    { 
+      id: 'slot-5',
+      tid: '15:00', 
+      navn: isSkog ? 'Arbeidsbok & Gjenkalling' : 'Gjenkalling & Refleksjon',
+      beskrivelse: isSkog 
+        ? 'Skoggruppemetodens arbeidsbok med tegning, refleksjon og PLAGG-gjenkalling' 
+        : 'Systematisk ettermiddagsrefleksjon, samtale og PLAGG-gjenkalling'
+    },
+  ];
+}
+
+/**
+ * Henter lagret dagsrytme (egendefinert) fra localStorage, eller returnerer plattformens standard
+ */
+export function getStoredDagsrytme(profil?: BarnehageProfilData | null): DagsrytmeSlot[] {
+  try {
+    const saved = localStorage.getItem(DAGSRYTME_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((slot: any, idx: number) => ({
+          id: slot.id || `slot-${idx}`,
+          tid: slot.tid || '10:00',
+          navn: slot.navn || `Økt ${idx + 1}`,
+          beskrivelse: slot.beskrivelse || '',
+          erEgendefinert: Boolean(slot.erEgendefinert)
+        }));
+      }
+    }
+  } catch (e) {
+    console.warn("Kunne ikke lese lagret dagsrytme:", e);
+  }
+  return getDagsrytmeForProfil(profil);
+}
+
+/**
+ * Lagrer egendefinert dagsrytme og varsler andre komponenter
+ */
+export function saveStoredDagsrytme(slots: DagsrytmeSlot[]): void {
+  try {
+    localStorage.setItem(DAGSRYTME_STORAGE_KEY, JSON.stringify(slots));
+    window.dispatchEvent(new CustomEvent('pedportalen_dagsrytme_updated', { detail: slots }));
+  } catch (e) {
+    console.warn("Kunne ikke lagre dagsrytme:", e);
+  }
+}
+
+/**
+ * Tilbakestiller dagsrytmen til plattformens standard
+ */
+export function resetStoredDagsrytme(profil?: BarnehageProfilData | null): DagsrytmeSlot[] {
+  try {
+    localStorage.removeItem(DAGSRYTME_STORAGE_KEY);
+  } catch {}
+  const defaults = getDagsrytmeForProfil(profil);
+  window.dispatchEvent(new CustomEvent('pedportalen_dagsrytme_updated', { detail: defaults }));
+  return defaults;
+}
+
+/**
+ * Sorterer tidsluker kronologisk etter tidspunkt (f.eks. "09:30", "11:00")
+ */
+export function sortDagsrytmeChronologically(slots: DagsrytmeSlot[]): DagsrytmeSlot[] {
+  const parseMinutes = (t: string): number => {
+    const match = t.match(/(\d{1,2})[:.](\d{2})/);
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    return 9999;
+  };
+
+  return [...slots].sort((a, b) => parseMinutes(a.tid) - parseMinutes(b.tid));
+}
+
+export interface FullstendigDagsrytmeElement {
+  id: string;
+  slotId?: string;
+  tid: string;
+  tittel: string;
+  undertekst?: string;
+  kategori: 'morgen' | 'frokost' | 'pedagogisk' | 'lunsj' | 'utetid' | 'frukt' | 'refleksjon' | 'avslutning' | 'egendefinert';
+  erFastRutine: boolean;
+  harPlanlagteAktiviteter: boolean;
+  plasserteAktiviteter: any[];
+}
+
+/**
+ * Bygger en fullstendig dagsrytme for en gitt ukedag (1-5), basert på Ukeplanen.
+ * Inkluderer faste morgen- og ettermiddagsrutiner + kjernetidens økter og aktiviteter fra ukeplanen.
+ */
+export function getFullstendigDagsplanForDag(
+  dagNum: number,
+  plasserteAktiviteter: Record<string, any[]>,
+  dagsrytmeSlots: DagsrytmeSlot[]
+): FullstendigDagsrytmeElement[] {
+  const resultat: FullstendigDagsrytmeElement[] = [];
+
+  // 1. Fast morgenrutine
+  resultat.push({
+    id: `fast-mottak-${dagNum}`,
+    tid: '07:00 - 08:30',
+    tittel: 'Mottak og rolig lek',
+    undertekst: 'Trygg levering i garderoben, lesekrok og puslespill. Morgenvakt tar imot barna og skaper en trygg overgang fra hjemmet.',
+    kategori: 'morgen',
+    erFastRutine: true,
+    harPlanlagteAktiviteter: false,
+    plasserteAktiviteter: []
+  });
+
+  // 2. Felles frokost
+  resultat.push({
+    id: `fast-frokost-${dagNum}`,
+    tid: '08:30 - 09:15',
+    tittel: 'Felles frokost',
+    undertekst: 'Selvsmøring, språklig samspill, rolig måltidsstemning og forberedelse til formiddagen.',
+    kategori: 'frokost',
+    erFastRutine: true,
+    harPlanlagteAktiviteter: false,
+    plasserteAktiviteter: []
+  });
+
+  // 3. Kjernetidens økter fra ukeplanen (sortert kronologisk)
+  const sorterteSlots = sortDagsrytmeChronologically(dagsrytmeSlots);
+
+  sorterteSlots.forEach((slot, idx) => {
+    // Sjekk både slot.id og indeks-nøkkel
+    const cellKeyId = `${dagNum}-${slot.id}`;
+    const cellKeyIdx = `${dagNum}-${idx}`;
+    const kort = plasserteAktiviteter[cellKeyId] || plasserteAktiviteter[cellKeyIdx] || [];
+
+    let kat: FullstendigDagsrytmeElement['kategori'] = 'pedagogisk';
+    const navnLav = slot.navn.toLowerCase();
+    if (navnLav.includes('lunsj') || navnLav.includes('mat')) kat = 'lunsj';
+    else if (navnLav.includes('frukt')) kat = 'frukt';
+    else if (navnLav.includes('utetid') || navnLav.includes('tur')) kat = 'utetid';
+    else if (navnLav.includes('gjenkalling') || navnLav.includes('refleksjon') || navnLav.includes('arbeidsbok')) kat = 'refleksjon';
+    else if (slot.erEgendefinert) kat = 'egendefinert';
+
+    resultat.push({
+      id: `slot-element-${dagNum}-${slot.id}`,
+      slotId: slot.id,
+      tid: slot.tid,
+      tittel: slot.navn,
+      undertekst: slot.beskrivelse || (kort.length === 0 ? 'Felles kjerneøkt i henhold til dagsrytmen.' : undefined),
+      kategori: kat,
+      erFastRutine: false,
+      harPlanlagteAktiviteter: kort.length > 0,
+      plasserteAktiviteter: kort
+    });
+  });
+
+  // 4. Fast avslutning og ettermiddag
+  resultat.push({
+    id: `fast-avslutning-${dagNum}`,
+    tid: '15:30 - 16:30',
+    tittel: 'Ettermiddagslek, henting og avslutning',
+    undertekst: 'Rolig lek inne eller ute, overlevering til foreldre med dagens positive glimt, og rydding før stenging.',
+    kategori: 'avslutning',
+    erFastRutine: true,
+    harPlanlagteAktiviteter: false,
+    plasserteAktiviteter: []
+  });
+
+  return resultat;
+}
+
 // Lagre oppdatert profil (synkroniseres på tvers av Styrern og Pedledern)
 export function saveBarnehageProfil(profil: BarnehageProfilData): void {
   try {
@@ -139,3 +346,4 @@ export function saveBarnehageProfil(profil: BarnehageProfilData): void {
     console.warn("Kunne ikke lagre barnehageprofil til localStorage:", e);
   }
 }
+
