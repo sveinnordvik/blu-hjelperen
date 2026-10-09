@@ -62,7 +62,8 @@ const DevRoleBar: React.FC<{ current: string; onSelect: (role: string) => void }
   const [collapsed, setCollapsed] = useState(false);
 
   const roles = [
-    { id: 'LIVE', label: "Student'n (BLU Live)", bg: 'bg-blue-600' },
+    { id: 'LIVE', label: "Forside (Portal)", bg: 'bg-blue-600' },
+    { id: 'STUDENTN', label: "BLU-hjelperen (Student)", bg: 'bg-indigo-600' },
     { id: 'PEDLEDERN', label: "Pedleder'n", bg: 'bg-teal-600' },
     { id: 'STYRERN', label: "Styrer'n", bg: 'bg-indigo-600' },
     { id: 'OBSERVASJONER', label: "Observasjoner 📝", bg: 'bg-emerald-600' },
@@ -246,24 +247,14 @@ const App = () => {
     );
   }
 
-  // Sjekker hvilken nettadresse brukeren befinner seg på
-  const domeneNavn = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-  
-  // Er vi på blu-hjelperen.no? (eller www.blu-hjelperen.no)
-  const erDirekteBluLink = domeneNavn.includes('blu-hjelperen.no');
-
   // -- HOVEDRUTING --
   return (
     <>
       <Routes>
-        {/* Hva skjer hvis noen skriver hovedadressen ( / )? */}
+        {/* Hovedadressen ( / ) møter nå brukerne med den nye forside-teaseren (både på blu-hjelperen.no og ellers) */}
         <Route 
           path="/" 
-          element={
-            erDirekteBluLink 
-              ? <Navigate to="/blu-hjelperen" replace /> // Kast dem direkte til student-appen
-              : <PedPortalenForside isSvein={canViewDevRoleBar} /> // Vis den nye fellessiden
-          } 
+          element={<PedPortalenForside isSvein={canViewDevRoleBar} />} 
         />
 
         {/* Selve BLU-hjelperen (Studentn) */}
@@ -295,7 +286,7 @@ const App = () => {
         <Route path="/portalen-lab/vikar" element={canViewDevRoleBar ? <VikarnApp /> : <Navigate to="/blu-hjelperen" replace />} />
 
         {/* Sikkerhetsnett */}
-        <Route path="*" element={<Navigate to={erDirekteBluLink ? "/blu-hjelperen" : "/"} replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {canViewDevRoleBar && (
         <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
