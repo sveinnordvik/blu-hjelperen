@@ -121,7 +121,7 @@ export const Home: React.FC<HomeProps> = ({
         <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 w-full flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900">
-              {user?.displayName && !user.displayName.includes('Svein')
+              {user?.displayName
                 ? `Klar for å skrive, ${user.displayName.split(' ')[0]}?`
                 : 'Klar for å skrive?'}
             </h1>

@@ -748,8 +748,6 @@ export default function StudentnApp() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed?.name?.includes('Svein')) parsed.name = 'Navn Navnesen';
-        if (parsed?.email?.includes('svein')) parsed.email = 'student@barnehagelaerer.no';
         return { ...emptyProfile, ...parsed };
       } catch {}
     }
@@ -3452,7 +3450,13 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
       setUser(currentUser);
       setIsAuthLoading(false);
       
-      if (!currentUser) {
+      if (currentUser) {
+        setProfile(prev => ({
+          ...prev,
+          name: prev?.name || currentUser.displayName || '',
+          email: prev?.email || currentUser.email || ''
+        }));
+      } else {
         isRestored.current = true;
         // Clear state on logout
         setProfile({
@@ -4171,10 +4175,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           <div className="flex items-center gap-3 ml-auto">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-[10px] font-bold text-slate-900 leading-none">
-                {user.displayName?.includes('Svein') ? 'Navn Navnesen' : (user.displayName || 'Bruker')}
+                {user.displayName || 'Bruker'}
               </span>
               <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 truncate max-w-[100px]">
-                {user.email?.includes('svein') ? 'student@barnehagelaerer.no' : user.email}
+                {user.email}
               </span>
             </div>
             <button 

@@ -304,18 +304,10 @@ export function Profile({
                   </div>
                   <div className="text-center sm:text-left flex-1">
                     <h3 className="text-xl md:text-2xl font-black text-slate-900">
-                      {profile?.name && !profile.name.includes('Svein')
-                        ? profile.name
-                        : (user?.displayName && !user.displayName.includes('Svein')
-                            ? user.displayName
-                            : 'Navn Navnesen')}
+                      {profile?.name || user?.displayName || 'Navn Navnesen'}
                     </h3>
                     <p className="text-xs text-slate-400 font-medium mt-0.5">
-                      {profile?.email && !profile.email.includes('svein')
-                        ? profile.email
-                        : (user?.email && !user.email.includes('svein')
-                            ? user.email
-                            : 'student@barnehagelaerer.no')}
+                      {profile?.email || user?.email || 'student@student.no'}
                     </p>
                     <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
                       {(profile?.studiested || profile?.college) && (
@@ -339,7 +331,7 @@ export function Profile({
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Fullt Navn</label>
                     <input 
                       type="text" 
-                      value={profile?.name?.includes('Svein') ? 'Navn Navnesen' : (profile?.name || '')} 
+                      value={profile?.name || ''} 
                       onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       placeholder="F.eks. Navn Navnesen"
                       className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
@@ -350,9 +342,9 @@ export function Profile({
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">E-postadresse</label>
                     <input 
                       type="email" 
-                      value={profile?.email?.includes('svein') ? 'student@barnehagelaerer.no' : (profile?.email || '')} 
+                      value={profile?.email || ''} 
                       onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                      placeholder="student@dmmh.no"
+                      placeholder="student@student.no"
                       className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
                     />
                   </div>

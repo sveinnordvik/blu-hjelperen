@@ -420,7 +420,7 @@ export function Basen({ user, pricingTier = 'semester', setActiveTab: setParentA
   const handleCreateGroupConfirm = () => {
     if (!newGroupName.trim()) return;
     const newId = 'KOL-' + Math.floor(100 + Math.random() * 900);
-    const myName = (user?.displayName && !user.displayName.includes('Svein')) ? user.displayName : 'Navn Navnesen';
+    const myName = user?.displayName || 'Navn Navnesen';
     const newGroup: Group = {
       id: newId,
       name: newGroupName.trim(),
