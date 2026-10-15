@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { cn } from '../lib/utils';
 import { 
   Plus, 
   ChevronLeft, 
@@ -113,6 +114,8 @@ export interface WorkspaceLayoutProps {
   onReorderFolders?: (newFolders: FolderType[]) => void; // Manuell/alfabetisk omorganisering
   onBackToTools?: () => void; // Retur til verktøykasse
   backToToolsLabel?: string;
+  className?: string;
+  mainClassName?: string;
   children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void; openMobileArchive: () => void }) => React.ReactNode);
 }
 
@@ -146,6 +149,8 @@ export function WorkspaceLayout({
   onReorderFolders,
   onBackToTools,
   backToToolsLabel,
+  className,
+  mainClassName,
   children 
 }: WorkspaceLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -437,11 +442,11 @@ export function WorkspaceLayout({
 
   return (
     <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed, openMobileArchive, closeMobileArchive }}>
-      <div className="flex w-full h-[calc(100vh-120px)] md:h-[calc(100vh-140px)] min-h-[520px] md:min-h-[700px] bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative">
+      <div className={cn("flex w-full h-auto md:h-auto min-h-[520px] md:min-h-[700px] bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative", className)}>
       
       {/* SIDEMENY (Skjult på mobil slik at innholdet får 100% bredde, synlig på md+) */}
       <aside 
-        className={`bg-slate-900 text-slate-300 flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out select-none relative hidden md:flex ${
+        className={`bg-slate-900 text-slate-300 flex-col border-r border-slate-800 shrink-0 transition-all duration-300 ease-in-out select-none relative hidden md:flex sticky top-0 h-screen self-start ${
           isCollapsed ? 'w-16' : 'w-80'
         }`}
       >
@@ -1037,7 +1042,7 @@ export function WorkspaceLayout({
       </aside>
 
       {/* ARBEIDSOMRÅDE */}
-      <main className="flex-1 flex flex-col bg-slate-50/50 relative overflow-hidden">
+      <main className={cn("flex-1 flex flex-col bg-slate-50/50 relative overflow-hidden", mainClassName)}>
         {onBackToTools ? (
           <div className="px-4 md:px-6 py-2.5 bg-white/90 backdrop-blur-xs border-b border-slate-200/80 flex items-center justify-between shrink-0 z-10 min-h-[44px]">
             <div className="flex items-center gap-2 text-xs">

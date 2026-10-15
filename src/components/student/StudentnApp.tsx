@@ -4603,7 +4603,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
       {/* Main Content */}
       <main className={cn(
-        "flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 pb-[140px] md:pb-8 overflow-x-hidden flex flex-col transition-all duration-500",
+        "flex-1 w-full mx-auto flex flex-col transition-all duration-300",
+        activeTab === 'writing-workshop'
+          ? "max-w-[99vw] px-2 sm:px-4 md:px-5 lg:px-6 py-1 pb-1 overflow-visible"
+          : "max-w-7xl p-4 md:p-6 pb-[140px] md:pb-8 overflow-x-hidden",
         isFocusMode && "max-w-3xl pt-12"
       )}>
         <AnimatePresence mode="wait">
@@ -6432,7 +6435,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
       </main>
 
       {/* Global Footer */}
-      <footer className="mt-auto py-8 border-t border-slate-100/60 bg-white/50 backdrop-blur-sm z-10">
+      <footer className="w-full py-8 border-t border-slate-100/60 bg-white/50 backdrop-blur-sm relative z-10 clear-both mt-12">
         <div className="max-w-5xl mx-auto px-4 text-center space-y-4">
           <p className="text-sm font-medium text-slate-500">
             Laget med ❤️ for barnehagelærerutdanningen

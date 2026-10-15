@@ -7,7 +7,7 @@ import {
   Undo2, Redo2, StickyNote, Brain, Scissors,
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, Indent, Outdent, Baseline,
   Search, Replace, BarChart3, Type, ChevronUp, ChevronDown,
-  Maximize2, Minimize2, Sun, Moon,
+  Maximize2, Minimize2, Sun, Moon, Code,
   ZoomIn, ZoomOut, Pin, PinOff, SlidersHorizontal, Layers
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -50,6 +50,7 @@ export interface DocumentItem extends HistoryItem {
   targetWords: number;
   updatedAt: string;
   fontFamily?: 'times' | 'calibri' | 'arial' | 'georgia'; // Valgt skrifttype
+  fontSize?: string; // Valgt skriftstørrelse (f.eks. '12')
   lineSpacing?: '1.0' | '1.15' | '1.5' | '2.0'; // Valgt linjeavstand
   outline?: { id: number; title: string; subItems: string[] }[];
 }
@@ -126,6 +127,9 @@ const FOLDERS_STORAGE_KEY = 'blu_workshop_folders';
 const DOCUMENTS_STORAGE_KEY = 'blu_workshop_documents_cache_v2';
 
 export function WritingWorkshop(_props?: { [key: string]: any }) {
+  const isFullscreen = _props?.isFullscreen ?? false;
+  const setIsFullscreen = _props?.setIsFullscreen;
+
   const [documents, setDocuments] = useState<DocumentItem[]>(() => {
     try {
       const saved = localStorage.getItem(DOCUMENTS_STORAGE_KEY);
@@ -498,9 +502,19 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
   const [zenTheme, setZenTheme] = useState<'dark' | 'light'>('dark');
   const [zenWidth, setZenWidth] = useState<'normal' | 'wide' | 'xl' | 'full'>('wide');
   const [zenFontSize, setZenFontSize] = useState<'md' | 'lg' | 'xl' | '2xl'>('xl');
+  const [zenViewMode, setZenViewMode] = useState<'normal' | 'markdown'>('normal'); // 'normal' = Visuell Word-stil (slik som skriveflaten), 'markdown' = Ren tekst / rå markdown
 
   // ZOOM / FORSTØRRELSE (Word-stil 50% - 200%)
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+
+  // BREDDE FOR SKRIVEFLATEN ('a4' = klassisk A4 794px, 'wide' = bred flate 1020px, 'full' = full bredde 1240px)
+  const [editorPageWidth, setEditorPageWidth] = useState<'a4' | 'wide' | 'full'>(() => {
+    try {
+      const saved = localStorage.getItem('blu_editor_page_width');
+      if (saved === 'a4' || saved === 'wide' || saved === 'full') return saved;
+    } catch (e) {}
+    return 'wide'; // Standard: bred for optimal oversikt og skriveflate
+  });
 
   // VERKTØYLINJE-MODUS (Word-stil: 'full' (2 linjer) | 'compact' (1 linje) | 'hidden' (helt skjult))
   type ToolbarMode = 'full' | 'compact' | 'hidden';
@@ -1165,7 +1179,12 @@ ${activeDoc.content}`;
   const activeDocContentRef = useRef<string>('');
   activeDocContentRef.current = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
 
+  const zenWysiwygRef = useRef<HTMLDivElement>(null);
+
   const getActiveEditorElement = (): HTMLDivElement | null => {
+    if (isZenMode && zenViewMode === 'normal') {
+      return zenWysiwygRef.current;
+    }
     return wysiwygRef.current;
   };
 
@@ -1312,12 +1331,15 @@ ${activeDoc.content}`;
 
     handleUpdateActiveDoc({ content: targetItem.content });
 
-    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+    const isWysiwygActive = editorMode === 'wysiwyg' || (isZenMode && zenViewMode === 'normal');
+    const activeEditor = getActiveEditorElement();
+
+    if (isWysiwygActive && activeEditor) {
       const targetHtml = markdownToHtml(targetItem.content);
-      if (wysiwygRef.current.innerHTML !== targetHtml) {
-        wysiwygRef.current.innerHTML = targetHtml;
+      if (activeEditor.innerHTML !== targetHtml) {
+        activeEditor.innerHTML = targetHtml;
       }
-      wysiwygRef.current.focus();
+      activeEditor.focus();
     } else if (textareaRef.current) {
       textareaRef.current.value = targetItem.content;
       textareaRef.current.focus();
@@ -1328,7 +1350,7 @@ ${activeDoc.content}`;
     setTimeout(() => {
       isHistoryNavigatingRef.current = false;
     }, 120);
-  }, [activeDoc?.content, activeDoc?.id, editorMode, checkActiveFormatting]);
+  }, [activeDoc?.content, activeDoc?.id, editorMode, isZenMode, zenViewMode, checkActiveFormatting]);
 
   // Gjenta/Gjør om-handling (Word-stil)
   const handleRedo = useCallback(() => {
@@ -1350,12 +1372,15 @@ ${activeDoc.content}`;
 
     handleUpdateActiveDoc({ content: targetItem.content });
 
-    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+    const isWysiwygActive = editorMode === 'wysiwyg' || (isZenMode && zenViewMode === 'normal');
+    const activeEditor = getActiveEditorElement();
+
+    if (isWysiwygActive && activeEditor) {
       const targetHtml = markdownToHtml(targetItem.content);
-      if (wysiwygRef.current.innerHTML !== targetHtml) {
-        wysiwygRef.current.innerHTML = targetHtml;
+      if (activeEditor.innerHTML !== targetHtml) {
+        activeEditor.innerHTML = targetHtml;
       }
-      wysiwygRef.current.focus();
+      activeEditor.focus();
     } else if (textareaRef.current) {
       textareaRef.current.value = targetItem.content;
       textareaRef.current.focus();
@@ -1366,7 +1391,7 @@ ${activeDoc.content}`;
     setTimeout(() => {
       isHistoryNavigatingRef.current = false;
     }, 120);
-  }, [editorMode, checkActiveFormatting]);
+  }, [editorMode, isZenMode, zenViewMode, checkActiveFormatting]);
 
   // Sikrer at alle kulepunkter og setninger etter punktum automatisk får stor forbokstav (Word-regel)
   const capitalizeListItemsInEditor = (container: HTMLElement | null) => {
@@ -1455,8 +1480,9 @@ ${activeDoc.content}`;
           let node: Node | null = range.startContainer;
           let liNode: HTMLElement | null = null;
           let blockNode: HTMLElement | null = null;
+          const activeEditor = getActiveEditorElement();
 
-          while (node && node !== wysiwygRef.current) {
+          while (node && node !== activeEditor) {
             if (node.nodeType === Node.ELEMENT_NODE) {
               const el = node as HTMLElement;
               const tag = el.tagName.toLowerCase();
@@ -1470,7 +1496,7 @@ ${activeDoc.content}`;
             node = node.parentNode;
           }
 
-          const targetContainer = liNode || blockNode || wysiwygRef.current;
+          const targetContainer = liNode || blockNode || activeEditor;
           if (targetContainer) {
             const preRange = document.createRange();
             preRange.selectNodeContents(targetContainer);
@@ -1487,7 +1513,7 @@ ${activeDoc.content}`;
 
             // Sjekk om vi er ved starten av et avsnitt / kulepunkt, eller etter punktum / utropstegn / spørsmålstegn
             const isAtStart = textBefore.trim() === '';
-            const isAfterPeriod = /(?:[.!?]["'»”)]?)\s*$/.test(textBefore);
+            const isAfterPeriod = /[.!?]["'»”)]?\s+$/.test(textBefore);
 
             if (isAtStart || isAfterPeriod) {
               e.preventDefault();
@@ -1504,8 +1530,9 @@ ${activeDoc.content}`;
 
   const handleWysiwygPaste = () => {
     setTimeout(() => {
-      if (wysiwygRef.current) {
-        capitalizeListItemsInEditor(wysiwygRef.current);
+      const activeEditor = getActiveEditorElement();
+      if (activeEditor) {
+        capitalizeListItemsInEditor(activeEditor);
         handleWysiwygInput();
       }
     }, 10);
@@ -1513,9 +1540,10 @@ ${activeDoc.content}`;
 
   const handleWysiwygInput = () => {
     isUserTypingRef.current = true;
-    if (!wysiwygRef.current) return;
-    capitalizeListItemsInEditor(wysiwygRef.current);
-    const newHtml = wysiwygRef.current.innerHTML;
+    const activeEditor = getActiveEditorElement();
+    if (!activeEditor) return;
+    capitalizeListItemsInEditor(activeEditor);
+    const newHtml = activeEditor.innerHTML;
     const newMd = htmlToMarkdown(newHtml);
     handleUpdateActiveDoc({ content: newMd });
     checkActiveFormatting();
@@ -1530,7 +1558,9 @@ ${activeDoc.content}`;
 
   // Innrykk / underpunkter for Tab og Shift+Tab (Word-standard)
   const handleTabIndent = (isShift: boolean, targetEl?: HTMLElement | null) => {
-    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+    const isWysiwygActive = editorMode === 'wysiwyg' || (isZenMode && zenViewMode === 'normal');
+    const activeEditor = getActiveEditorElement();
+    if (isWysiwygActive && activeEditor) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
 
@@ -1566,7 +1596,7 @@ ${activeDoc.content}`;
         } else {
           document.execCommand('outdent', false);
         }
-        capitalizeListItemsInEditor(wysiwygRef.current);
+        capitalizeListItemsInEditor(activeEditor);
         handleWysiwygInput();
         checkActiveFormatting();
       } else {
@@ -1610,7 +1640,7 @@ ${activeDoc.content}`;
             }
           }
 
-          capitalizeListItemsInEditor(wysiwygRef.current);
+          capitalizeListItemsInEditor(activeEditor);
           handleWysiwygInput();
           checkActiveFormatting();
         } else {
@@ -1906,16 +1936,65 @@ ${activeDoc.content}`;
 
   // Synkroniserer fra activeDoc.content til WYSIWYG når dokumentet lastes, importeres eller oppdateres eksternt
   useEffect(() => {
-    if (!wysiwygRef.current) return;
     if (isUserTypingRef.current) return;
 
     const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
     const targetHtml = markdownToHtml(currentDocContent);
 
-    if (wysiwygRef.current.innerHTML !== targetHtml) {
+    if (wysiwygRef.current && wysiwygRef.current.innerHTML !== targetHtml) {
       wysiwygRef.current.innerHTML = targetHtml;
     }
-  }, [activeDoc?.id, activeDoc?.content, editorMode]);
+
+    if (isZenMode && zenViewMode === 'normal' && zenWysiwygRef.current && zenWysiwygRef.current.innerHTML !== targetHtml) {
+      zenWysiwygRef.current.innerHTML = targetHtml;
+    }
+  }, [activeDoc?.id, activeDoc?.content, editorMode, isZenMode, zenViewMode]);
+
+  // Når fokusmodus åpnes eller visningsmodus skifter til normal, initialiser innholdet med full formatering
+  useEffect(() => {
+    if (isZenMode && zenViewMode === 'normal' && zenWysiwygRef.current) {
+      const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+      const html = markdownToHtml(currentDocContent);
+      if (zenWysiwygRef.current.innerHTML !== html) {
+        zenWysiwygRef.current.innerHTML = html;
+      }
+    }
+  }, [isZenMode, zenViewMode]);
+
+  // Når man forlater fokusmodus, sørg for at hovedskriveflaten er 100% oppdatert
+  useEffect(() => {
+    if (!isZenMode && wysiwygRef.current) {
+      const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+      const targetHtml = markdownToHtml(currentDocContent);
+      if (wysiwygRef.current.innerHTML !== targetHtml) {
+        wysiwygRef.current.innerHTML = targetHtml;
+      }
+    }
+  }, [isZenMode]);
+
+  const handleFontSizeChange = (size: string) => {
+    handleUpdateActiveDoc({ fontSize: size });
+    
+    // Hvis brukeren har markert tekst i editoren, endre størrelse på den markerte teksten
+    try {
+      const activeEditor = getActiveEditorElement();
+      const sel = window.getSelection();
+      if (activeEditor && sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        document.execCommand('fontSize', false, '7');
+        const fontTags = activeEditor.getElementsByTagName('font');
+        for (let i = 0; i < fontTags.length; i++) {
+          const font = fontTags[i];
+          if (font.getAttribute('size') === '7') {
+            font.removeAttribute('size');
+            font.style.fontSize = `${size}pt`;
+          }
+        }
+        handleWysiwygInput();
+      }
+    } catch (e) {
+      console.warn("Kunne ikke sette fontstørrelse på utvalg:", e);
+    }
+  };
 
   const applyFormatting = (type: string) => {
     const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
@@ -1947,38 +2026,36 @@ ${activeDoc.content}`;
       };
 
       if (type === 'pagebreak') {
-        if (wysiwygRef.current) {
-          wysiwygRef.current.focus();
-          const pageBreakHtml = '<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>';
+        activeEditor.focus();
+        const pageBreakHtml = '<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>';
 
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            range.deleteContents();
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
 
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = pageBreakHtml;
-            const frag = document.createDocumentFragment();
-            let node: Node | null;
-            let lastNode: Node | null = null;
-            while ((node = tempDiv.firstChild)) {
-              lastNode = frag.appendChild(node);
-            }
-            range.insertNode(frag);
-
-            if (lastNode) {
-              const newRange = document.createRange();
-              newRange.setStart(lastNode, 0);
-              newRange.collapse(true);
-              sel.removeAllRanges();
-              sel.addRange(newRange);
-            }
-          } else {
-            document.execCommand('insertHTML', false, pageBreakHtml);
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = pageBreakHtml;
+          const frag = document.createDocumentFragment();
+          let node: Node | null;
+          let lastNode: Node | null = null;
+          while ((node = tempDiv.firstChild)) {
+            lastNode = frag.appendChild(node);
           }
+          range.insertNode(frag);
 
-          handleWysiwygInput();
+          if (lastNode) {
+            const newRange = document.createRange();
+            newRange.setStart(lastNode, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        } else {
+          document.execCommand('insertHTML', false, pageBreakHtml);
         }
+
+        handleWysiwygInput();
         return;
       }
 
@@ -2018,11 +2095,11 @@ ${activeDoc.content}`;
           break;
         case 'list':
           document.execCommand('insertUnorderedList', false);
-          capitalizeListItemsInEditor(wysiwygRef.current);
+          capitalizeListItemsInEditor(activeEditor);
           break;
         case 'orderedList':
           document.execCommand('insertOrderedList', false);
-          capitalizeListItemsInEditor(wysiwygRef.current);
+          capitalizeListItemsInEditor(activeEditor);
           break;
         case 'quote':
           if (activeStyles.quote) {
@@ -2110,9 +2187,12 @@ ${activeDoc.content}`;
    * 2. Legger fullReference automatisk til under "## Litteraturliste" bakerst i dokumentet
    */
   const handleInsertCitation = (inTextCitation: string, fullReference: string) => {
+    const isWysiwygActive = editorMode === 'wysiwyg' || (isZenMode && zenViewMode === 'normal');
+    const activeEditor = getActiveEditorElement();
+
     // 1. Sett inn in-text citation i teksten
-    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
-      wysiwygRef.current.focus();
+    if (isWysiwygActive && activeEditor) {
+      activeEditor.focus();
       // Sett inn som fet eller markert henvisning
       document.execCommand('insertText', false, `${inTextCitation} `);
     } else if (textareaRef.current) {
@@ -2127,8 +2207,8 @@ ${activeDoc.content}`;
     // 2. Oppdater / legg til i litteraturlisten bakerst i oppgaven
     setTimeout(() => {
       let currentContent = '';
-      if (editorMode === 'wysiwyg' && wysiwygRef.current) {
-        currentContent = htmlToMarkdown(wysiwygRef.current.innerHTML);
+      if (isWysiwygActive && activeEditor) {
+        currentContent = htmlToMarkdown(activeEditor.innerHTML);
       } else {
         currentContent = typeof activeDoc.content === 'string' ? activeDoc.content : '';
       }
@@ -2153,8 +2233,8 @@ ${activeDoc.content}`;
 
         handleUpdateActiveDoc({ content: updatedContent });
 
-        if (editorMode === 'wysiwyg' && wysiwygRef.current) {
-          wysiwygRef.current.innerHTML = markdownToHtml(updatedContent);
+        if (isWysiwygActive && activeEditor) {
+          activeEditor.innerHTML = markdownToHtml(updatedContent);
         }
       }
     }, 100);
@@ -2263,6 +2343,8 @@ ${activeDoc.content}`;
   return (
     <WorkspaceLayout
       title="Skriveverksted"
+      className="h-auto md:h-auto lg:h-auto min-h-[1050px] overflow-visible rounded-xl md:rounded-2xl shadow-sm"
+      mainClassName="overflow-visible flex-1 flex flex-col bg-slate-50/50 relative h-auto md:h-auto"
       subtitle="Strukturer, skriv og analyser dine barnehagepedagogiske oppgaver"
       icon={<FileText className="w-6 h-6" />}
       actionButtonLabel="Ny oppgave"
@@ -2333,47 +2415,70 @@ ${activeDoc.content}`;
         }
       }}
     >
-      <div className="flex h-full w-full gap-4 relative overflow-hidden">
+      <div className="flex h-auto w-full gap-4 relative min-h-[1050px] overflow-visible">
         
         {/* SENTER: Skriveflaten */}
-        <div className="flex-1 flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden min-w-0 transition-all duration-300">
+        <div className="flex-1 flex flex-col h-auto min-h-[1050px] bg-white rounded-2xl border border-slate-200/80 shadow-sm min-w-0 transition-all duration-300 overflow-visible">
           <div className="px-4 sm:px-6 py-2.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
-            <div className="flex items-center gap-1 p-1 bg-slate-200/60 rounded-xl shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <div className="flex items-center gap-1 p-1 bg-slate-200/60 rounded-xl shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => setViewMode('editor')} 
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'editor' 
+                      ? 'bg-white text-indigo-600 shadow-2xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileEdit className="w-3.5 h-3.5 inline mr-1.5" />
+                  <span>Skriveflate</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setViewMode('setup')} 
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'setup' 
+                      ? 'bg-white text-indigo-600 shadow-2xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5 inline mr-1.5" />
+                  <span>Oppgaveoppsett</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => { setViewMode('quality-check'); if (!analysisResult) handleRunAnalysis(); }} 
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    viewMode === 'quality-check' 
+                      ? 'bg-white text-indigo-600 shadow-2xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 inline mr-1.5 text-amber-500" />
+                  <span>Kvalitetssjekk</span>
+                </button>
+              </div>
+
+              {/* Vis / Skjul Superveileder-pille (Plassert sammen med Skriveflate, Oppgaveoppsett og Kvalitetssjekk) */}
               <button 
                 type="button"
-                onClick={() => setViewMode('editor')} 
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'editor' 
-                    ? 'bg-white text-indigo-600 shadow-2xs' 
-                    : 'text-slate-600 hover:text-slate-900'
+                onClick={() => {
+                  setIsPanelOpen(!isPanelOpen);
+                  if (!isPanelOpen && activePanelTab !== 'superveileder') setActivePanelTab('superveileder');
+                }} 
+                className={`h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs text-xs shrink-0 whitespace-nowrap cursor-pointer ${
+                  isPanelOpen 
+                    ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100/70' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
                 }`}
+                title={isPanelOpen ? 'Skjul Superveileder' : 'Vis Superveileder'}
               >
-                <FileEdit className="w-3.5 h-3.5 inline mr-1.5" />
-                <span>Skriveflate</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => setViewMode('setup')} 
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'setup' 
-                    ? 'bg-white text-indigo-600 shadow-2xs' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Settings className="w-3.5 h-3.5 inline mr-1.5" />
-                <span>Oppgaveoppsett</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => { setViewMode('quality-check'); if (!analysisResult) handleRunAnalysis(); }} 
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'quality-check' 
-                    ? 'bg-white text-indigo-600 shadow-2xs' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 inline mr-1.5 text-amber-500" />
-                <span>Kvalitetssjekk</span>
+                <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isPanelOpen ? 'text-indigo-600' : 'text-white'}`} />
+                <span>{isPanelOpen ? 'Skjul veileder' : 'Vis Superveileder'}</span>
+                {isPanelOpen && (
+                  <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                )}
               </button>
             </div>
 
@@ -2461,6 +2566,8 @@ ${activeDoc.content}`;
                 <span>Fokusmodus</span>
               </button>
 
+
+
               {/* Eksport-pille */}
               <button 
                 type="button"
@@ -2500,31 +2607,8 @@ ${activeDoc.content}`;
               </button>
 
               <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
-              
-              {/* Vis / Skjul Superveileder-pille */}
-              <button 
-                type="button"
-                onClick={() => {
-                  setIsPanelOpen(!isPanelOpen);
-                  if (!isPanelOpen && activePanelTab !== 'superveileder') setActivePanelTab('superveileder');
-                }} 
-                className={`h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs text-xs shrink-0 whitespace-nowrap cursor-pointer ${
-                  isPanelOpen 
-                    ? 'bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100/70' 
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                }`}
-                title={isPanelOpen ? 'Skjul Superveileder' : 'Vis Superveileder'}
-              >
-                <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isPanelOpen ? 'text-indigo-600' : 'text-white'}`} />
-                <span>{isPanelOpen ? 'Skjul veileder' : 'Vis Superveileder'}</span>
-                {isPanelOpen && (
-                  <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                )}
-              </button>
 
-              <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
-
-              {/* Vis / Skjul Verktøylinje (Word-stil) */}
+              {/* Vis / Skjul Verktøylinje (Word-stil / Fullt bånd) - Flyttet direkte til høyre for Leselenke */}
               <div className="relative">
                 <button
                   type="button"
@@ -2562,7 +2646,9 @@ ${activeDoc.content}`;
 
           {/* View Mode: Editor */}
           {viewMode === 'editor' && (
-            <div className="flex-1 flex flex-col min-h-0 relative">
+            <div className="flex-1 flex flex-col h-auto relative">
+              {/* STICKY TOOLBAR WRAPPER */}
+              <div className={`sticky z-30 bg-white border-b border-slate-200 shadow-sm transition-all ${isFullscreen ? 'top-0' : 'top-16'}`}>
               {/* WORD VISNINGSALTERNATIVER DROPDOWN (Gjenbrukbar komponent) */}
               {(() => {
                 const renderRibbonMenuPopup = () => (
@@ -2718,6 +2804,24 @@ ${activeDoc.content}`;
                           <option value="calibri">Calibri</option>
                           <option value="arial">Arial</option>
                           <option value="georgia">Georgia</option>
+                        </select>
+
+                        {/* Skriftstørrelse-velger */}
+                        <select
+                          value={activeDoc.fontSize || '12'}
+                          onChange={(e) => handleFontSizeChange(e.target.value)}
+                          className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs min-w-[65px]"
+                          title="Skriftstørrelse (12 pt er akademisk standard)"
+                        >
+                          <option value="9">9 pt</option>
+                          <option value="10">10 pt</option>
+                          <option value="11">11 pt</option>
+                          <option value="12">12 pt (Standard)</option>
+                          <option value="14">14 pt</option>
+                          <option value="16">16 pt</option>
+                          <option value="18">18 pt</option>
+                          <option value="20">20 pt</option>
+                          <option value="24">24 pt</option>
                         </select>
 
                         {/* Linjeavstand-velger */}
@@ -3054,11 +3158,48 @@ ${activeDoc.content}`;
                         </div>
                       </div>
 
-                      {/* Høyre: Word A4-oppsett indikator og båndalternativer */}
+                      {/* Høyre: Sidebreddevelger (A4 / Bred / Full) og båndalternativer */}
                       <div className="flex items-center gap-2">
-                        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span>Word A4-oppsett</span>
+                        <div className="hidden sm:flex items-center gap-1 p-0.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditorPageWidth('a4');
+                              try { localStorage.setItem('blu_editor_page_width', 'a4'); } catch (e) {}
+                            }}
+                            className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                              editorPageWidth === 'a4' ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'hover:text-slate-900 text-slate-500'
+                            }`}
+                            title="Klassisk Word A4-oppsett (794px)"
+                          >
+                            A4
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditorPageWidth('wide');
+                              try { localStorage.setItem('blu_editor_page_width', 'wide'); } catch (e) {}
+                            }}
+                            className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                              editorPageWidth === 'wide' ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'hover:text-slate-900 text-slate-500'
+                            }`}
+                            title="Bred skriveflate (1020px - Anbefalt for god oversikt og helhet)"
+                          >
+                            Bred
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditorPageWidth('full');
+                              try { localStorage.setItem('blu_editor_page_width', 'full'); } catch (e) {}
+                            }}
+                            className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                              editorPageWidth === 'full' ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'hover:text-slate-900 text-slate-500'
+                            }`}
+                            title="Full bredde (1240px - Fyller hele boksen)"
+                          >
+                            Full
+                          </button>
                         </div>
 
                         {!isFloatingPeek && (
@@ -3132,6 +3273,24 @@ ${activeDoc.content}`;
                         <option value="calibri">Calibri</option>
                         <option value="arial">Arial</option>
                         <option value="georgia">Georgia</option>
+                      </select>
+
+                      {/* Skriftstørrelse */}
+                      <select
+                        value={activeDoc.fontSize || '12'}
+                        onChange={(e) => handleFontSizeChange(e.target.value)}
+                        className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                        title="Skriftstørrelse (12 pt er standard)"
+                      >
+                        <option value="9">9 pt</option>
+                        <option value="10">10 pt</option>
+                        <option value="11">11 pt</option>
+                        <option value="12">12 pt</option>
+                        <option value="14">14 pt</option>
+                        <option value="16">16 pt</option>
+                        <option value="18">18 pt</option>
+                        <option value="20">20 pt</option>
+                        <option value="24">24 pt</option>
                       </select>
 
                       <select
@@ -3547,23 +3706,23 @@ ${activeDoc.content}`;
                   </button>
                 </div>
               )}
+              </div>
 
-              <div 
-                className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-100/50"
-                onScroll={(e) => {
-                  if (e.currentTarget.scrollLeft !== 0) {
-                    e.currentTarget.scrollLeft = 0;
-                  }
-                }}
-              >
-                <div className="max-w-4xl mx-auto space-y-4">
-                  <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 px-6 py-4">
+              <div className="flex-1 p-2.5 sm:p-4 md:p-5 bg-slate-100/50 overflow-visible">
+                <div className={`mx-auto space-y-3 transition-all duration-300 ${
+                  editorPageWidth === 'a4' 
+                    ? 'max-w-4xl' 
+                    : editorPageWidth === 'wide' 
+                    ? 'max-w-5xl' 
+                    : 'max-w-6xl w-full'
+                }`}>
+                  <div className="bg-white rounded-xl shadow-2xs border border-slate-200/80 px-5 py-2.5">
                     <input 
                       type="text" 
                       value={activeDoc.title} 
                       onChange={(e) => handleUpdateActiveDoc({ title: e.target.value })} 
                       placeholder="Oppgavetittel..." 
-                      className="w-full text-2xl md:text-3xl font-bold text-slate-900 border-none bg-transparent focus:outline-none placeholder:text-slate-300" 
+                      className="w-full text-xl md:text-2xl font-bold text-slate-900 border-none bg-transparent focus:outline-none placeholder:text-slate-300" 
                     />
                   </div>
 
@@ -3573,7 +3732,13 @@ ${activeDoc.content}`;
                     style={{ zoom: `${zoomLevel}%` }}
                   >
                     <div
-                      className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1123px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative"
+                      className={`bg-white rounded-lg shadow-xl border border-slate-300/80 w-full min-h-[1123px] mx-auto p-8 sm:p-12 md:p-14 flex flex-col justify-between relative transition-all duration-300 ${
+                        editorPageWidth === 'a4' 
+                          ? 'max-w-[794px]' 
+                          : editorPageWidth === 'wide' 
+                          ? 'max-w-[1020px]' 
+                          : 'max-w-[1240px]'
+                      }`}
                     >
                       {/* Innhold / Skriveflate på A4-arket */}
                       <div className="flex-1">
@@ -3596,6 +3761,7 @@ ${activeDoc.content}`;
                               : activeDoc.fontFamily === 'georgia'
                               ? 'Georgia, serif'
                               : '"Times New Roman", Times, serif',
+                            fontSize: activeDoc.fontSize ? `${activeDoc.fontSize}pt` : '12pt',
                             lineHeight: activeDoc.lineSpacing === '1.0'
                               ? '1.2'
                               : activeDoc.lineSpacing === '1.15'
@@ -3619,7 +3785,7 @@ ${activeDoc.content}`;
                           </span>
                           <span className="text-slate-300">•</span>
                           <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
-                            Word A4-oppsett
+                            {editorPageWidth === 'a4' ? 'Word A4-oppsett (794px)' : editorPageWidth === 'wide' ? 'Bred skriveflate (1020px)' : 'Full bredde (1240px)'}
                           </span>
                         </div>
                       </div>
@@ -3673,6 +3839,49 @@ ${activeDoc.content}`;
                         <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Statistikk</span>
                       </button>
+
+                      {/* Sidebreddevelger i statuslinjen */}
+                      <div className="hidden lg:flex items-center gap-1 pl-3 border-l border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditorPageWidth('a4');
+                            try { localStorage.setItem('blu_editor_page_width', 'a4'); } catch (e) {}
+                          }}
+                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            editorPageWidth === 'a4' ? 'bg-indigo-100 text-indigo-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          title="Word A4-bredde (794px)"
+                        >
+                          A4
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditorPageWidth('wide');
+                            try { localStorage.setItem('blu_editor_page_width', 'wide'); } catch (e) {}
+                          }}
+                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            editorPageWidth === 'wide' ? 'bg-indigo-100 text-indigo-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          title="Bred flate (1020px - Anbefalt)"
+                        >
+                          Bred
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditorPageWidth('full');
+                            try { localStorage.setItem('blu_editor_page_width', 'full'); } catch (e) {}
+                          }}
+                          className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            editorPageWidth === 'full' ? 'bg-indigo-100 text-indigo-700 font-extrabold' : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                          title="Full bredde (1240px)"
+                        >
+                          Full
+                        </button>
+                      </div>
 
                       {/* Zoom-glidebryter og kontroller (Microsoft Word stil i bunnhøyre) */}
                       <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
@@ -4914,13 +5123,59 @@ ${activeDoc.content}`;
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              {/* Visningsvelger: Normalvisning (Word-stil / formatert) vs Ren tekst (Markdown) */}
+              <div className={`flex items-center gap-1 p-0.5 rounded-lg border text-xs font-semibold ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZenViewMode('normal');
+                    setTimeout(() => {
+                      if (zenWysiwygRef.current) {
+                        const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
+                        zenWysiwygRef.current.innerHTML = markdownToHtml(currentDocContent);
+                        zenWysiwygRef.current.focus();
+                      }
+                    }, 20);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-all ${
+                    zenViewMode === 'normal'
+                      ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-indigo-700 shadow-2xs font-bold')
+                      : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+                  }`}
+                  title="Normalvisning (slik som teksten vises i skriveflaten: overskrifter og kulepunkter, ikke ## og ###)"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Normalvisning</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZenViewMode('markdown');
+                    setTimeout(() => {
+                      if (textareaRef.current) {
+                        textareaRef.current.focus();
+                      }
+                    }, 20);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-all ${
+                    zenViewMode === 'markdown'
+                      ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white shadow-xs' : 'bg-white text-indigo-700 shadow-2xs font-bold')
+                      : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
+                  }`}
+                  title="Ren tekst / Markdown (råtekst med ## og -)"
+                >
+                  <Code className="w-3.5 h-3.5" />
+                  <span>Ren tekst</span>
+                </button>
+              </div>
+
               {/* Breddevelger */}
               <div className={`hidden md:flex items-center gap-1 p-0.5 rounded-lg border text-xs font-semibold ${zenTheme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
                 <button
                   type="button"
                   onClick={() => setZenWidth('normal')}
                   className={`px-2 py-0.5 rounded cursor-pointer transition-all ${zenWidth === 'normal' ? (zenTheme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-indigo-700 shadow-2xs') : (zenTheme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
-                  title="Normal bredde (768px)"
+                  title="Normal bredde (768px - A4-stil)"
                 >
                   Normal
                 </button>
@@ -5009,9 +5264,9 @@ ${activeDoc.content}`;
             </div>
           </div>
 
-          {/* Zen Writing Sheet Area (Stor, luftig, uforstyrret skriveflate uten trange scrollbokser) */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-12 py-8 flex justify-center">
-            <div className={`w-full transition-all duration-300 ${
+          {/* Zen Writing Sheet Area */}
+          <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 flex flex-col items-center">
+            <div className={`w-full transition-all duration-300 space-y-3.5 ${
               zenWidth === 'normal' 
                 ? 'max-w-3xl' 
                 : zenWidth === 'wide' 
@@ -5020,51 +5275,275 @@ ${activeDoc.content}`;
                 ? 'max-w-6xl' 
                 : 'max-w-full px-4 md:px-8'
             }`}>
-              <div className={`rounded-3xl p-8 sm:p-14 md:p-20 min-h-[85vh] shadow-2xl transition-all border ${
+              {/* Hurtigverktøy for Normalvisning i Fokusmodus */}
+              {zenViewMode === 'normal' && (
+                <div className={`flex flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 rounded-xl border text-xs shadow-xs select-none sticky top-0 z-20 backdrop-blur-md transition-colors ${
+                  zenTheme === 'dark'
+                    ? 'bg-slate-900/90 border-slate-800 text-slate-200 shadow-black/40'
+                    : 'bg-white/90 border-slate-200 text-slate-700 shadow-slate-200/50'
+                }`}>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {/* Angre / Gjør om */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('undo')}
+                      title="Angre (Ctrl+Z)"
+                      className={`p-1 rounded cursor-pointer transition-colors ${zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Undo2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('redo')}
+                      title="Gjenta (Ctrl+Y)"
+                      className={`p-1 rounded cursor-pointer transition-colors ${zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Redo2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className={`w-px h-4 mx-1 ${zenTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`} />
+
+                    {/* Overskrifter */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('h1')}
+                      title="Overskrift 1 (H1)"
+                      className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                        activeHeading === 'h1'
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white font-extrabold' : 'bg-indigo-100 text-indigo-700 font-extrabold')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('h2')}
+                      title="Overskrift 2 (H2)"
+                      className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                        activeHeading === 'h2'
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white font-extrabold' : 'bg-indigo-100 text-indigo-700 font-extrabold')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      H2
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('h3')}
+                      title="Overskrift 3 (H3)"
+                      className={`px-2 py-0.5 rounded font-bold italic transition-all cursor-pointer ${
+                        activeHeading === 'h3'
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white font-extrabold' : 'bg-indigo-100 text-indigo-700 font-extrabold')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      H3
+                    </button>
+
+                    <div className={`w-px h-4 mx-1 ${zenTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`} />
+
+                    {/* Tekstformatering B / I / U */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('bold')}
+                      title="Fet skrift (Ctrl+B)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.bold
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <Bold className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('italic')}
+                      title="Kursiv (Ctrl+I)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.italic
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <Italic className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('underline')}
+                      title="Understreket (Ctrl+U)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.underline
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <Underline className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className={`w-px h-4 mx-1 ${zenTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`} />
+
+                    {/* Kulepunkter og talliste */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('list')}
+                      title="Kulepunkter (•)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.ul
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('orderedList')}
+                      title="Nummerert liste (1, 2, 3)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.ol
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <ListOrdered className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('indent')}
+                      title="Rykk inn / Opprett underpunkt (Tab)"
+                      className={`p-1 rounded cursor-pointer transition-all ${zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Indent className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('outdent')}
+                      title="Rykk ut / Reduser innrykk (Shift+Tab)"
+                      className={`p-1 rounded cursor-pointer transition-all ${zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
+                    >
+                      <Outdent className="w-3.5 h-3.5" />
+                    </button>
+
+                    <div className={`w-px h-4 mx-1 ${zenTheme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`} />
+
+                    {/* Sitat / APA 7 */}
+                    <button
+                      type="button"
+                      onClick={() => applyFormatting('quote')}
+                      title="Innrykket sitat (APA 7 - over 40 ord)"
+                      className={`p-1 rounded cursor-pointer transition-all ${
+                        activeStyles.quote
+                          ? (zenTheme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700')
+                          : (zenTheme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700')
+                      }`}
+                    >
+                      <Quote className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <span className={`text-[11px] font-medium hidden sm:inline ${zenTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Normalvisning • Formatering aktiv
+                  </span>
+                </div>
+              )}
+
+              {/* Selve skriveflaten i Fokusmodus */}
+              <div className={`rounded-3xl p-8 sm:p-14 md:p-18 min-h-[85vh] shadow-2xl transition-all border ${
                 zenTheme === 'dark'
-                  ? 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/80'
+                  ? 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/80 zen-dark'
                   : 'bg-white border-slate-200/90 text-slate-900 shadow-slate-200/60'
               }`}>
-                <textarea
-                  value={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
-                  onChange={(e) => {
-                    const formatted = autoCapitalizeMarkdownBullets(e.target.value);
-                    handleUpdateActiveDoc({ content: formatted });
-                  }}
-                  onKeyDown={handleEditorKeyDown}
-                  placeholder="Skriv uforstyrret her..."
-                  autoFocus
-                  style={{
-                    fontFamily: activeDoc.fontFamily === 'calibri'
-                      ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
-                      : activeDoc.fontFamily === 'arial'
-                      ? 'Arial, Helvetica, sans-serif'
-                      : activeDoc.fontFamily === 'georgia'
-                      ? 'Georgia, serif'
-                      : '"Times New Roman", Times, serif',
-                    fontSize: zenFontSize === 'md' 
-                      ? '1.125rem' 
-                      : zenFontSize === 'lg' 
-                      ? '1.25rem' 
-                      : zenFontSize === 'xl' 
-                      ? '1.5rem' 
-                      : '1.75rem',
-                    lineHeight: '2.0',
-                    minHeight: '70vh'
-                  }}
-                  className={`w-full bg-transparent resize-none border-none focus:outline-none transition-all ${zenTheme === 'dark' ? 'text-slate-100 placeholder:text-slate-700' : 'text-slate-900 placeholder:text-slate-300'}`}
-                />
+                {zenViewMode === 'normal' ? (
+                  /* NORMALVISNING: Ekte formatering akkurat som skriveflaten på A4-arket (overskrifter, kulepunkter, ikke ## og ###) */
+                  <div
+                    ref={zenWysiwygRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBeforeInput={handleWysiwygBeforeInput}
+                    onInput={handleWysiwygInput}
+                    onPaste={handleWysiwygPaste}
+                    onKeyDown={handleEditorKeyDown}
+                    onKeyUp={checkActiveFormatting}
+                    onMouseUp={checkActiveFormatting}
+                    onSelect={checkActiveFormatting}
+                    style={{
+                      fontFamily: activeDoc.fontFamily === 'calibri'
+                        ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                        : activeDoc.fontFamily === 'arial'
+                        ? 'Arial, Helvetica, sans-serif'
+                        : activeDoc.fontFamily === 'georgia'
+                        ? 'Georgia, serif'
+                        : '"Times New Roman", Times, serif',
+                      fontSize: zenFontSize === 'md' 
+                        ? '1.125rem' 
+                        : zenFontSize === 'lg' 
+                        ? '1.25rem' 
+                        : zenFontSize === 'xl' 
+                        ? '1.5rem' 
+                        : '1.75rem',
+                      lineHeight: activeDoc.lineSpacing === '1.0'
+                        ? '1.3'
+                        : activeDoc.lineSpacing === '1.15'
+                        ? '1.45'
+                        : activeDoc.lineSpacing === '2.0'
+                        ? '2.0'
+                        : '1.7',
+                      minHeight: '75vh'
+                    }}
+                    className={`academic-editor-surface w-full focus:outline-none transition-all ${
+                      zenTheme === 'dark' ? 'zen-dark text-slate-100' : 'text-slate-900'
+                    }`}
+                  />
+                ) : (
+                  /* REN TEKST / MARKDOWN: Råtekstvisning for de som ønsker markdown-redigering */
+                  <textarea
+                    ref={textareaRef}
+                    value={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
+                    onChange={(e) => {
+                      const formatted = autoCapitalizeMarkdownBullets(e.target.value);
+                      handleUpdateActiveDoc({ content: formatted });
+                    }}
+                    onKeyDown={handleEditorKeyDown}
+                    placeholder="Skriv uforstyrret med ren tekst / markdown her..."
+                    autoFocus
+                    style={{
+                      fontFamily: activeDoc.fontFamily === 'calibri'
+                        ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                        : activeDoc.fontFamily === 'arial'
+                        ? 'Arial, Helvetica, sans-serif'
+                        : activeDoc.fontFamily === 'georgia'
+                        ? 'Georgia, serif'
+                        : '"Times New Roman", Times, serif',
+                      fontSize: zenFontSize === 'md' 
+                        ? '1.125rem' 
+                        : zenFontSize === 'lg' 
+                        ? '1.25rem' 
+                        : zenFontSize === 'xl' 
+                        ? '1.5rem' 
+                        : '1.75rem',
+                      lineHeight: '2.0',
+                      minHeight: '70vh'
+                    }}
+                    className={`w-full bg-transparent resize-none border-none focus:outline-none font-mono transition-all ${zenTheme === 'dark' ? 'text-slate-100 placeholder:text-slate-700' : 'text-slate-900 placeholder:text-slate-300'}`}
+                  />
+                )}
               </div>
             </div>
           </div>
 
           {/* Zen Bottom Status Bar */}
-          <div className={`px-6 py-2.5 border-t flex items-center justify-between text-xs select-none shrink-0 ${zenTheme === 'dark' ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}>
-            <span className="flex items-center gap-1.5">
+          <div className={`px-6 py-2.5 border-t flex flex-wrap items-center justify-between gap-3 text-xs select-none shrink-0 ${zenTheme === 'dark' ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}>
+            <span className="flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Forstyrrelsesfri skriveøkt aktiv • Skriveflate: {zenWidth === 'normal' ? 'Normal' : zenWidth === 'wide' ? 'Bred (1024px)' : zenWidth === 'xl' ? 'Ekstra bred' : 'Fullskjerm'}</span>
+              <span>
+                Forstyrrelsesfri skriveøkt • Visning: <strong>{zenViewMode === 'normal' ? 'Normalvisning (som skriveflaten)' : 'Ren tekst (Markdown)'}</strong> • Skriveflate: {zenWidth === 'normal' ? 'Normal' : zenWidth === 'wide' ? 'Bred (1024px)' : zenWidth === 'xl' ? 'Ekstra bred' : 'Fullskjerm'}
+              </span>
             </span>
-            <span>Trykk <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${zenTheme === 'dark' ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Esc</kbd> for å gå tilbake</span>
+            <div className="flex items-center gap-3">
+              <span className="hidden sm:inline">Trykk <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${zenTheme === 'dark' ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Tab</kbd> for innrykk / underpunkter</span>
+              <span>Trykk <kbd className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${zenTheme === 'dark' ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>Esc</kbd> for å gå tilbake</span>
+            </div>
           </div>
         </div>
       )}
