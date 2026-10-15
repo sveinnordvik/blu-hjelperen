@@ -116,6 +116,7 @@ export interface WorkspaceLayoutProps {
   backToToolsLabel?: string;
   className?: string;
   mainClassName?: string;
+  customSidebarContent?: React.ReactNode;
   children: React.ReactNode | ((props: { isCollapsed: boolean; toggleCollapsed: () => void; openMobileArchive: () => void }) => React.ReactNode);
 }
 
@@ -151,6 +152,7 @@ export function WorkspaceLayout({
   backToToolsLabel,
   className,
   mainClassName,
+  customSidebarContent,
   children 
 }: WorkspaceLayoutProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -162,6 +164,13 @@ export function WorkspaceLayout({
 
   // Visningsfilter: 'active' (aktive oppgaver) eller 'archived' (arkiverte)
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived'>('active');
+
+  const handleBackToTools = () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    if (onBackToTools) onBackToTools();
+  };
 
   // Mappe-operasjoner: Failsafe sletting og endring av navn / farge
   const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string; itemCount: number } | null>(null);
@@ -442,7 +451,7 @@ export function WorkspaceLayout({
 
   return (
     <WorkspaceContext.Provider value={{ isCollapsed, setIsCollapsed, toggleCollapsed, openMobileArchive, closeMobileArchive }}>
-      <div className={cn("flex w-full h-auto md:h-auto min-h-[520px] md:min-h-[700px] bg-white rounded-2xl md:rounded-3xl shadow-sm border border-slate-200 overflow-hidden relative", className)}>
+      <div className={cn("flex w-full h-auto md:h-auto min-h-[1050px] bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-200 overflow-visible relative", className)}>
       
       {/* SIDEMENY (Skjult på mobil slik at innholdet får 100% bredde, synlig på md+) */}
       <aside 
@@ -515,7 +524,7 @@ export function WorkspaceLayout({
               {onBackToTools && (
                 <button
                   type="button"
-                  onClick={onBackToTools}
+                  onClick={handleBackToTools}
                   className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors mb-2 px-2 py-1.5 rounded-xl hover:bg-slate-800/80 group/back cursor-pointer select-none w-fit"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover/back:-translate-x-1 text-indigo-400" />
@@ -555,55 +564,59 @@ export function WorkspaceLayout({
                 )}
               </div>
 
-              {/* Hurtigsøk i sidebaren */}
-              <div className="relative pt-1">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-3.5 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Søk i mapper og oppgaver..."
-                  className="w-full bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-900 text-white text-xs pl-8 pr-7 py-1.5 rounded-xl border border-slate-700/60 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-3 p-0.5 text-slate-400 hover:text-white rounded-md cursor-pointer"
-                    title="Tøm søk"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
+              {!customSidebarContent && (
+                <>
+                  {/* Hurtigsøk i sidebaren */}
+                  <div className="relative pt-1">
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-3.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Søk i mapper og oppgaver..."
+                      className="w-full bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-900 text-white text-xs pl-8 pr-7 py-1.5 rounded-xl border border-slate-700/60 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-3 p-0.5 text-slate-400 hover:text-white rounded-md cursor-pointer"
+                        title="Tøm søk"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
 
-              {/* ARKIV / AKTIV FILTER-FANER */}
-              <div className="flex bg-slate-800/60 p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setArchiveFilter('active')}
-                  className={`flex-1 py-1 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    archiveFilter === 'active'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                  }`}
-                >
-                  <Inbox className="w-3 h-3" />
-                  <span>Aktive</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setArchiveFilter('archived')}
-                  className={`flex-1 py-1 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    archiveFilter === 'archived'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                  }`}
-                >
-                  <Archive className="w-3 h-3" />
-                  <span>Arkiv {totalArchivedCount > 0 && `(${totalArchivedCount})`}</span>
-                </button>
-              </div>
+                  {/* ARKIV / AKTIV FILTER-FANER */}
+                  <div className="flex bg-slate-800/60 p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setArchiveFilter('active')}
+                      className={`flex-1 py-1 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        archiveFilter === 'active'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <Inbox className="w-3 h-3" />
+                      <span>Aktive</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setArchiveFilter('archived')}
+                      className={`flex-1 py-1 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        archiveFilter === 'archived'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <Archive className="w-3 h-3" />
+                      <span>Arkiv {totalArchivedCount > 0 && `(${totalArchivedCount})`}</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             <div 
@@ -612,8 +625,11 @@ export function WorkspaceLayout({
               onDragLeave={() => setDragOverRoot(false)}
               onDrop={handleRootDrop}
             >
-              
-              {/* FESTET SEKSJON */}
+              {customSidebarContent ? (
+                customSidebarContent
+              ) : (
+                <>
+                  {/* FESTET SEKSJON */}
               {pinnedItems.length > 0 && (
                 <div className="space-y-1">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400/90 mb-2 px-2 flex items-center gap-1.5">
@@ -1036,15 +1052,17 @@ export function WorkspaceLayout({
                   </>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-      </aside>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+  </aside>
 
       {/* ARBEIDSOMRÅDE */}
-      <main className={cn("flex-1 flex flex-col bg-slate-50/50 relative overflow-hidden", mainClassName)}>
+      <main className={cn("flex-1 flex flex-col bg-slate-50/50 relative overflow-visible h-auto md:h-auto min-h-[1050px]", mainClassName)}>
         {onBackToTools ? (
-          <div className="px-4 md:px-6 py-2.5 bg-white/90 backdrop-blur-xs border-b border-slate-200/80 flex items-center justify-between shrink-0 z-10 min-h-[44px]">
+          <div className="px-4 md:px-6 py-2.5 bg-white/95 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between shrink-0 z-20 min-h-[44px] sticky top-16 shadow-2xs">
             <div className="flex items-center gap-2 text-xs">
               {isCollapsed && (
                 <button
@@ -1059,7 +1077,7 @@ export function WorkspaceLayout({
               )}
               <button 
                 type="button"
-                onClick={onBackToTools}
+                onClick={handleBackToTools}
                 className="inline-flex items-center gap-1.5 font-bold text-slate-600 hover:text-indigo-600 transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-100"
               >
                 <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />

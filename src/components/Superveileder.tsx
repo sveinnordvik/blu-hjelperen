@@ -1300,6 +1300,8 @@ export function Superveileder({
   return (
     <WorkspaceLayout
       title={isFelt ? "Feltveilederen" : "Superveilederen"}
+      className="h-auto md:h-auto lg:h-auto min-h-[1050px] overflow-visible rounded-xl md:rounded-2xl shadow-sm"
+      mainClassName="overflow-visible flex-1 flex flex-col bg-slate-50/50 relative h-auto md:h-auto"
       subtitle={isFelt ? "Praksis, Rammeplan & didaktiske situasjoner" : "Sokratisk sparring, Rammeplan, APA & fagskriving"}
       icon={isFelt ? <BookOpen className="w-6 h-6 text-emerald-600" /> : <Sparkles className="w-6 h-6 text-indigo-600" />}
       actionButtonLabel={isFelt ? "Ny feltsamtale" : "Ny veiledningssamtale"}
@@ -1331,7 +1333,7 @@ export function Superveileder({
         const activeFolder = currentFolders.find(f => f.id === activeChat?.folderId);
         return (
           <>
-            <div className="flex flex-col h-full bg-slate-50/50">
+            <div className="flex flex-col h-auto md:h-auto min-h-[1050px] bg-slate-50/50 overflow-visible relative">
             
             {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
             <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
@@ -1402,140 +1404,143 @@ export function Superveileder({
             </div>
           </div>
 
-          {/* Modus-velger i toppen */}
-          <div className={`bg-white p-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 z-10 shadow-xs transition-all duration-300 ${
-            isCollapsed ? 'pl-16 sm:pl-36' : ''
-          }`}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {currentModes.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => handleSetMode(m.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                    activeMode === m.id 
-                      ? (isFelt ? 'bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-700' : 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900')
-                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                  title={m.desc}
-                >
-                  {m.icon} 
-                  <span>{m.id}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Handlinger på høyre side: Pensum på øret, Ny samtale og Slett samtale */}
-            <div className="flex items-center gap-2">
-              {playingIndex !== null && (
-                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl text-blue-700 text-xs font-bold animate-pulse">
-                  <Volume2 className="w-4 h-4" />
-                  <span>Spiller av pensum på øret...</span>
-                  <button 
-                    onClick={() => { stopAudioService(); setPlayingIndex(null); }}
-                    className="ml-1 p-0.5 hover:bg-blue-200 rounded cursor-pointer"
-                    title="Stopp lyd"
+          {/* Sticky Header Wrapper: Top Bar Switcher, Modus-velger og Banners */}
+          <div className="sticky top-16 z-30 bg-white shadow-2xs">
+            {/* Modus-velger i toppen */}
+            <div className={`bg-white p-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 transition-all duration-300 ${
+              isCollapsed ? 'pl-16 sm:pl-36' : ''
+            }`}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {currentModes.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => handleSetMode(m.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      activeMode === m.id 
+                        ? (isFelt ? 'bg-emerald-700 text-white shadow-sm ring-1 ring-emerald-700' : 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900')
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    }`}
+                    title={m.desc}
                   >
-                    <Square className="w-3.5 h-3.5 fill-current" />
+                    {m.icon} 
+                    <span>{m.id}</span>
                   </button>
-                </div>
-              )}
+                ))}
+              </div>
 
-              {/* Hurtigknapp: Ny samtale */}
-              <button
-                type="button"
-                onClick={handleNewChat}
-                className={cn(
-                  "px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs",
-                  isFelt
-                    ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800"
-                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+              {/* Handlinger på høyre side: Pensum på øret, Ny samtale og Slett samtale */}
+              <div className="flex items-center gap-2">
+                {playingIndex !== null && (
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl text-blue-700 text-xs font-bold animate-pulse">
+                    <Volume2 className="w-4 h-4" />
+                    <span>Spiller av pensum på øret...</span>
+                    <button 
+                      onClick={() => { stopAudioService(); setPlayingIndex(null); }}
+                      className="ml-1 p-0.5 hover:bg-blue-200 rounded cursor-pointer"
+                      title="Stopp lyd"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                  </div>
                 )}
-                title={isFelt ? "Start en helt ny praksis-samtale" : "Start en helt ny veiledningssamtale"}
-              >
-                <Plus className={cn("w-3.5 h-3.5", isFelt ? "text-emerald-700" : "text-indigo-600")} />
-                <span className="hidden sm:inline">{isFelt ? "Ny feltsamtale" : "Ny samtale"}</span>
-              </button>
 
-              {/* Slett denne samtalen med hurtigbekreftelse */}
-              {confirmDeleteActiveChat ? (
-                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-xl animate-in fade-in">
-                  <span className="text-[11px] text-rose-800 font-bold">Slette samtalen?</span>
-                  <button
-                    onClick={() => {
-                      if (activeChat) handleDeleteItem(activeChat.id);
-                      setConfirmDeleteActiveChat(false);
-                    }}
-                    className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                  >
-                    Ja
-                  </button>
-                  <button
-                    onClick={() => setConfirmDeleteActiveChat(false)}
-                    className="px-2 py-0.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-all cursor-pointer"
-                  >
-                    Avbryt
-                  </button>
-                </div>
-              ) : (
+                {/* Hurtigknapp: Ny samtale */}
                 <button
                   type="button"
-                  onClick={() => setConfirmDeleteActiveChat(true)}
-                  className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Slett denne samtalen permanent"
+                  onClick={handleNewChat}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs",
+                    isFelt
+                      ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800"
+                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                  )}
+                  title={isFelt ? "Start en helt ny praksis-samtale" : "Start en helt ny veiledningssamtale"}
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span className="hidden sm:inline">Slett samtale</span>
+                  <Plus className={cn("w-3.5 h-3.5", isFelt ? "text-emerald-700" : "text-indigo-600")} />
+                  <span className="hidden sm:inline">{isFelt ? "Ny feltsamtale" : "Ny samtale"}</span>
                 </button>
-              )}
+
+                {/* Slett denne samtalen med hurtigbekreftelse */}
+                {confirmDeleteActiveChat ? (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-xl animate-in fade-in">
+                    <span className="text-[11px] text-rose-800 font-bold">Slette samtalen?</span>
+                    <button
+                      onClick={() => {
+                        if (activeChat) handleDeleteItem(activeChat.id);
+                        setConfirmDeleteActiveChat(false);
+                      }}
+                      className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    >
+                      Ja
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteActiveChat(false)}
+                      className="px-2 py-0.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                    >
+                      Avbryt
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteActiveChat(true)}
+                    className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Slett denne samtalen permanent"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span className="hidden sm:inline">Slett samtale</span>
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Banner for Feltveilederen eller Sokratisk modus */}
+            {isFelt ? (
+              <div className="bg-emerald-50/90 border-b border-emerald-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-emerald-950 font-medium animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Feltveileder aktiv:</strong> Forankret i Rammeplan for barnehagen og sentral didaktisk teori (Bae, Corsaro, Vygotskij, Løkken). Gir deg konkrete grep for praksishverdagen.</span>
+                </div>
+              </div>
+            ) : activeMode === 'Sokratisk' && (
+              <div className="bg-purple-50/90 border-b border-purple-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-purple-900 font-medium animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-purple-600 shrink-0" />
+                  <span><strong>Sokratisk modus aktiv:</strong> Veilederen gir ingen fasitsvar, men stiller utforskende spørsmål for å trene din faglige refleksjon og didaktiske bevissthet.</span>
+                </div>
+                <button 
+                  onClick={() => handleSetMode('Auto')}
+                  className="text-[11px] underline font-bold text-purple-700 hover:text-purple-900 ml-4 shrink-0 cursor-pointer"
+                >
+                  Nullstill til Auto
+                </button>
+              </div>
+            )}
+
+            {/* Mappe-kontekst banner hvis samtalen er i en mappe */}
+            {activeFolder && (
+              <div className="bg-gradient-to-r from-purple-900 to-indigo-900 border-b border-purple-500/30 px-4 md:px-6 py-2 flex items-center justify-between text-xs text-white shadow-xs">
+                <div className="flex items-center gap-2 truncate">
+                  <Brain className="w-4 h-4 text-purple-300 shrink-0 animate-pulse" />
+                  <span className="truncate text-xs font-semibold">
+                    <strong className="text-purple-200">Mappekontekst:</strong> {activeFolder.name} {activeFolder.customContext?.trim() ? `— «${activeFolder.customContext.slice(0, 75)}...»` : '— (Ingen føringer definert)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFolderForContextModalId(activeFolder.id)}
+                  className="text-[11px] font-bold text-purple-200 hover:text-white underline ml-3 shrink-0 cursor-pointer bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-all"
+                >
+                  {activeFolder.customContext?.trim() ? '⚙️ Tilpass føringer' : '+ Definer KI-føringer'}
+                </button>
+              </div>
+            )}
           </div>
-
-          {/* Banner for Feltveilederen eller Sokratisk modus */}
-          {isFelt ? (
-            <div className="bg-emerald-50/90 border-b border-emerald-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-emerald-950 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span><strong>Feltveileder aktiv:</strong> Forankret i Rammeplan for barnehagen og sentral didaktisk teori (Bae, Corsaro, Vygotskij, Løkken). Gir deg konkrete grep for praksishverdagen.</span>
-              </div>
-            </div>
-          ) : activeMode === 'Sokratisk' && (
-            <div className="bg-purple-50/90 border-b border-purple-200/80 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-purple-900 font-medium animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-purple-600 shrink-0" />
-                <span><strong>Sokratisk modus aktiv:</strong> Veilederen gir ingen fasitsvar, men stiller utforskende spørsmål for å trene din faglige refleksjon og didaktiske bevissthet.</span>
-              </div>
-              <button 
-                onClick={() => handleSetMode('Auto')}
-                className="text-[11px] underline font-bold text-purple-700 hover:text-purple-900 ml-4 shrink-0 cursor-pointer"
-              >
-                Nullstill til Auto
-              </button>
-            </div>
-          )}
-
-          {/* Mappe-kontekst banner hvis samtalen er i en mappe */}
-          {activeFolder && (
-            <div className="bg-gradient-to-r from-purple-900 to-indigo-900 border-b border-purple-500/30 px-4 md:px-6 py-2 flex items-center justify-between text-xs text-white shadow-xs">
-              <div className="flex items-center gap-2 truncate">
-                <Brain className="w-4 h-4 text-purple-300 shrink-0 animate-pulse" />
-                <span className="truncate text-xs font-semibold">
-                  <strong className="text-purple-200">Mappekontekst:</strong> {activeFolder.name} {activeFolder.customContext?.trim() ? `— «${activeFolder.customContext.slice(0, 75)}...»` : '— (Ingen føringer definert)'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFolderForContextModalId(activeFolder.id)}
-                className="text-[11px] font-bold text-purple-200 hover:text-white underline ml-3 shrink-0 cursor-pointer bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-all"
-              >
-                {activeFolder.customContext?.trim() ? '⚙️ Tilpass føringer' : '+ Definer KI-føringer'}
-              </button>
-            </div>
-          )}
 
           {/* Chat-meldinger */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar bg-slate-50"
+            className="flex-1 p-4 md:p-6 space-y-6 bg-slate-50/50 overflow-visible min-h-[450px]"
           >
             <div className="max-w-3xl mx-auto w-full space-y-5">
               
@@ -1836,7 +1841,7 @@ export function Superveileder({
           </div>
 
           {/* Skrivefelt i bunn */}
-          <div className="bg-white p-3 md:p-4 border-t border-slate-200 shadow-sm">
+          <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-md p-3 md:p-4 border-t border-slate-200 shadow-lg">
             <form 
               onSubmit={handleSubmit}
               className="max-w-3xl mx-auto flex items-center gap-2 border p-2 rounded-2xl bg-white border-slate-200 shadow-2xs focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all"

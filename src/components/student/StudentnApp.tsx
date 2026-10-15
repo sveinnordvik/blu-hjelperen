@@ -859,6 +859,13 @@ export default function StudentnApp() {
     return saved || (documents.length > 0 ? documents[0].id : null);
   });
 
+  // Alltid åpne faner og verktøy på toppen av siden (Scroll to Top)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab, activeSubTab, docAnalysisInitialTool, activeDocumentId]);
+
   const [showPaywall, setShowPaywall] = useState(false);
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const isGuest = !user;
@@ -4604,7 +4611,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
       {/* Main Content */}
       <main className={cn(
         "flex-1 w-full mx-auto flex flex-col transition-all duration-300",
-        activeTab === 'writing-workshop'
+        !['pricing', 'admin'].includes(activeTab)
           ? "max-w-[99vw] px-2 sm:px-4 md:px-5 lg:px-6 py-1 pb-1 overflow-visible"
           : "max-w-7xl p-4 md:p-6 pb-[140px] md:pb-8 overflow-x-hidden",
         isFocusMode && "max-w-3xl pt-12"
@@ -6294,17 +6301,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'kildebank-writing' && (
-            <div className="flex-1 flex flex-col bg-slate-50 min-h-screen">
-              <KildebankView 
-                onNavigateToWorkshop={(targetDocId) => {
-                  if (targetDocId) {
-                    localStorage.setItem('blu_active_document_id', targetDocId);
-                  }
-                  setActiveTab('writing-workshop');
-                }} 
-                standalone={true} 
-              />
-            </div>
+            <KildebankView 
+              key="kildebank-writing"
+              onNavigateToWorkshop={(targetDocId) => {
+                if (targetDocId) {
+                  localStorage.setItem('blu_active_document_id', targetDocId);
+                }
+                setActiveTab('writing-workshop');
+              }} 
+              standalone={true} 
+            />
           )}
 
           {activeTab === 'milestones' && (

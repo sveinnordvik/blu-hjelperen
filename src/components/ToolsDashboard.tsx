@@ -64,29 +64,36 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
     }
   };
 
+  const handleSelectTool = (toolId: string) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    onSelectTool(toolId);
+  };
+
   return (
     <>
-      {/* DESKTOP-VISNING (Uendret for md: og oppover) */}
-      <div className="hidden md:block max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6 md:py-10 space-y-8 animate-in fade-in duration-300">
+      {/* DESKTOP-VISNING (3x2 rutenett) */}
+      <div className="hidden md:block max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-5 animate-in fade-in duration-300">
         {/* Header-seksjon */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200/80 pb-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 border-b border-slate-200/80 pb-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold tracking-wide uppercase mb-3">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold tracking-wide uppercase mb-1.5">
               <Zap className="w-3.5 h-3.5 text-indigo-600" />
               <span>Spesialiserte BLU-verktøy</span>
             </div>
-            <h1 className="text-2xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
               Verktøykasse for barnehagelærerstudenter
             </h1>
-            <p className="mt-2 text-sm md:text-base text-slate-600 max-w-2xl leading-relaxed">
-              Didaktiske sparringspartnere, sensorvalidering og presentasjonsstøtte skreddersydd for nasjonale retningslinjer og Rammeplanen for barnehagen.
+            <p className="mt-1 text-xs md:text-sm text-slate-600 max-w-2xl leading-snug">
+              Didaktiske sparringspartnere, sensorvalidering og presentasjonsstøtte skreddersydd for nasjonale retningslinjer og Rammeplanen.
             </p>
           </div>
 
           {/* Brukerstatus */}
-          <div className="flex items-center gap-2.5 px-4 py-2 bg-white rounded-2xl border border-slate-200 shadow-2xs self-start md:self-auto shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs self-start md:self-auto shrink-0">
             <span className="text-xs text-slate-500 font-medium">Aktiv plan:</span>
-            <span className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+            <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${
               isSemester 
                 ? 'bg-amber-100 text-amber-900 border border-amber-300' 
                 : isPremium 
@@ -98,59 +105,59 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Grid med fem verktøykort */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        {/* 3x2 Grid med 6 verktøykort */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
           
           {/* KORT 1: Dokumentanalyse */}
           <div 
             id="tool-card-document-analysis"
-            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-indigo-200 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
               {/* Topplinje: Ikon & Badge */}
-              <div className="flex items-start justify-between gap-3 mb-5">
-                <div className="w-13 h-13 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
-                  <FileSearch className="w-6 h-6" />
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
+                  <FileSearch className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80 whitespace-nowrap shadow-2xs">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Dypanalyse krever Semester-pakka</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80 whitespace-nowrap shadow-2xs">
+                  <Sparkles className="w-3 h-3 text-amber-600 shrink-0" />
+                  <span>Semester-pakka</span>
                 </span>
               </div>
 
               {/* Innhold */}
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">
                 Dokumentanalyse
               </h2>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Få grundig analyse av tekstoppbygging, akademisk rød tråd og avsnittsstruktur. Velg mellom standard strukturanalyse eller dyp BLU-sensorkontroll med pensumsjekk.
+              <p className="mt-1 text-xs text-slate-600 leading-snug">
+                Grundig analyse av tekstoppbygging, rød tråd og avsnittsstruktur. Velg mellom strukturanalyse eller BLU-sensorkontroll.
               </p>
 
               {/* Egenskaper */}
-              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Strukturanalyse: Vurdering av overskrifter og tekstflyt</span>
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Strukturanalyse: Overskrifter og tekstflyt</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <span>Sensormodul: Pedagogisk dybde & Rammeplan-forankring</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="truncate">Sensormodul: Pedagogisk dybde</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Humanizer-boten: Etisk språkvask for akademisk stemme</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="truncate">Humanizer-boten: Etisk språkvask</span>
                 </div>
               </div>
             </div>
 
             {/* Aksjonsknapp */}
-            <div className="mt-8 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100">
               <button
-                onClick={() => onSelectTool('document-analysis')}
-                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-indigo-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+                onClick={() => handleSelectTool('document-analysis')}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-indigo-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Åpne dokumentanalyse</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
           </div>
@@ -158,48 +165,48 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
           {/* KORT 2: Simulator / Rollespill */}
           <div 
             id="tool-card-simulator"
-            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-blue-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-blue-200 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
               {/* Topplinje: Ikon & Badge */}
-              <div className="flex items-start justify-between gap-3 mb-5">
-                <div className="w-13 h-13 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
-                  <PlayCircle className="w-6 h-6" />
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
+                  <PlayCircle className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
-                  <span>Standard verktøykort</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 whitespace-nowrap">
+                  <span>Standard</span>
                 </span>
               </div>
 
               {/* Innhold */}
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">
                 Simulator / Rollespill
               </h2>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Muntlig trening og rollespill. Øv på utfordrende foreldresamtaler, tverrfaglig samarbeid og simuler muntlig eksamen med konstruktive tilbakemeldinger.
+              <p className="mt-1 text-xs text-slate-600 leading-snug">
+                Muntlig trening og rollespill. Øv på foreldresamtaler, tverrfaglig samarbeid og simuler muntlig eksamen.
               </p>
 
               {/* Egenskaper */}
-              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Rollespill: Foreldremøter, vanskelige samtaler & ledelse</span>
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Rollespill: Foreldremøter & ledelse</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Muntlig eksamenstrening med didaktisk sensor</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span className="truncate">Muntlig eksamenstrening med sensor</span>
                 </div>
               </div>
             </div>
 
             {/* Aksjonsknapp */}
-            <div className="mt-8 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100">
               <button
-                onClick={() => onSelectTool('simulator')}
-                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+                onClick={() => handleSelectTool('simulator')}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-blue-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Start simulator</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
           </div>
@@ -207,156 +214,156 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
           {/* KORT 3: Presentasjons-generator */}
           <div 
             id="tool-card-presentations"
-            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-amber-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-amber-300 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
               {/* Topplinje: Ikon & Badge */}
-              <div className="flex items-start justify-between gap-3 mb-5">
-                <div className="w-13 h-13 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
-                  <Presentation className="w-6 h-6" />
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
+                  <Presentation className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-400 text-slate-950 border border-amber-500 shadow-2xs whitespace-nowrap">
-                  <Sparkles className="w-3.5 h-3.5 fill-current" />
-                  <span>Premium / Semester-pakka</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 border border-amber-500 shadow-2xs whitespace-nowrap">
+                  <Sparkles className="w-3 h-3 fill-current" />
+                  <span>Semester-pakka</span>
                 </span>
               </div>
 
               {/* Innhold */}
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-amber-700 transition-colors">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-amber-700 transition-colors">
                 Presentasjons-generator
               </h2>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                NotebookLM-drevet verktøy som konverterer oppgaven din til et strukturert lysbilde-oppsett med ferdig talemanus tilpasset muntlig eksamen og høring.
+              <p className="mt-1 text-xs text-slate-600 leading-snug">
+                NotebookLM-drevet verktøy som konverterer oppgaven din til lysbilder med ferdig talemanus til eksamen.
               </p>
 
               {/* Egenskaper */}
-              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Automatisk oppsett av faglige lysbilder</span>
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Automatisk oppsett av lysbilder</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Eksamensklart talemanus for hvert enkelt lysbilde</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="truncate">Eksamensklart talemanus</span>
                 </div>
               </div>
             </div>
 
             {/* Aksjonsknapp */}
-            <div className="mt-8 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100">
               {isSemester ? (
                 <button
-                  onClick={() => onSelectTool('presentations')}
-                  className="w-full py-3.5 px-5 bg-slate-900 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={() => handleSelectTool('presentations')}
+                  className="w-full py-2.5 px-4 bg-slate-900 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Generer presentasjon</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               ) : (
                 <button
-                  onClick={onUpgrade ? onUpgrade : () => onSelectTool('presentations')}
-                  className="w-full py-3.5 px-5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-extrabold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={onUpgrade ? onUpgrade : () => handleSelectTool('presentations')}
+                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-extrabold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Lock className="w-4 h-4" />
-                  <span>Lås opp med Semester-pakka</span>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Lås opp med Semester</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* KORT 4: Humanizer-boten (Visuelt differensiert: Amber bakgrunn & advarsel/mynt) */}
+          {/* KORT 4: Humanizer-boten */}
           <div 
             id="tool-card-humanizer"
-            className="group relative rounded-3xl bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-100/40 border-2 border-amber-300 p-6 md:p-8 shadow-sm hover:shadow-2xl hover:border-amber-400 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative rounded-2xl bg-gradient-to-br from-amber-50/90 via-orange-50/50 to-amber-100/40 border-2 border-amber-300 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-amber-400 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
-              {/* Topplinje: Mynt/Advarsel-ikon & Pay-per-use Badge */}
-              <div className="flex items-start justify-between gap-3 mb-5">
-                <div className="w-13 h-13 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md shadow-amber-500/20 group-hover:rotate-6 transition-transform duration-300">
-                  <Coins className="w-6 h-6 stroke-[2.5]" />
+              {/* Topplinje: Mynt/Advarsel-ikon & Badge */}
+              <div className="flex items-start justify-between gap-2 mb-2.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md shadow-amber-500/20 group-hover:rotate-6 transition-transform duration-300">
+                  <Coins className="w-5 h-5 stroke-[2.5]" />
                 </div>
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-xs whitespace-nowrap ${
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border shadow-2xs whitespace-nowrap ${
                   isUnlimited 
                     ? 'bg-emerald-400 text-slate-950 border-emerald-500' 
                     : 'bg-amber-400 text-slate-950 border-amber-500'
                 }`}>
-                  <span>{isUnlimited ? 'VIP: Ubegrenset tilgang' : 'Pay-per-use: 10 kr per bruk (Stripe)'}</span>
+                  <span>{isUnlimited ? 'VIP: Ubegrenset' : '10 kr per bruk (Stripe)'}</span>
                 </span>
               </div>
 
               {/* Innhold */}
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl md:text-2xl font-black text-slate-950 tracking-tight">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-lg font-black text-slate-950 tracking-tight">
                   Humanizer-boten
                 </h2>
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300">
+                <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded border border-amber-300">
                   Etisk språkvask
                 </span>
               </div>
 
-              <p className="mt-2 text-sm text-slate-800 leading-relaxed font-medium">
-                Vasker og tilpasser teksten din for syntetiske formuleringer og robotaktige vendinger. Sikrer at din personlige, akademiske stemme skinner igjennom.
+              <p className="mt-1 text-xs text-slate-800 leading-snug font-medium">
+                Vasker og tilpasser teksten for robotaktige vendinger. Sikrer din akademiske stemme.
               </p>
 
               {/* Etisk barriere / Advarsel */}
-              <div className="mt-4 p-3.5 bg-white/90 rounded-2xl border border-amber-300/80 text-xs text-amber-950 space-y-1 shadow-2xs">
-                <div className="flex items-center gap-1.5 font-bold">
+              <div className="mt-2.5 p-2 bg-white/90 rounded-xl border border-amber-300/80 text-[11px] text-amber-950 space-y-0.5 shadow-2xs">
+                <div className="flex items-center gap-1 font-bold text-[11px]">
                   {isUnlimited ? (
                     <>
-                      <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                       <span className="text-emerald-950">VIP-tilgang innvilget</span>
                     </>
                   ) : (
                     <>
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                       <span>Bevisst etisk friksjon</span>
                     </>
                   )}
                 </div>
-                <p className="text-[11px] leading-relaxed text-slate-700">
+                <p className="text-[10px] leading-tight text-slate-700">
                   {isUnlimited 
-                    ? 'Du har innvilget ubegrenset tilgang til alle verktøy og Humanizer-boten uten betalingssperre.' 
-                    : 'Aldri ubegrenset i standardabonnement. Hver vask krever et bevisst valg (10 kr) for å verne om egen skriveprosess og akademisk ærlighet.'}
+                    ? 'Du har ubegrenset tilgang til Humanizer-boten uten betalingssperre.' 
+                    : 'Hver vask krever et bevisst valg (10 kr) for å verne om egen skriveprosess.'}
                 </p>
               </div>
 
               {/* Saldo-teller */}
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-700 px-1">
-                <span>Tilgjengelig saldo:</span>
-                <span className={`font-extrabold px-2.5 py-0.5 rounded-full border ${
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-700 px-0.5">
+                <span>Saldo:</span>
+                <span className={`font-extrabold px-2 py-0.5 rounded-full border text-[10px] ${
                   isUnlimited 
                     ? 'text-emerald-900 bg-emerald-100 border-emerald-300' 
                     : 'text-amber-900 bg-amber-200/70 border-amber-300'
                 }`}>
-                  {isUnlimited ? 'Ubegrenset vask' : humanizerCredits > 0 ? `${humanizerCredits} vask tilgjengelig` : '0 vask (fyll på)'}
+                  {isUnlimited ? 'Ubegrenset vask' : humanizerCredits > 0 ? `${humanizerCredits} vask tilgjengelig` : '0 vask'}
                 </span>
               </div>
             </div>
 
-            {/* Aksjonsknapp: Lås opp verktøy eller åpne i Dokumentanalyse */}
-            <div className="mt-6 pt-4 border-t border-amber-200/80 space-y-2">
+            {/* Aksjonsknapp */}
+            <div className="mt-3 pt-2.5 border-t border-amber-200/80 space-y-1">
               {isUnlimited ? (
                 <button
-                  onClick={() => onSelectTool('document-analysis-humanizer')}
-                  className="w-full py-3.5 px-5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:scale-[1.01]"
+                  onClick={() => handleSelectTool('document-analysis-humanizer')}
+                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>Åpne Humanizer-boten</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               ) : humanizerCredits > 0 ? (
                 <>
                   <button
-                    onClick={() => onSelectTool('document-analysis-humanizer')}
-                    className="w-full py-3.5 px-5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:scale-[1.01]"
+                    onClick={() => handleSelectTool('document-analysis-humanizer')}
+                    className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Coins className="w-4 h-4 stroke-[2.5]" />
+                    <Coins className="w-3.5 h-3.5 stroke-[2.5]" />
                     <span>Åpne i Dokumentanalyse</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setShowHumanizerModal(true)}
-                    className="w-full py-2 px-3 text-xs font-bold text-amber-900 hover:text-slate-950 flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                    className="w-full py-1 text-[11px] font-bold text-amber-900 hover:text-slate-950 flex items-center justify-center gap-1 cursor-pointer transition-colors"
                   >
                     <span>Fyll på saldo (10,- kr via Stripe)</span>
                   </button>
@@ -364,57 +371,57 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
               ) : (
                 <button
                   onClick={() => setShowHumanizerModal(true)}
-                  className="w-full py-3.5 px-5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-2xl font-black text-sm shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:scale-[1.01]"
+                  className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs shadow-md shadow-amber-500/25 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Coins className="w-4 h-4 stroke-[2.5]" />
+                  <Coins className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Lås opp verktøy</span>
-                  <span className="text-xs bg-slate-950 text-amber-300 px-2 py-0.5 rounded-lg font-mono ml-1">10,- NOK</span>
+                  <span className="text-[10px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded font-mono ml-1">10,- NOK</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* KORT 5: Oppslagsverk / Fagordbok */}
+          {/* KORT 5: Oppslagsverk / Begreper */}
           <div 
             id="tool-card-dictionary"
-            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
-                  <Library className="w-6 h-6" />
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+                  <Library className="w-5 h-5" />
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Pensumsøk & ordbok
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Pensum & ordbok
                 </span>
               </div>
 
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors">
                 Oppslagsverk & Begreper
               </h2>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Søk i pedagogiske fagbegreper, finn relevant pensumlitteratur for BLU-studiet, og få veiledning i referansehåndtering (Zotero og EndNote).
+              <p className="mt-1 text-xs text-slate-600 leading-snug">
+                Søk i pedagogiske fagbegreper, finn pensumlitteratur for BLU-studiet og veiledning for referanser.
               </p>
 
-              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Begrepsdatabase: Faguttrykk med pedagogisk definisjon</span>
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Begrepsdatabase: Faguttrykk og definisjoner</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Pensumforslag: Relevante akademiske artikler og bøker</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Pensumforslag: Artikler og fagbøker</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100">
               <button
-                onClick={() => onSelectTool('dictionary')}
-                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+                onClick={() => handleSelectTool('dictionary')}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Åpne oppslagsverk</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
           </div>
@@ -422,44 +429,44 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
           {/* KORT 6: Empiri- og Intervjuanalyse */}
           <div 
             id="tool-card-empirical-analysis"
-            className="group relative bg-white rounded-3xl border border-slate-200/90 p-6 md:p-8 shadow-xs hover:shadow-xl hover:border-emerald-200 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-emerald-200 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
-                  <ShieldCheck className="w-6 h-6" />
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+                  <ShieldCheck className="w-5 h-5" />
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-                  <Mic className="w-3.5 h-3.5" /> Sikt & GDPR-veiledet
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                  <Mic className="w-3 h-3" /> Sikt & GDPR
                 </span>
               </div>
 
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors">
+              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-emerald-600 transition-colors">
                 Empiri- og Intervjuanalyse
               </h2>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Sikker håndtering av praksisdata, intervjuer og observasjoner. Veiledning for opptak via Sikts Nettskjema, anonymiseringssjekk, og drøfting mot Rammeplanen.
+              <p className="mt-1 text-xs text-slate-600 leading-snug">
+                Sikker håndtering av praksisdata, intervjuer og observasjoner. Sikts Nettskjema-guide og drøfting.
               </p>
 
-              <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-700">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Sikt Nettskjema-guide: Lovlig opptak og transkripsjon</span>
+              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Sikt Nettskjema-guide: Opptak & GDPR</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Pedagogisk drøfting: Koble empiri til Rammeplan & teori</span>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate">Pedagogisk drøfting mot Rammeplanen</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-100">
               <button
-                onClick={() => onSelectTool('empirical-analysis')}
-                className="w-full py-3.5 px-5 bg-slate-900 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
+                onClick={() => handleSelectTool('empirical-analysis')}
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer group-hover:translate-x-0.5"
               >
                 <span>Åpne empiri- og intervjuanalyse</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
           </div>

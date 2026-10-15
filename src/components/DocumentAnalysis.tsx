@@ -221,6 +221,13 @@ export function DocumentAnalysis({
     }
   }, [documents]);
 
+  // Scroll to top ved verktøy- eller dokumentbytte
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTool, activeDocId]);
+
   // Henter felles mapper fra Firestore ved innlasting hvis logget inn
   useEffect(() => {
     const fetchFolders = async () => {
@@ -512,11 +519,11 @@ ${inputText.slice(0, 8000)}
       onDeleteItem={handleDeleteItem}
       onRenameItem={handleRenameItem}
     >
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50">
+      <div className="flex-1 p-4 sm:p-8 bg-slate-50 overflow-visible min-h-[1050px]">
         <div className="max-w-5xl mx-auto space-y-6">
 
           {/* VERKTØY-KORT / UNDERFANER (Sensorverktøy, Dypanalyse & Humanizer-boten) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 py-2">
             
             {/* KORT 1: SENSORVERKTØY */}
             <button

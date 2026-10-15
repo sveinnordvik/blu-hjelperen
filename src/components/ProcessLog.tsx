@@ -580,9 +580,11 @@ Foreslå:
   return (
     <>
       {/* DESKTOP VISNING (Uendret og bevart for skjermstørrelse md: og større) */}
-      <div className="hidden md:block w-full h-full">
+      <div className="hidden md:block w-full h-auto min-h-[1050px]">
         <WorkspaceLayout
       title="Prosesslogg"
+      className="h-auto md:h-auto lg:h-auto min-h-[1050px] overflow-visible rounded-xl md:rounded-2xl shadow-sm"
+      mainClassName="overflow-visible flex-1 flex flex-col bg-slate-50/50 relative h-auto md:h-auto"
       subtitle="Dokumenter praksis og refleksjon"
       icon={<BookOpen className="w-6 h-6" />}
       actionButtonLabel="Ny logg"
@@ -599,7 +601,7 @@ Foreslå:
     >
       {({ isCollapsed }) => (
         <>
-        <div className={`flex-1 overflow-y-auto p-4 md:p-8 flex justify-center bg-slate-50/50 custom-scrollbar transition-all duration-300 ${
+        <div className={`flex-1 p-4 md:p-8 flex justify-center bg-slate-50/50 overflow-visible transition-all duration-300 ${
           isCollapsed ? 'pt-16 md:pt-8' : ''
         }`}>
         <div className="w-full max-w-3xl space-y-6">
