@@ -11,7 +11,7 @@ import {
   ZoomIn, ZoomOut
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { markdownToHtml, htmlToMarkdown, splitDocumentIntoPages } from '../../lib/wysiwygConverter';
+import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
 import { CitationAssistantModal } from './CitationAssistantModal';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
 import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -1116,23 +1116,12 @@ ${activeDoc.content}`;
   });
 
   const wysiwygRef = useRef<HTMLDivElement>(null);
-  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const activePageIdxRef = useRef<number>(0);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const activeDocContentRef = useRef<string>('');
   activeDocContentRef.current = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
 
   const getActiveEditorElement = (): HTMLDivElement | null => {
-    const sel = window.getSelection();
-    if (sel && sel.anchorNode) {
-      let node: Node | null = sel.anchorNode;
-      while (node) {
-        if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains('academic-editor-surface')) {
-          return node as HTMLDivElement;
-        }
-        node = node.parentNode;
-      }
-    }
-    return pageRefs.current[activePageIdxRef.current] || pageRefs.current[0] || wysiwygRef.current || null;
+    return wysiwygRef.current;
   };
 
   const isUserTypingRef = useRef(false);
@@ -1483,28 +1472,20 @@ ${activeDoc.content}`;
     }
   }, [activeDoc?.id, activeDoc?.content, editorMode]);
 
-  // Håndterer endringer i en spesifikk A4-side uten å miste markørposisjon
-  const handlePageInput = (pageIdx: number, newHtml: string) => {
-    isUserTypingRef.current = true;
-    activePageIdxRef.current = pageIdx;
-    const pageMd = htmlToMarkdown(newHtml);
-    const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
-    const currentPages = splitDocumentIntoPages(fullDocText, 380);
-    const updatedPages = [...currentPages];
-    updatedPages[pageIdx] = pageMd;
-    const newFull = updatedPages.join('\n\n<!-- pagebreak -->\n\n');
-    handleUpdateActiveDoc({ content: newFull });
-    checkActiveFormatting();
-    setTimeout(() => {
-      isUserTypingRef.current = false;
-    }, 150);
-  };
-
   const handleWysiwygInput = () => {
-    const activeEditor = getActiveEditorElement();
-    if (!activeEditor) return;
-    const pageIdx = Math.max(0, pageRefs.current.findIndex(el => el === activeEditor));
-    handlePageInput(pageIdx, activeEditor.innerHTML);
+    isUserTypingRef.current = true;
+    if (!wysiwygRef.current) return;
+    const newHtml = wysiwygRef.current.innerHTML;
+    const newMd = htmlToMarkdown(newHtml);
+    handleUpdateActiveDoc({ content: newMd });
+    checkActiveFormatting();
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      isUserTypingRef.current = false;
+    }, 400);
   };
 
   const applyFormatting = (type: string) => {
@@ -1537,16 +1518,38 @@ ${activeDoc.content}`;
       };
 
       if (type === 'pagebreak') {
-        const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
-        const currentPages = splitDocumentIntoPages(fullDocText, 380);
-        const activeIdx = Math.max(0, pageRefs.current.findIndex(el => el === activeEditor));
-        const updated = [...currentPages];
-        updated.splice(activeIdx + 1, 0, '');
-        const newFull = updated.join('\n\n<!-- pagebreak -->\n\n');
-        handleUpdateActiveDoc({ content: newFull });
-        setTimeout(() => {
-          pageRefs.current[activeIdx + 1]?.focus();
-        }, 100);
+        if (wysiwygRef.current) {
+          wysiwygRef.current.focus();
+          const pageBreakHtml = '<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>';
+
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = pageBreakHtml;
+            const frag = document.createDocumentFragment();
+            let node: Node | null;
+            let lastNode: Node | null = null;
+            while ((node = tempDiv.firstChild)) {
+              lastNode = frag.appendChild(node);
+            }
+            range.insertNode(frag);
+
+            if (lastNode) {
+              const newRange = document.createRange();
+              newRange.setStart(lastNode, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          } else {
+            document.execCommand('insertHTML', false, pageBreakHtml);
+          }
+
+          handleWysiwygInput();
+        }
         return;
       }
 
@@ -2563,9 +2566,16 @@ ${activeDoc.content}`;
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100/50">
-                <div className="max-w-3xl mx-auto space-y-4">
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 px-6 py-4">
+              <div 
+                className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 bg-slate-100/50"
+                onScroll={(e) => {
+                  if (e.currentTarget.scrollLeft !== 0) {
+                    e.currentTarget.scrollLeft = 0;
+                  }
+                }}
+              >
+                <div className="max-w-4xl mx-auto space-y-4">
+                  <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 px-6 py-4">
                     <input 
                       type="text" 
                       value={activeDoc.title} 
@@ -2575,91 +2585,62 @@ ${activeDoc.content}`;
                     />
                   </div>
 
-                  {/* Ekte Word A4-ark side-for-side med fysisk skille mellom arkene */}
-                  {(() => {
-                    const fullDocText = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
-                    const docPages = splitDocumentIntoPages(fullDocText, 380);
-
-                    return (
-                      <div 
-                        className="space-y-8 pb-16 transition-all origin-top flex flex-col items-center"
-                        style={{ zoom: `${zoomLevel}%` }}
-                      >
-                        {docPages.map((pageText, pageIdx) => {
-                          const pageNum = pageIdx + 1;
-                          const totalPages = docPages.length;
-
-                          return (
-                            <div
-                              key={`word-a4-sheet-${pageIdx}`}
-                              className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1050px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative transition-all"
-                            >
-                              {/* Innhold / Skriveflate på dette arket */}
-                              <div className="flex-1">
-                                <div
-                                  ref={(el) => {
-                                    pageRefs.current[pageIdx] = el;
-                                    if (el && !isUserTypingRef.current) {
-                                      const targetHtml = markdownToHtml(pageText);
-                                      if (el.innerHTML !== targetHtml) {
-                                        el.innerHTML = targetHtml;
-                                      }
-                                    }
-                                  }}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  onFocus={() => {
-                                    activePageIdxRef.current = pageIdx;
-                                    checkActiveFormatting();
-                                  }}
-                                  onInput={(e) => {
-                                    handlePageInput(pageIdx, e.currentTarget.innerHTML);
-                                  }}
-                                  onKeyDown={handleEditorKeyDown}
-                                  onKeyUp={checkActiveFormatting}
-                                  onMouseUp={checkActiveFormatting}
-                                  onSelect={checkActiveFormatting}
-                                  style={{
-                                    fontFamily: activeDoc.fontFamily === 'calibri'
-                                      ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
-                                      : activeDoc.fontFamily === 'arial'
-                                      ? 'Arial, Helvetica, sans-serif'
-                                      : activeDoc.fontFamily === 'georgia'
-                                      ? 'Georgia, serif'
-                                      : '"Times New Roman", Times, serif',
-                                    lineHeight: activeDoc.lineSpacing === '1.0'
-                                      ? '1.2'
-                                      : activeDoc.lineSpacing === '1.15'
-                                      ? '1.38'
-                                      : activeDoc.lineSpacing === '2.0'
-                                      ? '2.0'
-                                      : '1.6'
-                                  }}
-                                  className="academic-editor-surface w-full focus:outline-none min-h-[850px]"
-                                />
-                              </div>
-
-                              {/* A4 Bunntekst for dette arket */}
-                              <div className="flex items-center justify-between pt-4 mt-8 border-t border-slate-100 text-[11px] text-slate-400 select-none">
-                                <span className="font-medium text-slate-400">
-                                  {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
-                                </span>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-slate-400">
-                                    A4 (2,54 cm marg)
-                                  </span>
-                                  <span className="text-slate-300">•</span>
-                                  <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
-                                    Side {pageNum} av {totalPages}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {/* Ekte Word A4-ark */}
+                  <div 
+                    className="pb-16 origin-top flex flex-col items-center w-full"
+                    style={{ zoom: `${zoomLevel}%` }}
+                  >
+                    <div
+                      className="bg-white rounded-lg shadow-xl border border-slate-300/80 w-full max-w-[794px] min-h-[1123px] mx-auto p-10 sm:p-14 md:p-16 flex flex-col justify-between relative"
+                    >
+                      {/* Innhold / Skriveflate på A4-arket */}
+                      <div className="flex-1">
+                        <div
+                          ref={wysiwygRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={handleWysiwygInput}
+                          onKeyDown={handleEditorKeyDown}
+                          onKeyUp={checkActiveFormatting}
+                          onMouseUp={checkActiveFormatting}
+                          onSelect={checkActiveFormatting}
+                          style={{
+                            fontFamily: activeDoc.fontFamily === 'calibri'
+                              ? 'Calibri, Candara, Segoe, "Segoe UI", Optima, Arial, sans-serif'
+                              : activeDoc.fontFamily === 'arial'
+                              ? 'Arial, Helvetica, sans-serif'
+                              : activeDoc.fontFamily === 'georgia'
+                              ? 'Georgia, serif'
+                              : '"Times New Roman", Times, serif',
+                            lineHeight: activeDoc.lineSpacing === '1.0'
+                              ? '1.2'
+                              : activeDoc.lineSpacing === '1.15'
+                              ? '1.38'
+                              : activeDoc.lineSpacing === '2.0'
+                              ? '2.0'
+                              : '1.6'
+                          }}
+                          className="academic-editor-surface w-full focus:outline-none min-h-[950px]"
+                        />
                       </div>
-                    );
-                  })()}
+
+                      {/* A4 Bunntekst */}
+                      <div className="flex items-center justify-between pt-4 mt-8 border-t border-slate-100 text-[11px] text-slate-400 select-none">
+                        <span className="font-medium text-slate-400">
+                          {activeDoc.template || 'Barnehagelærerutdanningen (BLU)'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-400">
+                            A4 (2,54 cm marg)
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded">
+                            Word A4-oppsett
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
