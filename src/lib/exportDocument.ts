@@ -837,28 +837,40 @@ function convertMarkdownToDocx(markdown: string, font: string = 'Times New Roman
       continue;
     }
 
-    // Punktliste
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      const listText = line.replace(/^[-*]\s+/, '').trim();
+    // Punktliste (støtter også innrykkede underpunkter med nivå 0, 1, 2 osv.)
+    const bulletMatch = line.match(/^(\s*)(?:[-*])\s+(.*)$/);
+    if (bulletMatch) {
+      const indentSpaces = bulletMatch[1].replace(/\t/g, '  ').length;
+      const bulletLevel = Math.min(3, Math.floor(indentSpaces / 2));
+      const listText = bulletMatch[2].trim();
+      const capitalizedText = (listText.length > 0 
+        ? listText.charAt(0).toLocaleUpperCase('nb-NO') + listText.slice(1) 
+        : listText).replace(/([.!?]["'»”)]?\s+)([a-zæøå])/g, (_m, p, c) => p + c.toLocaleUpperCase('nb-NO'));
       paragraphs.push(new Paragraph({
-        bullet: { level: 0 },
+        bullet: { level: bulletLevel },
         alignment: AlignmentType.LEFT,
         spacing: { line: 360, after: 80 },
-        children: parseInlineFormatting(listText, font, 24)
+        children: parseInlineFormatting(capitalizedText, font, 24)
       }));
       continue;
     }
 
-    // Nummerert liste
-    if (/^\d+\.\s+/.test(line)) {
-      const listText = line.replace(/^\d+\.\s+/, '').trim();
+    // Nummerert liste (støtter også innrykkede underpunkter)
+    const numberedMatch = line.match(/^(\s*)(\d+\.)\s+(.*)$/);
+    if (numberedMatch) {
+      const indentSpaces = numberedMatch[1].replace(/\t/g, '  ').length;
+      const listLevel = Math.min(3, Math.floor(indentSpaces / 2));
+      const listText = numberedMatch[3].trim();
+      const capitalizedText = (listText.length > 0 
+        ? listText.charAt(0).toLocaleUpperCase('nb-NO') + listText.slice(1) 
+        : listText).replace(/([.!?]["'»”)]?\s+)([a-zæøå])/g, (_m, p, c) => p + c.toLocaleUpperCase('nb-NO'));
       paragraphs.push(new Paragraph({
         alignment: AlignmentType.LEFT,
         spacing: { line: 360, after: 80 },
-        indent: { left: 360 },
+        indent: { left: 360 * (listLevel + 1) },
         children: [
-          new TextRun({ text: line.match(/^\d+\./)![0] + '  ', bold: true, font, size: 24 }),
-          ...parseInlineFormatting(listText, font, 24)
+          new TextRun({ text: numberedMatch[2] + '  ', bold: true, font, size: 24 }),
+          ...parseInlineFormatting(capitalizedText, font, 24)
         ]
       }));
       continue;
@@ -868,13 +880,14 @@ function convertMarkdownToDocx(markdown: string, font: string = 'Times New Roman
     // - Skriftstørrelse 12pt (size: 24)
     // - Linjeavstand 1,5 (line: 360)
     // - ALLTID venstrejustert (AlignmentType.LEFT), ujevn ("frynsete") høyrekant
+    const formattedParagraph = trimmed.replace(/([.!?]["'»”)]?\s+)([a-zæøå])/g, (_m, p, c) => p + c.toLocaleUpperCase('nb-NO'));
     paragraphs.push(new Paragraph({
       alignment: AlignmentType.LEFT, // Venstrejustert (ikke justified)
       spacing: { 
         line: 360, // 1,5 linjeavstand
         after: 140 
       },
-      children: parseInlineFormatting(trimmed, font, 24)
+      children: parseInlineFormatting(formattedParagraph, font, 24)
     }));
   }
 

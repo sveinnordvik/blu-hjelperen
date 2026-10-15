@@ -8,10 +8,10 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify, Highlighter, Indent, Outdent, Baseline,
   Search, Replace, BarChart3, Type, ChevronUp, ChevronDown,
   Maximize2, Minimize2, Sun, Moon,
-  ZoomIn, ZoomOut
+  ZoomIn, ZoomOut, Pin, PinOff, SlidersHorizontal, Layers
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { markdownToHtml, htmlToMarkdown } from '../../lib/wysiwygConverter';
+import { markdownToHtml, htmlToMarkdown, capitalizeListItemText } from '../../lib/wysiwygConverter';
 import { CitationAssistantModal } from './CitationAssistantModal';
 import { analyzeWithSystemPrompt, analyzeAssignmentText, chatWithSuperveileder } from '../../services/geminiService';
 import { collection, addDoc, serverTimestamp, doc, setDoc, getDocs, query, where, deleteDoc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -501,6 +501,51 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
 
   // ZOOM / FORSTØRRELSE (Word-stil 50% - 200%)
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+
+  // VERKTØYLINJE-MODUS (Word-stil: 'full' (2 linjer) | 'compact' (1 linje) | 'hidden' (helt skjult))
+  type ToolbarMode = 'full' | 'compact' | 'hidden';
+  const [toolbarMode, setToolbarMode] = useState<ToolbarMode>(() => {
+    try {
+      const saved = localStorage.getItem('blu_toolbar_mode');
+      if (saved === 'full' || saved === 'compact' || saved === 'hidden') return saved;
+    } catch (e) {}
+    return 'full';
+  });
+  const [isToolbarHovered, setIsToolbarHovered] = useState(false);
+  const [isRibbonMenuOpen, setIsRibbonMenuOpen] = useState(false);
+  const toolbarHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('blu_toolbar_mode', toolbarMode);
+    } catch (e) {}
+  }, [toolbarMode]);
+
+  const handleToolbarTriggerMouseEnter = () => {
+    if (toolbarHoverTimeoutRef.current) {
+      clearTimeout(toolbarHoverTimeoutRef.current);
+      toolbarHoverTimeoutRef.current = null;
+    }
+    setIsToolbarHovered(true);
+  };
+
+  const handleToolbarMouseLeave = () => {
+    if (toolbarHoverTimeoutRef.current) {
+      clearTimeout(toolbarHoverTimeoutRef.current);
+    }
+    toolbarHoverTimeoutRef.current = setTimeout(() => {
+      setIsToolbarHovered(false);
+      setIsRibbonMenuOpen(false);
+    }, 380);
+  };
+
+  const handleToolbarContainerMouseEnter = () => {
+    if (toolbarHoverTimeoutRef.current) {
+      clearTimeout(toolbarHoverTimeoutRef.current);
+      toolbarHoverTimeoutRef.current = null;
+    }
+    setIsToolbarHovered(true);
+  };
 
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -1323,8 +1368,408 @@ ${activeDoc.content}`;
     }, 120);
   }, [editorMode, checkActiveFormatting]);
 
-  // Snarveier for Ctrl+Z, Ctrl+Y, Ctrl+Enter (Sideskift), Ctrl+F (Søk) og Ctrl+H (Erstatt)
+  // Sikrer at alle kulepunkter og setninger etter punktum automatisk får stor forbokstav (Word-regel)
+  const capitalizeListItemsInEditor = (container: HTMLElement | null) => {
+    if (!container) return;
+
+    // 1. Kulepunkter og lister: første bokstav alltid stor
+    const listItems = container.querySelectorAll('li');
+    listItems.forEach(li => {
+      const walker = document.createTreeWalker(li, NodeFilter.SHOW_TEXT, null);
+      let textNode = walker.nextNode() as Text | null;
+      while (textNode) {
+        if (textNode.parentElement?.closest('li') !== li) {
+          textNode = walker.nextNode() as Text | null;
+          continue;
+        }
+        const val = textNode.nodeValue || '';
+        const match = val.match(/^(\s*)([a-zæøå])/);
+        if (match) {
+          const leadingSpaces = match[1];
+          const lowerChar = match[2];
+          const upperChar = lowerChar.toLocaleUpperCase('nb-NO');
+          textNode.nodeValue = leadingSpaces + upperChar + val.slice(leadingSpaces.length + 1);
+          break;
+        } else if (val.trim().length > 0) {
+          break;
+        }
+        textNode = walker.nextNode() as Text | null;
+      }
+    });
+
+    // 2. Stor bokstav etter punktum, utropstegn og spørsmålstegn i alle avsnitt og blokker
+    const sel = window.getSelection();
+    const activeTextNode = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
+    const activeOffset = sel && sel.rangeCount > 0 ? sel.anchorOffset : 0;
+
+    const allBlocks = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, blockquote, li');
+    allBlocks.forEach(block => {
+      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null);
+      let textNode = walker.nextNode() as Text | null;
+      while (textNode) {
+        const val = textNode.nodeValue || '';
+        if (/[.!?]["'»”)]?\s+[a-zæøå]/.test(val)) {
+          const updatedVal = val.replace(/([.!?]["'»”)]?\s+)([a-zæøå])/g, (_match, prefix, char) => {
+            return prefix + char.toLocaleUpperCase('nb-NO');
+          });
+
+          if (updatedVal !== val) {
+            const isCurrentCaretNode = textNode === activeTextNode;
+            textNode.nodeValue = updatedVal;
+            if (isCurrentCaretNode && sel) {
+              try {
+                const newRange = document.createRange();
+                newRange.setStart(textNode, Math.min(activeOffset, updatedVal.length));
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+              } catch {}
+            }
+          }
+        }
+        textNode = walker.nextNode() as Text | null;
+      }
+    });
+  };
+
+  // Hjelpefunksjon for å auto-kapitalisere kulepunkter og setninger etter punktum i råtekst (f.eks. Zen-modus)
+  const autoCapitalizeMarkdownBullets = (text: string): string => {
+    if (!text) return text;
+    return text
+      .replace(/^(\s*[-*]\s+)([a-zæøå])/gm, (_m, prefix, char) => prefix + char.toLocaleUpperCase('nb-NO'))
+      .replace(/^(\s*\d+\.\s+)([a-zæøå])/gm, (_m, prefix, char) => prefix + char.toLocaleUpperCase('nb-NO'))
+      .replace(/([.!?]["'»”)]?\s+)([a-zæøå])/g, (_m, prefix, char) => prefix + char.toLocaleUpperCase('nb-NO'));
+  };
+
+  // Fanger opp tastetrykk i sanntid: gjør første bokstav i kulepunkter, avsnitt og etter punktum automatisk til stor bokstav (Word autocorrect)
+  const handleWysiwygBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const nativeEvent = e.nativeEvent as InputEvent;
+    if (!nativeEvent) return;
+
+    if (nativeEvent.inputType === 'insertText' && nativeEvent.data) {
+      const data = nativeEvent.data;
+      if (/^[a-zæøå]$/.test(data)) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          let node: Node | null = range.startContainer;
+          let liNode: HTMLElement | null = null;
+          let blockNode: HTMLElement | null = null;
+
+          while (node && node !== wysiwygRef.current) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              const tag = el.tagName.toLowerCase();
+              if (tag === 'li' && !liNode) {
+                liNode = el;
+              }
+              if (/^(li|p|h[1-6]|blockquote|div)$/.test(tag) && !blockNode) {
+                blockNode = el;
+              }
+            }
+            node = node.parentNode;
+          }
+
+          const targetContainer = liNode || blockNode || wysiwygRef.current;
+          if (targetContainer) {
+            const preRange = document.createRange();
+            preRange.selectNodeContents(targetContainer);
+            preRange.setEnd(range.startContainer, range.startOffset);
+
+            // Unngå tekst fra underordnede lister hvis i li
+            const tempDiv = document.createElement('div');
+            tempDiv.appendChild(preRange.cloneContents());
+            if (liNode) {
+              const subLists = tempDiv.querySelectorAll('ul, ol');
+              subLists.forEach(s => s.remove());
+            }
+            const textBefore = tempDiv.textContent || '';
+
+            // Sjekk om vi er ved starten av et avsnitt / kulepunkt, eller etter punktum / utropstegn / spørsmålstegn
+            const isAtStart = textBefore.trim() === '';
+            const isAfterPeriod = /(?:[.!?]["'»”)]?)\s*$/.test(textBefore);
+
+            if (isAtStart || isAfterPeriod) {
+              e.preventDefault();
+              const upper = data.toLocaleUpperCase('nb-NO');
+              document.execCommand('insertText', false, upper);
+              handleWysiwygInput();
+              return;
+            }
+          }
+        }
+      }
+    }
+  };
+
+  const handleWysiwygPaste = () => {
+    setTimeout(() => {
+      if (wysiwygRef.current) {
+        capitalizeListItemsInEditor(wysiwygRef.current);
+        handleWysiwygInput();
+      }
+    }, 10);
+  };
+
+  const handleWysiwygInput = () => {
+    isUserTypingRef.current = true;
+    if (!wysiwygRef.current) return;
+    capitalizeListItemsInEditor(wysiwygRef.current);
+    const newHtml = wysiwygRef.current.innerHTML;
+    const newMd = htmlToMarkdown(newHtml);
+    handleUpdateActiveDoc({ content: newMd });
+    checkActiveFormatting();
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      isUserTypingRef.current = false;
+    }, 400);
+  };
+
+  // Innrykk / underpunkter for Tab og Shift+Tab (Word-standard)
+  const handleTabIndent = (isShift: boolean, targetEl?: HTMLElement | null) => {
+    if (editorMode === 'wysiwyg' && wysiwygRef.current) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      const anchor = sel.anchorNode;
+      const li = anchor?.nodeType === Node.ELEMENT_NODE
+        ? (anchor as HTMLElement).closest('li')
+        : anchor?.parentElement?.closest('li');
+
+      if (isShift) {
+        // Shift+Tab: Rykk ut (Outdent)
+        if (li) {
+          const parentList = li.parentElement;
+          const grandParentLi = parentList?.parentElement?.closest('li');
+          const grandParentList = parentList?.parentElement?.closest('ul, ol');
+
+          document.execCommand('outdent', false);
+
+          if (parentList && grandParentList && li.parentElement === parentList) {
+            if (grandParentLi && grandParentLi.parentNode) {
+              grandParentLi.parentNode.insertBefore(li, grandParentLi.nextSibling);
+            } else {
+              grandParentList.appendChild(li);
+            }
+            if (parentList.children.length === 0) {
+              parentList.remove();
+            }
+            const newRange = document.createRange();
+            newRange.selectNodeContents(li);
+            newRange.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        } else {
+          document.execCommand('outdent', false);
+        }
+        capitalizeListItemsInEditor(wysiwygRef.current);
+        handleWysiwygInput();
+        checkActiveFormatting();
+      } else {
+        // Tab: Rykk inn (Indent)
+        if (li) {
+          // Kulepunkt / liste: Opprett nytt underpunkt med innrykk og nytt symbol
+          const prevLi = li.previousElementSibling as HTMLElement | null;
+          const parentList = li.parentElement;
+          const listTag = parentList?.tagName.toLowerCase() === 'ol' ? 'ol' : 'ul';
+
+          if (!prevLi && parentList) {
+            const subList = document.createElement(listTag);
+            parentList.insertBefore(subList, li);
+            subList.appendChild(li);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(li);
+            newRange.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          } else {
+            document.execCommand('indent', false);
+            const bq = li.closest('blockquote');
+            if (bq && parentList && parentList.contains(bq)) {
+              const subList = document.createElement(listTag);
+              while (bq.firstChild) {
+                subList.appendChild(bq.firstChild);
+              }
+              bq.parentNode?.replaceChild(subList, bq);
+            } else if (prevLi && li.parentElement === parentList) {
+              let subList = prevLi.querySelector(`:scope > ${listTag}`) as HTMLElement | null;
+              if (!subList) {
+                subList = document.createElement(listTag);
+                prevLi.appendChild(subList);
+              }
+              subList.appendChild(li);
+              const newRange = document.createRange();
+              newRange.selectNodeContents(li);
+              newRange.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          }
+
+          capitalizeListItemsInEditor(wysiwygRef.current);
+          handleWysiwygInput();
+          checkActiveFormatting();
+        } else {
+          // Vanlig brødtekst / avsnitt: Rykk inn
+          const indentSuccess = document.execCommand('indent', false);
+          if (!indentSuccess) {
+            document.execCommand('insertText', false, '    ');
+          }
+          handleWysiwygInput();
+          checkActiveFormatting();
+        }
+      }
+    } else {
+      // Textarea i markdown-visning eller Zen-modus
+      const textarea = (targetEl instanceof HTMLTextAreaElement ? targetEl : null) || textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const val = textarea.value;
+
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = val.indexOf('\n', end);
+      const actualLineEnd = lineEnd === -1 ? val.length : lineEnd;
+      const line = val.slice(lineStart, actualLineEnd);
+
+      if (isShift) {
+        // Rykk ut
+        if (line.startsWith('  ')) {
+          const newLine = line.slice(2);
+          const newVal = val.slice(0, lineStart) + newLine + val.slice(actualLineEnd);
+          handleUpdateActiveDoc({ content: newVal });
+          setTimeout(() => {
+            textarea.setSelectionRange(Math.max(lineStart, start - 2), Math.max(lineStart, end - 2));
+          }, 0);
+        } else if (line.startsWith('\t')) {
+          const newLine = line.slice(1);
+          const newVal = val.slice(0, lineStart) + newLine + val.slice(actualLineEnd);
+          handleUpdateActiveDoc({ content: newVal });
+          setTimeout(() => {
+            textarea.setSelectionRange(Math.max(lineStart, start - 1), Math.max(lineStart, end - 1));
+          }, 0);
+        }
+      } else {
+        // Rykk inn
+        if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+          // Kulepunkt / liste: 2 mellomrom gir underpunkt med nytt kulepunktsymbol
+          const newLine = '  ' + line;
+          const newVal = val.slice(0, lineStart) + newLine + val.slice(actualLineEnd);
+          handleUpdateActiveDoc({ content: autoCapitalizeMarkdownBullets(newVal) });
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 2, end + 2);
+          }, 0);
+        } else {
+          // Vanlig innrykk
+          const newVal = val.slice(0, start) + '    ' + val.slice(end);
+          handleUpdateActiveDoc({ content: newVal });
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, start + 4);
+          }, 0);
+        }
+      }
+    }
+  };
+
+  // Snarveier for Tab (innrykk/underpunkter), Ctrl+Z, Ctrl+Y, Ctrl+Enter (Sideskift), Ctrl+F (Søk) og Ctrl+H (Erstatt)
   const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+    // Sanntids autokapitalisering for Textarea (Zen-modus): stor bokstav etter punktum og ved kulepunkter
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1 && /^[a-zæøå]$/.test(e.key)) {
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === 'TEXTAREA') {
+        const textarea = target as HTMLTextAreaElement;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const val = textarea.value;
+        const beforeCaret = val.slice(0, start);
+
+        const isBulletStart = /(?:^|\n)\s*[-*]\s+$/.test(beforeCaret);
+        const isNumberStart = /(?:^|\n)\s*\d+\.\s+$/.test(beforeCaret);
+        const isAfterPeriod = /(?:[.!?]["'»”)]?)\s*$/.test(beforeCaret) || /(?:^|\n)\s*$/.test(beforeCaret);
+
+        if (isBulletStart || isNumberStart || isAfterPeriod) {
+          e.preventDefault();
+          const upper = e.key.toLocaleUpperCase('nb-NO');
+          const newVal = val.slice(0, start) + upper + val.slice(end);
+          handleUpdateActiveDoc({ content: newVal });
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 1, start + 1);
+          }, 0);
+          return;
+        }
+      }
+    }
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleTabIndent(e.shiftKey, e.target as HTMLElement);
+      return;
+    }
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === 'TEXTAREA') {
+        const textarea = target as HTMLTextAreaElement;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const val = textarea.value;
+
+        const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+        const line = val.slice(lineStart, start);
+        const bulletMatch = line.match(/^(\s*[-*]\s+)(.*)$/);
+        const numberMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+
+        if (bulletMatch) {
+          e.preventDefault();
+          const prefix = bulletMatch[1];
+          const textAfter = bulletMatch[2].trim();
+          if (!textAfter) {
+            const newVal = val.slice(0, lineStart) + val.slice(start);
+            handleUpdateActiveDoc({ content: newVal });
+            setTimeout(() => {
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 0);
+          } else {
+            const insert = '\n' + prefix;
+            const newVal = val.slice(0, start) + insert + val.slice(end);
+            handleUpdateActiveDoc({ content: newVal });
+            setTimeout(() => {
+              textarea.setSelectionRange(start + insert.length, start + insert.length);
+            }, 0);
+          }
+          return;
+        } else if (numberMatch) {
+          e.preventDefault();
+          const indent = numberMatch[1];
+          const num = parseInt(numberMatch[2], 10);
+          const textAfter = numberMatch[3].trim();
+          if (!textAfter) {
+            const newVal = val.slice(0, lineStart) + val.slice(start);
+            handleUpdateActiveDoc({ content: newVal });
+            setTimeout(() => {
+              textarea.setSelectionRange(lineStart, lineStart);
+            }, 0);
+          } else {
+            const insert = `\n${indent}${num + 1}. `;
+            const newVal = val.slice(0, start) + insert + val.slice(end);
+            handleUpdateActiveDoc({ content: newVal });
+            setTimeout(() => {
+              textarea.setSelectionRange(start + insert.length, start + insert.length);
+            }, 0);
+          }
+          return;
+        }
+      }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'F1') {
+      e.preventDefault();
+      setToolbarMode(prev => prev === 'hidden' ? 'full' : 'hidden');
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       applyFormatting('pagebreak');
@@ -1472,22 +1917,6 @@ ${activeDoc.content}`;
     }
   }, [activeDoc?.id, activeDoc?.content, editorMode]);
 
-  const handleWysiwygInput = () => {
-    isUserTypingRef.current = true;
-    if (!wysiwygRef.current) return;
-    const newHtml = wysiwygRef.current.innerHTML;
-    const newMd = htmlToMarkdown(newHtml);
-    handleUpdateActiveDoc({ content: newMd });
-    checkActiveFormatting();
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      isUserTypingRef.current = false;
-    }, 400);
-  };
-
   const applyFormatting = (type: string) => {
     const currentDocContent = typeof activeDoc?.content === 'string' ? activeDoc.content : '';
     pushHistorySnapshot(currentDocContent, true);
@@ -1589,9 +2018,11 @@ ${activeDoc.content}`;
           break;
         case 'list':
           document.execCommand('insertUnorderedList', false);
+          capitalizeListItemsInEditor(wysiwygRef.current);
           break;
         case 'orderedList':
           document.execCommand('insertOrderedList', false);
+          capitalizeListItemsInEditor(wysiwygRef.current);
           break;
         case 'quote':
           if (activeStyles.quote) {
@@ -1614,10 +2045,10 @@ ${activeDoc.content}`;
           document.execCommand('justifyFull', false);
           break;
         case 'indent':
-          document.execCommand('indent', false);
+          handleTabIndent(false);
           break;
         case 'outdent':
-          document.execCommand('outdent', false);
+          handleTabIndent(true);
           break;
         case 'highlight-yellow':
           document.execCommand('backColor', false, '#fef08a');
@@ -2090,377 +2521,928 @@ ${activeDoc.content}`;
                   <ChevronRight className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                 )}
               </button>
+
+              <div className="w-px h-5 bg-slate-200 mx-0.5 shrink-0 hidden sm:block" />
+
+              {/* Vis / Skjul Verktøylinje (Word-stil) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onMouseEnter={handleToolbarTriggerMouseEnter}
+                  onMouseLeave={handleToolbarMouseLeave}
+                  onClick={() => {
+                    if (toolbarMode === 'hidden') setToolbarMode('full');
+                    else setToolbarMode(prev => prev === 'full' ? 'compact' : 'hidden');
+                  }}
+                  className={`h-8 inline-flex items-center justify-center gap-1.5 px-3 py-1 font-bold rounded-xl transition-all shadow-2xs text-xs shrink-0 whitespace-nowrap cursor-pointer ${
+                    toolbarMode === 'hidden'
+                      ? 'bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 shadow-xs'
+                      : 'bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-700'
+                  }`}
+                  title={
+                    toolbarMode === 'hidden'
+                      ? "Verktøylinjen er skjult. Hold piltasten over ikonet for å hente den midlertidig ned, eller klikk for å feste."
+                      : "Verktøylinje (Word-stil) – Klikk for å veksle visning eller skjul"
+                  }
+                >
+                  {toolbarMode === 'hidden' ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-bounce" />
+                  ) : toolbarMode === 'compact' ? (
+                    <AlignLeft className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  ) : (
+                    <Layers className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  )}
+                  <span>
+                    {toolbarMode === 'hidden' ? 'Vis verktøylinje' : toolbarMode === 'compact' ? 'Én linje' : 'Fullt bånd'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
           {/* View Mode: Editor */}
           {viewMode === 'editor' && (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* VERKTØYLINJE (2 DEDIKERTE LINJER - MICROSOFT WORD STIL) */}
-              <div className="border-b border-slate-200 bg-white select-none shrink-0">
-                {/* LINJE 1: Tekstformatering, Font, Linjeavstand & Lister */}
-                <div className="px-4 sm:px-6 py-2 border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-slate-700">
-                  {/* Angre (Undo) og Gjenta (Redo) */}
-                  <div className="flex items-center gap-0.5">
-                    <button 
+            <div className="flex-1 flex flex-col min-h-0 relative">
+              {/* WORD VISNINGSALTERNATIVER DROPDOWN (Gjenbrukbar komponent) */}
+              {(() => {
+                const renderRibbonMenuPopup = () => (
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-0 top-full mt-1.5 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-50 animate-in fade-in zoom-in-95 text-left"
+                  >
+                    <div className="px-2.5 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1 flex items-center justify-between">
+                      <span>Båndalternativer (Word)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Ctrl+F1</span>
+                    </div>
+
+                    {/* 1. Klassisk bånd (2 linjer) */}
+                    <button
                       type="button"
-                      onClick={handleUndo} 
-                      disabled={!canUndo}
-                      title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
-                      className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                        canUndo 
-                          ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
-                          : 'text-slate-300 cursor-not-allowed opacity-40'
+                      onClick={() => { setToolbarMode('full'); setIsRibbonMenuOpen(false); }}
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        toolbarMode === 'full' ? 'bg-indigo-50/80 text-indigo-950 font-medium' : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
-                      <Undo2 className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-lg mt-0.5 ${toolbarMode === 'full' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <Layers className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold flex items-center justify-between">
+                          <span>Klassisk bånd (2 linjer)</span>
+                          {toolbarMode === 'full' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                          Vis alle verktøy og etiketter permanent på to linjer.
+                        </p>
+                      </div>
                     </button>
-                    <button 
+
+                    {/* 2. Forenklet bånd (Én linje) */}
+                    <button
                       type="button"
-                      onClick={handleRedo} 
-                      disabled={!canRedo}
-                      title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
-                      className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                        canRedo 
-                          ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
-                          : 'text-slate-300 cursor-not-allowed opacity-40'
+                      onClick={() => { setToolbarMode('compact'); setIsRibbonMenuOpen(false); }}
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        toolbarMode === 'compact' ? 'bg-indigo-50/80 text-indigo-950 font-medium' : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
-                      <Redo2 className="w-4 h-4" />
+                      <div className={`p-1.5 rounded-lg mt-0.5 ${toolbarMode === 'compact' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <AlignLeft className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold flex items-center justify-between">
+                          <span>Forenklet bånd (Én linje)</span>
+                          {toolbarMode === 'compact' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                          Vis de viktigste ikonene på én enkelt linje for optimal skriveplass.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* 3. Skjul automatisk */}
+                    <button
+                      type="button"
+                      onClick={() => { setToolbarMode('hidden'); setIsRibbonMenuOpen(false); }}
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        toolbarMode === 'hidden' ? 'bg-indigo-50/80 text-indigo-950 font-medium' : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg mt-0.5 ${toolbarMode === 'hidden' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold flex items-center justify-between">
+                          <span>Skjul automatisk (Helt skjult)</span>
+                          {toolbarMode === 'hidden' && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-normal leading-tight mt-0.5">
+                          Skjul verktøylinjen. Felles automatisk ned når du holder pekeren over ikonet.
+                        </p>
+                      </div>
                     </button>
                   </div>
+                );
 
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
+                const renderRibbonTriggerBtn = () => (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsRibbonMenuOpen(!isRibbonMenuOpen)}
+                      title="Visningsalternativer for båndet (Word-stil)"
+                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        isRibbonMenuOpen 
+                          ? 'bg-indigo-100 text-indigo-700' 
+                          : 'text-slate-600 hover:text-indigo-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                      <span className="hidden lg:inline text-[11px]">Bånd</span>
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    </button>
+                    {isRibbonMenuOpen && renderRibbonMenuPopup()}
+                  </div>
+                );
 
-                  {/* Skrifttype-velger */}
-                  <select
-                    value={activeDoc.fontFamily || 'times'}
-                    onChange={(e) => handleUpdateActiveDoc({ fontFamily: e.target.value as any })}
-                    className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
-                    title="Skrifttype for oppgaven"
+                // --- MODUS 1: FULL VISNING (2 DEDIKERTE LINJER - MICROSOFT WORD STIL) ---
+                const renderFullToolbarContent = (isFloatingPeek = false) => (
+                  <div 
+                    className={`border-b border-slate-200 bg-white select-none shrink-0 ${
+                      isFloatingPeek ? 'shadow-2xl' : ''
+                    }`}
+                    onMouseEnter={isFloatingPeek ? handleToolbarContainerMouseEnter : undefined}
+                    onMouseLeave={isFloatingPeek ? handleToolbarMouseLeave : undefined}
                   >
-                    <option value="times">Times New Roman (APA)</option>
-                    <option value="calibri">Calibri</option>
-                    <option value="arial">Arial</option>
-                    <option value="georgia">Georgia</option>
-                  </select>
-
-                  {/* Linjeavstand-velger */}
-                  <select
-                    value={activeDoc.lineSpacing || '1.5'}
-                    onChange={(e) => handleUpdateActiveDoc({ lineSpacing: e.target.value as any })}
-                    className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
-                    title="Linjeavstand (1.5 er akademisk standard)"
-                  >
-                    <option value="1.0">1.0 (Enkel)</option>
-                    <option value="1.15">1.15</option>
-                    <option value="1.5">1.5 (Standard)</option>
-                    <option value="2.0">2.0 (Dobbel)</option>
-                  </select>
-
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
-
-                  {/* Skriftstiler */}
-                  <div className="flex items-center gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('bold')} 
-                      title="Fet (Ctrl+B)" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <Bold className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('italic')} 
-                      title="Kursiv (Ctrl+I)" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <Italic className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('underline')} 
-                      title="Understreket" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <Underline className="w-4 h-4" />
-                    </button>
-
-                    {/* Markeringspenn (Highlighter) */}
-                    <div className="relative">
-                      <button 
-                        type="button"
-                        onClick={() => setShowHighlightMenu(!showHighlightMenu)} 
-                        title="Markeringspenn (Tekstutheving)" 
-                        className={`p-1.5 rounded-lg transition-all cursor-pointer ${showHighlightMenu ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                      >
-                        <Highlighter className="w-4 h-4" />
-                      </button>
-                      {showHighlightMenu && (
-                        <div 
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute left-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95"
-                        >
+                    {/* LINJE 1: Tekstformatering, Font, Linjeavstand & Lister */}
+                    <div className="px-4 sm:px-6 py-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-1.5 text-slate-700">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {/* Angre (Undo) og Gjenta (Redo) */}
+                        <div className="flex items-center gap-0.5">
                           <button 
-                            type="button" 
-                            onClick={() => { applyFormatting('highlight-yellow'); setShowHighlightMenu(false); }}
-                            title="Gul markering"
-                            className="w-5 h-5 rounded-md bg-yellow-200 border border-yellow-400 hover:scale-110 transition-transform cursor-pointer"
-                          />
-                          <button 
-                            type="button" 
-                            onClick={() => { applyFormatting('highlight-green'); setShowHighlightMenu(false); }}
-                            title="Grønn markering"
-                            className="w-5 h-5 rounded-md bg-emerald-200 border border-emerald-400 hover:scale-110 transition-transform cursor-pointer"
-                          />
-                          <button 
-                            type="button" 
-                            onClick={() => { applyFormatting('highlight-pink'); setShowHighlightMenu(false); }}
-                            title="Rosa markering"
-                            className="w-5 h-5 rounded-md bg-pink-200 border border-pink-400 hover:scale-110 transition-transform cursor-pointer"
-                          />
-                          <button 
-                            type="button" 
-                            onClick={() => { applyFormatting('highlight-blue'); setShowHighlightMenu(false); }}
-                            title="Blå markering"
-                            className="w-5 h-5 rounded-md bg-sky-200 border border-sky-400 hover:scale-110 transition-transform cursor-pointer"
-                          />
-                          <button 
-                            type="button" 
-                            onClick={() => { applyFormatting('highlight-clear'); setShowHighlightMenu(false); }}
-                            title="Fjern markering"
-                            className="p-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 border border-slate-200 rounded-md ml-1 hover:bg-slate-50 cursor-pointer"
+                            type="button"
+                            onClick={handleUndo} 
+                            disabled={!canUndo}
+                            title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
+                            className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                              canUndo 
+                                ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                                : 'text-slate-300 cursor-not-allowed opacity-40'
+                            }`}
                           >
-                            Fjern
+                            <Undo2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={handleRedo} 
+                            disabled={!canRedo}
+                            title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
+                            className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                              canRedo 
+                                ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                                : 'text-slate-300 cursor-not-allowed opacity-40'
+                            }`}
+                          >
+                            <Redo2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Skrifttype-velger */}
+                        <select
+                          value={activeDoc.fontFamily || 'times'}
+                          onChange={(e) => handleUpdateActiveDoc({ fontFamily: e.target.value as any })}
+                          className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                          title="Skrifttype for oppgaven"
+                        >
+                          <option value="times">Times New Roman (APA)</option>
+                          <option value="calibri">Calibri</option>
+                          <option value="arial">Arial</option>
+                          <option value="georgia">Georgia</option>
+                        </select>
+
+                        {/* Linjeavstand-velger */}
+                        <select
+                          value={activeDoc.lineSpacing || '1.5'}
+                          onChange={(e) => handleUpdateActiveDoc({ lineSpacing: e.target.value as any })}
+                          className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                          title="Linjeavstand (1.5 er akademisk standard)"
+                        >
+                          <option value="1.0">1.0 (Enkel)</option>
+                          <option value="1.15">1.15</option>
+                          <option value="1.5">1.5 (Standard)</option>
+                          <option value="2.0">2.0 (Dobbel)</option>
+                        </select>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Skriftstiler */}
+                        <div className="flex items-center gap-0.5">
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('bold')} 
+                            title="Fet (Ctrl+B)" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <Bold className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('italic')} 
+                            title="Kursiv (Ctrl+I)" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <Italic className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('underline')} 
+                            title="Understreket" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <Underline className="w-4 h-4" />
+                          </button>
+
+                          {/* Markeringspenn (Highlighter) */}
+                          <div className="relative">
+                            <button 
+                              type="button"
+                              onClick={() => setShowHighlightMenu(!showHighlightMenu)} 
+                              title="Markeringspenn (Tekstutheving)" 
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${showHighlightMenu ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                            >
+                              <Highlighter className="w-4 h-4" />
+                            </button>
+                            {showHighlightMenu && (
+                              <div 
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute left-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95"
+                              >
+                                <button 
+                                  type="button" 
+                                  onClick={() => { applyFormatting('highlight-yellow'); setShowHighlightMenu(false); }}
+                                  title="Gul markering"
+                                  className="w-5 h-5 rounded-md bg-yellow-200 border border-yellow-400 hover:scale-110 transition-transform cursor-pointer"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => { applyFormatting('highlight-green'); setShowHighlightMenu(false); }}
+                                  title="Grønn markering"
+                                  className="w-5 h-5 rounded-md bg-emerald-200 border border-emerald-400 hover:scale-110 transition-transform cursor-pointer"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => { applyFormatting('highlight-pink'); setShowHighlightMenu(false); }}
+                                  title="Rosa markering"
+                                  className="w-5 h-5 rounded-md bg-pink-200 border border-pink-400 hover:scale-110 transition-transform cursor-pointer"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => { applyFormatting('highlight-blue'); setShowHighlightMenu(false); }}
+                                  title="Blå markering"
+                                  className="w-5 h-5 rounded-md bg-sky-200 border border-sky-400 hover:scale-110 transition-transform cursor-pointer"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => { applyFormatting('highlight-clear'); setShowHighlightMenu(false); }}
+                                  title="Fjern markering"
+                                  className="p-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 border border-slate-200 rounded-md ml-1 hover:bg-slate-50 cursor-pointer"
+                                >
+                                  Fjern
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Tekstjustering */}
+                        <div className="flex items-center gap-0.5">
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('justifyLeft')} 
+                            title="Venstrejustert" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyLeft ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <AlignLeft className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('justifyCenter')} 
+                            title="Midtstilt" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyCenter ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <AlignCenter className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('justifyRight')} 
+                            title="Høyrejustert" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyRight ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <AlignRight className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('justifyFull')} 
+                            title="Blokkjustert (Justify)" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyFull ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <AlignJustify className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Innrykk og utrykk */}
+                        <div className="flex items-center gap-0.5">
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('outdent')} 
+                            title="Reduser innrykk" 
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
+                          >
+                            <Outdent className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('indent')} 
+                            title="Øk innrykk" 
+                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
+                          >
+                            <Indent className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Overskrifter H1, H2, H3 */}
+                        <div className="flex items-center gap-1">
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('h1')} 
+                            title="Overskrift 1 (14 pt, starter alltid på ny side i Word/PDF)" 
+                            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                              activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <Heading1 className="w-4 h-4" />
+                            <span className="text-[11px]">H1</span>
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('h2')} 
+                            title="Overskrift 2 (12 pt, 12 pkt etter)" 
+                            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                              activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <Heading2 className="w-4 h-4" />
+                            <span className="text-[11px]">H2</span>
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('h3')} 
+                            title="Overskrift 3 (12 pt kursiv, 6 pkt etter)" 
+                            className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                              activeHeading === 'h3' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <Heading3 className="w-4 h-4" />
+                            <span className="text-[11px]">H3</span>
+                          </button>
+                        </div>
+
+                        <div className="w-px h-5 bg-slate-200 mx-1" />
+
+                        {/* Lister & Sitater */}
+                        <div className="flex items-center gap-0.5">
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('list')} 
+                            title="Punktliste" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <List className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('orderedList')} 
+                            title="Nummerert liste" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <ListOrdered className="w-4 h-4" />
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => applyFormatting('quote')} 
+                            title="Sitatblokk (1,27 cm innrykk for sitater over 40 ord)" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <Quote className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Hvis dette er midlertidig peking i skjult modus: Fest båndet knapp */}
+                      {isFloatingPeek && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { setToolbarMode('full'); setIsToolbarHovered(false); }}
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                            title="Fest verktøylinjen permanent"
+                          >
+                            <Pin className="w-3.5 h-3.5 text-white" />
+                            <span>Fest båndet</span>
+                          </button>
+                          {renderRibbonTriggerBtn()}
+                          <button
+                            type="button"
+                            onClick={() => setIsToolbarHovered(false)}
+                            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+                            title="Skjul verktøylinje"
+                          >
+                            <ChevronUp className="w-4 h-4" />
                           </button>
                         </div>
                       )}
                     </div>
+
+                    {/* LINJE 2: Innholdsverktøy, Søk & Erstatt, Sideskift, Kilde & Modusvelger */}
+                    <div className="px-4 sm:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Sideskift */}
+                        <button
+                          type="button"
+                          onClick={() => applyFormatting('pagebreak')}
+                          title="Sett inn sideskift (Ctrl+Enter / Cmd+Enter) – Starter på et nytt A4-ark"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50/80 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <Scissors className="w-3.5 h-3.5 text-indigo-600 rotate-90" />
+                          <span>Sideskift (Ctrl+Enter)</span>
+                        </button>
+
+                        {/* + Kilde (APA 7) */}
+                        <button
+                          type="button"
+                          onClick={() => setIsCitationModalOpen(true)}
+                          title="Kildeassistent & Litteraturliste (APA 7)"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>+ Kilde (APA 7)</span>
+                        </button>
+
+                        {/* Søk og erstatt med ikon OG tekst */}
+                        <button
+                          type="button"
+                          onClick={() => { setIsFindReplaceOpen(!isFindReplaceOpen); setIsReplaceMode(false); }}
+                          title="Søk og erstatt i oppgaven (Ctrl+F / Ctrl+H)"
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                            isFindReplaceOpen 
+                              ? 'bg-indigo-600 text-white shadow-2xs' 
+                              : 'bg-white text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 border border-slate-200'
+                          }`}
+                        >
+                          <Search className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Søk & erstatt</span>
+                        </button>
+
+                        {/* Fokusmodus */}
+                        <button
+                          type="button"
+                          onClick={() => setIsZenMode(true)}
+                          title="Åpne forstyrrelsesfri fokusmodus (F11 / Esc)"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Fokusmodus</span>
+                        </button>
+
+                        {/* Zoom-velger i verktøylinjen */}
+                        <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => setZoomLevel(prev => Math.max(50, prev - 10))}
+                            title="Forminsk (Zoom ut)"
+                            className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
+                          >
+                            <ZoomOut className="w-3.5 h-3.5" />
+                          </button>
+                          <select
+                            value={zoomLevel}
+                            onChange={(e) => setZoomLevel(Number(e.target.value))}
+                            className="text-[11px] font-bold text-slate-700 bg-transparent border-none focus:outline-none cursor-pointer py-0.5"
+                            title="Zoom / Forstørrelse av A4-arket"
+                          >
+                            <option value="75">75 %</option>
+                            <option value="90">90 %</option>
+                            <option value="100">100 % (Standard)</option>
+                            <option value="110">110 %</option>
+                            <option value="125">125 %</option>
+                            <option value="150">150 %</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
+                            title="Forstørr (Zoom inn)"
+                            className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
+                          >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Høyre: Word A4-oppsett indikator og båndalternativer */}
+                      <div className="flex items-center gap-2">
+                        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span>Word A4-oppsett</span>
+                        </div>
+
+                        {!isFloatingPeek && (
+                          <div className="flex items-center gap-1">
+                            {renderRibbonTriggerBtn()}
+                            <button
+                              type="button"
+                              onClick={() => setToolbarMode('hidden')}
+                              title="Skjul verktøylinjen helt (Word-stil) – Hold musepekeren over ikonet for å hente den fram"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                );
 
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
+                // --- MODUS 2: ÉN LINJE / FORENKLET BÅND (SLIK DET ER I WORD) ---
+                const renderCompactToolbarContent = (isFloatingPeek = false) => (
+                  <div 
+                    className={`border-b border-slate-200 bg-white select-none shrink-0 px-4 sm:px-6 py-1.5 flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto no-scrollbar ${
+                      isFloatingPeek ? 'shadow-2xl' : ''
+                    }`}
+                    onMouseEnter={isFloatingPeek ? handleToolbarContainerMouseEnter : undefined}
+                    onMouseLeave={isFloatingPeek ? handleToolbarMouseLeave : undefined}
+                  >
+                    <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap shrink-0">
+                      {/* Angre / Gjenta */}
+                      <div className="flex items-center gap-0.5">
+                        <button 
+                          type="button"
+                          onClick={handleUndo} 
+                          disabled={!canUndo}
+                          title={canUndo ? "Angre siste endring (Ctrl+Z)" : "Ingenting å angre (Ctrl+Z)"} 
+                          className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                            canUndo 
+                              ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                              : 'text-slate-300 cursor-not-allowed opacity-40'
+                          }`}
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={handleRedo} 
+                          disabled={!canRedo}
+                          title={canRedo ? "Gjør om / Gjenta (Ctrl+Y)" : "Ingenting å gjøre om (Ctrl+Y)"} 
+                          className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                            canRedo 
+                              ? 'hover:bg-slate-100 text-slate-700 hover:text-slate-900 active:scale-95 cursor-pointer' 
+                              : 'text-slate-300 cursor-not-allowed opacity-40'
+                          }`}
+                        >
+                          <Redo2 className="w-4 h-4" />
+                        </button>
+                      </div>
 
-                  {/* Tekstjustering */}
-                  <div className="flex items-center gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('justifyLeft')} 
-                      title="Venstrejustert" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyLeft ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <AlignLeft className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('justifyCenter')} 
-                      title="Midtstilt" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyCenter ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <AlignCenter className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('justifyRight')} 
-                      title="Høyrejustert" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyRight ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <AlignRight className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('justifyFull')} 
-                      title="Blokkjustert (Justify)" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyFull ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <AlignJustify className="w-4 h-4" />
-                    </button>
-                  </div>
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
 
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
-
-                  {/* Innrykk og utrykk */}
-                  <div className="flex items-center gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('outdent')} 
-                      title="Reduser innrykk" 
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
-                    >
-                      <Outdent className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('indent')} 
-                      title="Øk innrykk" 
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 transition-all cursor-pointer"
-                    >
-                      <Indent className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
-
-                  {/* Overskrifter H1, H2, H3 */}
-                  <div className="flex items-center gap-1">
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('h1')} 
-                      title="Overskrift 1 (14 pt, starter alltid på ny side i Word/PDF)" 
-                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      <Heading1 className="w-4 h-4" />
-                      <span className="text-[11px]">H1</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('h2')} 
-                      title="Overskrift 2 (12 pt, 12 pkt etter)" 
-                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      <Heading2 className="w-4 h-4" />
-                      <span className="text-[11px]">H2</span>
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('h3')} 
-                      title="Overskrift 3 (12 pt kursiv, 6 pkt etter)" 
-                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                        activeHeading === 'h3' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      <Heading3 className="w-4 h-4" />
-                      <span className="text-[11px]">H3</span>
-                    </button>
-                  </div>
-
-                  <div className="w-px h-5 bg-slate-200 mx-1" />
-
-                  {/* Lister & Sitater */}
-                  <div className="flex items-center gap-0.5">
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('list')} 
-                      title="Punktliste" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <List className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('orderedList')} 
-                      title="Nummerert liste" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <ListOrdered className="w-4 h-4" />
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => applyFormatting('quote')} 
-                      title="Sitatblokk (1,27 cm innrykk for sitater over 40 ord)" 
-                      className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.quote ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
-                    >
-                      <Quote className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* LINJE 2: Innholdsverktøy, Søk & Erstatt, Sideskift, Kilde & Modusvelger */}
-                <div className="px-4 sm:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 border-b border-slate-100">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Sideskift */}
-                    <button
-                      type="button"
-                      onClick={() => applyFormatting('pagebreak')}
-                      title="Sett inn sideskift (Ctrl+Enter / Cmd+Enter) – Starter på et nytt A4-ark"
-                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50/80 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Scissors className="w-3.5 h-3.5 text-indigo-600 rotate-90" />
-                      <span>Sideskift (Ctrl+Enter)</span>
-                    </button>
-
-                    {/* + Kilde (APA 7) */}
-                    <button
-                      type="button"
-                      onClick={() => setIsCitationModalOpen(true)}
-                      title="Kildeassistent & Litteraturliste (APA 7)"
-                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>+ Kilde (APA 7)</span>
-                    </button>
-
-                    {/* Søk og erstatt med ikon OG tekst */}
-                    <button
-                      type="button"
-                      onClick={() => { setIsFindReplaceOpen(!isFindReplaceOpen); setIsReplaceMode(false); }}
-                      title="Søk og erstatt i oppgaven (Ctrl+F / Ctrl+H)"
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
-                        isFindReplaceOpen 
-                          ? 'bg-indigo-600 text-white shadow-2xs' 
-                          : 'bg-white text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 border border-slate-200'
-                      }`}
-                    >
-                      <Search className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Søk & erstatt</span>
-                    </button>
-
-                    {/* Fokusmodus */}
-                    <button
-                      type="button"
-                      onClick={() => setIsZenMode(true)}
-                      title="Åpne forstyrrelsesfri fokusmodus (F11 / Esc)"
-                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Fokusmodus</span>
-                    </button>
-
-                    {/* Zoom-velger i verktøylinjen */}
-                    <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5 shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={() => setZoomLevel(prev => Math.max(50, prev - 10))}
-                        title="Forminsk (Zoom ut)"
-                        className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
-                      >
-                        <ZoomOut className="w-3.5 h-3.5" />
-                      </button>
+                      {/* Skrifttype & Linjeavstand */}
                       <select
-                        value={zoomLevel}
-                        onChange={(e) => setZoomLevel(Number(e.target.value))}
-                        className="text-[11px] font-bold text-slate-700 bg-transparent border-none focus:outline-none cursor-pointer py-0.5"
-                        title="Zoom / Forstørrelse av A4-arket"
+                        value={activeDoc.fontFamily || 'times'}
+                        onChange={(e) => handleUpdateActiveDoc({ fontFamily: e.target.value as any })}
+                        className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                        title="Skrifttype for oppgaven"
                       >
-                        <option value="75">75 %</option>
-                        <option value="90">90 %</option>
-                        <option value="100">100 % (Standard)</option>
-                        <option value="110">110 %</option>
-                        <option value="125">125 %</option>
-                        <option value="150">150 %</option>
+                        <option value="times">Times New Roman</option>
+                        <option value="calibri">Calibri</option>
+                        <option value="arial">Arial</option>
+                        <option value="georgia">Georgia</option>
                       </select>
+
+                      <select
+                        value={activeDoc.lineSpacing || '1.5'}
+                        onChange={(e) => handleUpdateActiveDoc({ lineSpacing: e.target.value as any })}
+                        className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 hover:border-slate-300 focus:outline-none cursor-pointer shadow-2xs"
+                        title="Linjeavstand (1.5 er standard)"
+                      >
+                        <option value="1.0">1.0</option>
+                        <option value="1.15">1.15</option>
+                        <option value="1.5">1.5</option>
+                        <option value="2.0">2.0</option>
+                      </select>
+
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* B, I, U, Highlight */}
+                      <div className="flex items-center gap-0.5">
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('bold')} 
+                          title="Fet (Ctrl+B)" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.bold ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <Bold className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('italic')} 
+                          title="Kursiv (Ctrl+I)" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.italic ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <Italic className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('underline')} 
+                          title="Understreket" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.underline ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <Underline className="w-4 h-4" />
+                        </button>
+
+                        {/* Markeringspenn */}
+                        <div className="relative">
+                          <button 
+                            type="button"
+                            onClick={() => setShowHighlightMenu(!showHighlightMenu)} 
+                            title="Markeringspenn" 
+                            className={`p-1.5 rounded-lg transition-all cursor-pointer ${showHighlightMenu ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                          >
+                            <Highlighter className="w-4 h-4" />
+                          </button>
+                          {showHighlightMenu && (
+                            <div 
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute left-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl p-2 z-50 flex items-center gap-1.5 animate-in fade-in zoom-in-95"
+                            >
+                              <button 
+                                type="button" 
+                                onClick={() => { applyFormatting('highlight-yellow'); setShowHighlightMenu(false); }}
+                                title="Gul"
+                                className="w-5 h-5 rounded-md bg-yellow-200 border border-yellow-400 hover:scale-110 transition-transform cursor-pointer"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => { applyFormatting('highlight-green'); setShowHighlightMenu(false); }}
+                                title="Grønn"
+                                className="w-5 h-5 rounded-md bg-emerald-200 border border-emerald-400 hover:scale-110 transition-transform cursor-pointer"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => { applyFormatting('highlight-pink'); setShowHighlightMenu(false); }}
+                                title="Rosa"
+                                className="w-5 h-5 rounded-md bg-pink-200 border border-pink-400 hover:scale-110 transition-transform cursor-pointer"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => { applyFormatting('highlight-blue'); setShowHighlightMenu(false); }}
+                                title="Blå"
+                                className="w-5 h-5 rounded-md bg-sky-200 border border-sky-400 hover:scale-110 transition-transform cursor-pointer"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => { applyFormatting('highlight-clear'); setShowHighlightMenu(false); }}
+                                title="Fjern"
+                                className="p-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 border border-slate-200 rounded-md ml-1 hover:bg-slate-50 cursor-pointer"
+                              >
+                                Fjern
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* Justering */}
+                      <div className="flex items-center gap-0.5">
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('justifyLeft')} 
+                          title="Venstrejustert" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyLeft ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <AlignLeft className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('justifyCenter')} 
+                          title="Midtstilt" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyCenter ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <AlignCenter className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('justifyRight')} 
+                          title="Høyrejustert" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyRight ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <AlignRight className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('justifyFull')} 
+                          title="Blokkjustert (Justify)" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.justifyFull ? 'bg-indigo-600 text-white shadow-2xs font-bold' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <AlignJustify className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* H1, H2 */}
+                      <div className="flex items-center gap-0.5">
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('h1')} 
+                          title="Overskrift 1 (starter på ny side)" 
+                          className={`px-1.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            activeHeading === 'h1' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          H1
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('h2')} 
+                          title="Overskrift 2" 
+                          className={`px-1.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            activeHeading === 'h2' ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          H2
+                        </button>
+                      </div>
+
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* Lister */}
+                      <div className="flex items-center gap-0.5">
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('list')} 
+                          title="Punktliste" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ul ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <List className="w-4 h-4" />
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => applyFormatting('orderedList')} 
+                          title="Nummerert liste" 
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${activeStyles.ol ? 'bg-indigo-600 text-white shadow-2xs' : 'hover:bg-slate-100 text-slate-700'}`}
+                        >
+                          <ListOrdered className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                      {/* Sideskift */}
                       <button
                         type="button"
-                        onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
-                        title="Forstørr (Zoom inn)"
-                        className="p-1 hover:bg-slate-100 rounded text-slate-600 hover:text-slate-900 cursor-pointer"
+                        onClick={() => applyFormatting('pagebreak')}
+                        title="Sett inn sideskift (Ctrl+Enter / Cmd+Enter)"
+                        className="px-2 py-1 rounded-lg text-xs font-bold text-slate-700 hover:text-indigo-700 bg-white hover:bg-indigo-50/80 border border-slate-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
                       >
-                        <ZoomIn className="w-3.5 h-3.5" />
+                        <Scissors className="w-3.5 h-3.5 text-indigo-600 rotate-90" />
+                        <span className="hidden md:inline">Sideskift</span>
+                      </button>
+
+                      {/* + Kilde */}
+                      <button
+                        type="button"
+                        onClick={() => setIsCitationModalOpen(true)}
+                        title="Kildeassistent & Litteraturliste (APA 7)"
+                        className="px-2 py-1 rounded-lg text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-indigo-200 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
+                      >
+                        <BookMarked className="w-3.5 h-3.5 text-indigo-600" />
+                        <span className="hidden md:inline">+ Kilde</span>
+                      </button>
+
+                      {/* Søk og erstatt */}
+                      <button
+                        type="button"
+                        onClick={() => { setIsFindReplaceOpen(!isFindReplaceOpen); setIsReplaceMode(false); }}
+                        title="Søk og erstatt (Ctrl+F)"
+                        className={`p-1.5 rounded-lg transition-all flex items-center gap-1 shadow-2xs cursor-pointer ${
+                          isFindReplaceOpen 
+                            ? 'bg-indigo-600 text-white shadow-2xs' 
+                            : 'bg-white text-slate-700 hover:text-indigo-700 hover:bg-indigo-50/80 border border-slate-200'
+                        }`}
+                      >
+                        <Search className="w-3.5 h-3.5 text-indigo-600" />
+                      </button>
+
+                      {/* Zoom */}
+                      <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1 py-0.5 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => setZoomLevel(prev => Math.max(50, prev - 10))}
+                          title="Zoom ut"
+                          className="p-0.5 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                        >
+                          <ZoomOut className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] font-bold text-slate-700 px-0.5">{zoomLevel}%</span>
+                        <button
+                          type="button"
+                          onClick={() => setZoomLevel(prev => Math.min(200, prev + 10))}
+                          title="Zoom inn"
+                          className="p-0.5 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+                        >
+                          <ZoomIn className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Høyre del i kompakt bånd: Visningsalternativer & skjul */}
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      {isFloatingPeek && (
+                        <button
+                          type="button"
+                          onClick={() => { setToolbarMode('compact'); setIsToolbarHovered(false); }}
+                          className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Fest verktøylinjen permanent"
+                        >
+                          <Pin className="w-3.5 h-3.5 text-white" />
+                          <span className="hidden sm:inline">Fest bånd</span>
+                        </button>
+                      )}
+
+                      {renderRibbonTriggerBtn()}
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isFloatingPeek) setIsToolbarHovered(false);
+                          else setToolbarMode('hidden');
+                        }}
+                        title={isFloatingPeek ? "Lukk" : "Skjul verktøylinjen helt (Word-stil)"}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer"
+                      >
+                        <ChevronUp className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
+                );
 
-                  {/* Høyre: Word A4-oppsett indikator */}
-                  <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Word A4-oppsett</span>
-                  </div>
-                </div>
-              </div>
+                // Bestem hvilken visning som skal rendres
+                if (toolbarMode === 'full') {
+                  return renderFullToolbarContent(false);
+                }
+
+                if (toolbarMode === 'compact') {
+                  return renderCompactToolbarContent(false);
+                }
+
+                // Når toolbarMode === 'hidden':
+                return (
+                  <>
+                    {/* Diskret stripe / håndtak som feller ned båndet når pekeren holdes over */}
+                    <div 
+                      onMouseEnter={handleToolbarTriggerMouseEnter}
+                      onMouseLeave={handleToolbarMouseLeave}
+                      onClick={() => setToolbarMode('full')}
+                      className="w-full py-1 bg-slate-50 hover:bg-indigo-50/80 border-b border-slate-200/80 flex items-center justify-center gap-2 cursor-pointer transition-colors group select-none shrink-0"
+                      title="Hold piltasten over ikonet for å hente ned verktøylinjen, eller klikk for å feste den"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5 text-indigo-500 group-hover:translate-y-0.5 transition-transform" />
+                      <span className="text-[11px] font-semibold text-slate-500 group-hover:text-indigo-700">
+                        Verktøylinjen er skjult • Hold piltasten over for å hente den ned (eller klikk for å feste)
+                      </span>
+                    </div>
+
+                    {/* Automatisk nedfellbar verktøylinje når pekeren holdes over ikonet / stripen */}
+                    {isToolbarHovered && (
+                      <div 
+                        className="absolute top-0 left-0 right-0 z-40 bg-white border-b border-slate-200 shadow-2xl animate-in slide-in-from-top-2 duration-200"
+                        onMouseEnter={handleToolbarContainerMouseEnter}
+                        onMouseLeave={handleToolbarMouseLeave}
+                      >
+                        {renderFullToolbarContent(true)}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* STEG 3: Søk og erstatt panel */}
               {isFindReplaceOpen && (
@@ -2599,7 +3581,9 @@ ${activeDoc.content}`;
                           ref={wysiwygRef}
                           contentEditable
                           suppressContentEditableWarning
+                          onBeforeInput={handleWysiwygBeforeInput}
                           onInput={handleWysiwygInput}
+                          onPaste={handleWysiwygPaste}
                           onKeyDown={handleEditorKeyDown}
                           onKeyUp={checkActiveFormatting}
                           onMouseUp={checkActiveFormatting}
@@ -4043,7 +5027,10 @@ ${activeDoc.content}`;
               }`}>
                 <textarea
                   value={typeof activeDoc.content === 'string' ? activeDoc.content : ''}
-                  onChange={(e) => handleUpdateActiveDoc({ content: e.target.value })}
+                  onChange={(e) => {
+                    const formatted = autoCapitalizeMarkdownBullets(e.target.value);
+                    handleUpdateActiveDoc({ content: formatted });
+                  }}
                   onKeyDown={handleEditorKeyDown}
                   placeholder="Skriv uforstyrret her..."
                   autoFocus

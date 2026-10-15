@@ -206,6 +206,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
     ? slide.bulletsRight 
     : (leftBullets.length > 2 ? leftBullets.slice(Math.ceil(leftBullets.length / 2)) : ['Drøfting og didaktiske konsekvenser', 'Forankring i praksis']);
   const displayLeftBullets = slide.bulletsRight ? leftBullets : (leftBullets.length > 2 ? leftBullets.slice(0, Math.ceil(leftBullets.length / 2)) : leftBullets);
+  const formatBullet = (b: string) => (b ? (b.charAt(0).toLocaleUpperCase('nb-NO') + b.slice(1)) : '');
 
   return (
     <div className={`flex flex-col gap-2.5 ${className}`}>
@@ -420,7 +421,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
                       <CheckCircle2 className={`w-4 h-4 sm:w-5 sm:h-5 ${theme.bulletIconColor}`} />
                     </div>
                     <span className={`text-xs sm:text-base md:text-lg font-semibold leading-snug ${theme.cardTextClass}`}>
-                      {bullet}
+                      {formatBullet(bullet)}
                     </span>
                   </div>
                 ))}
@@ -448,7 +449,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
                     {displayLeftBullets.map((b, idx) => (
                       <li key={idx} className={`text-xs sm:text-sm font-semibold flex items-start gap-2 ${theme.cardTextClass}`}>
                         <span className={`mt-0.5 font-bold ${theme.bulletIconColor}`}>•</span>
-                        <span>{b}</span>
+                        <span>{formatBullet(b)}</span>
                       </li>
                     ))}
                   </ul>
@@ -466,7 +467,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
                     {rightBullets.map((b, idx) => (
                       <li key={idx} className={`text-xs sm:text-sm font-semibold flex items-start gap-2 ${theme.cardTextClass}`}>
                         <span className={`mt-0.5 font-bold ${theme.bulletIconColor}`}>•</span>
-                        <span>{b}</span>
+                        <span>{formatBullet(b)}</span>
                       </li>
                     ))}
                   </ul>
@@ -521,7 +522,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
                   {slide.bullets.slice(1, 3).map((b, idx) => (
                     <div key={idx} className={`p-3 rounded-xl border text-xs sm:text-sm font-semibold flex items-center gap-2 ${theme.cardClass} ${theme.cardTextClass}`}>
                       <CheckCircle2 className={`w-4 h-4 shrink-0 ${theme.bulletIconColor}`} />
-                      <span>{b}</span>
+                      <span>{formatBullet(b)}</span>
                     </div>
                   ))}
                 </div>

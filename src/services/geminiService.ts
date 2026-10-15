@@ -3026,7 +3026,11 @@ Format:
     const cleanJson = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     if (Array.isArray(parsed)) {
-      return parsed;
+      return parsed.map((slide: PresentationSlide) => ({
+        ...slide,
+        bullets: (slide.bullets || []).map((b: string) => (b ? b.charAt(0).toLocaleUpperCase('nb-NO') + b.slice(1) : '')),
+        bulletsRight: (slide.bulletsRight || []).map((b: string) => (b ? b.charAt(0).toLocaleUpperCase('nb-NO') + b.slice(1) : ''))
+      }));
     }
     throw new Error("Ugyldig format mottatt fra KI.");
   } catch (error) {

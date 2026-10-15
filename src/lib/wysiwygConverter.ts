@@ -5,6 +5,17 @@
  */
 
 /**
+ * Sikrer at første ord etter kulepunkt eller liste alltid starter med stor forbokstav (Word-regel).
+ * Håndterer også innledende formateringstegn (*, _, `, ", «) og HTML-tagger.
+ */
+export function capitalizeListItemText(text: string): string {
+  if (!text) return '';
+  return text.replace(/^((?:<[^>]+>|[^a-zA-ZæøåÆØÅ0-9])*?)([a-zæøå])/, (_match, prefix, char) => {
+    return prefix + char.toLocaleUpperCase('nb-NO');
+  });
+}
+
+/**
  * Konverterer Markdown til ren HTML for contentEditable WYSIWYG editor
  */
 export function markdownToHtml(md: string): string {
@@ -15,17 +26,30 @@ export function markdownToHtml(md: string): string {
   const lines = md.split('\n');
   const htmlParts: string[] = [];
 
-  let inUl = false;
-  let inOl = false;
+  // listStack holder styr på åpne <ul> / <ol> for sub-nivåer
+  const listStack: Array<{ type: 'ul' | 'ol'; level: number }> = [];
   let inBlockquote = false;
+
+  const closeListsToLevel = (targetLevel: number) => {
+    while (listStack.length > 0 && listStack[listStack.length - 1].level > targetLevel) {
+      const popped = listStack.pop()!;
+      htmlParts.push(`</${popped.type}>`);
+    }
+  };
+
+  const closeAllLists = () => {
+    while (listStack.length > 0) {
+      const popped = listStack.pop()!;
+      htmlParts.push(`</${popped.type}>`);
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+      closeAllLists();
       if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
       continue;
     }
@@ -38,8 +62,7 @@ export function markdownToHtml(md: string): string {
       trimmed === '[SIDESKIFT]' ||
       trimmed === '***'
     ) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+      closeAllLists();
       if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
       htmlParts.push('<div class="page-break-indicator" contenteditable="false" data-pagebreak="true"><span class="page-break-line"></span><span class="page-break-badge">📄 Sideskift (Ny side)</span><span class="page-break-line"></span></div><p><br></p>');
       continue;
@@ -48,12 +71,10 @@ export function markdownToHtml(md: string): string {
     // Heading match (støtter #, ##, ### og rydder bort eventuelle doble koder som '# ###')
     const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+      closeAllLists();
       if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
       
       const level = Math.min(3, headingMatch[1].length); // 1, 2 eller 3
-      // Fjern eventuelle gjenværende '#' fra tittelen så aldri rå-koder vises for studenten
       const cleanTitle = headingMatch[2].replace(/^#+\s*/, '').trim();
       
       htmlParts.push(`<h${level}>${formatInlineMarkdownToHtml(cleanTitle)}</h${level}>`);
@@ -62,8 +83,7 @@ export function markdownToHtml(md: string): string {
 
     // Blockquote
     if (trimmed.startsWith('> ')) {
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+      closeAllLists();
       if (!inBlockquote) {
         htmlParts.push('<blockquote>');
         inBlockquote = true;
@@ -72,40 +92,53 @@ export function markdownToHtml(md: string): string {
       continue;
     }
 
-    // Unordered List
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
-      if (inOl) { htmlParts.push('</ol>'); inOl = false; }
-      if (!inUl) {
-        htmlParts.push('<ul>');
-        inUl = true;
-      }
-      htmlParts.push(`<li>${formatInlineMarkdownToHtml(trimmed.slice(2).trim())}</li>`);
-      continue;
-    }
+    // Check for List items (bullet or numbered) with indentation
+    const isUl = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+    const isOl = /^\d+\.\s+/.test(trimmed);
 
-    // Ordered List
-    if (/^\d+\.\s+/.test(trimmed)) {
+    if (isUl || isOl) {
       if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
-      if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-      if (!inOl) {
-        htmlParts.push('<ol>');
-        inOl = true;
+
+      // Regn ut innrykksnivå (2 mellomrom eller 1 tab = 1 undernivå)
+      const indentMatch = rawLine.match(/^(\s*)/);
+      const indentLength = indentMatch ? indentMatch[1].replace(/\t/g, '  ').length : 0;
+      const targetLevel = Math.max(0, Math.floor(indentLength / 2));
+      const targetType = isUl ? 'ul' : 'ol';
+
+      // Lukk dypere nivåer
+      closeListsToLevel(targetLevel);
+
+      // Hvis samme nivå men annen type (bytte mellom ul og ol), bytt
+      if (listStack.length > 0 && listStack[listStack.length - 1].level === targetLevel && listStack[listStack.length - 1].type !== targetType) {
+        const popped = listStack.pop()!;
+        htmlParts.push(`</${popped.type}>`);
       }
-      const itemContent = trimmed.replace(/^\d+\.\s+/, '').trim();
-      htmlParts.push(`<li>${formatInlineMarkdownToHtml(itemContent)}</li>`);
+
+      // Åpne nye undernivåer dersom targetLevel er dypere
+      const currentLevel = listStack.length > 0 ? listStack[listStack.length - 1].level : -1;
+      for (let l = currentLevel + 1; l <= targetLevel; l++) {
+        listStack.push({ type: targetType, level: l });
+        htmlParts.push(`<${targetType}>`);
+      }
+
+      let content = '';
+      if (isUl) {
+        content = trimmed.replace(/^[-*]\s+/, '');
+      } else {
+        content = trimmed.replace(/^\d+\.\s+/, '');
+      }
+      const capitalized = capitalizeListItemText(content);
+      htmlParts.push(`<li>${formatInlineMarkdownToHtml(capitalized)}</li>`);
       continue;
     }
 
     // Regular Paragraph
-    if (inUl) { htmlParts.push('</ul>'); inUl = false; }
-    if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+    closeAllLists();
     if (inBlockquote) { htmlParts.push('</blockquote>'); inBlockquote = false; }
     htmlParts.push(`<p>${formatInlineMarkdownToHtml(trimmed)}</p>`);
   }
 
-  if (inUl) htmlParts.push('</ul>');
-  if (inOl) htmlParts.push('</ol>');
+  closeAllLists();
   if (inBlockquote) htmlParts.push('</blockquote>');
 
   return htmlParts.join('') || '<p><br></p>';
@@ -206,18 +239,64 @@ function walkDomNodeToMarkdown(node: Node): string {
       return `\n\n> ${childContent.trim()}\n\n`;
 
     case 'ul':
-      return `\n\n${childContent.trim()}\n\n`;
-
-    case 'ol':
-      return `\n\n${childContent.trim()}\n\n`;
+    case 'ol': {
+      const isNested = el.parentElement && ['li', 'ul', 'ol'].includes(el.parentElement.tagName.toLowerCase());
+      const inner = Array.from(el.childNodes).map(walkDomNodeToMarkdown).join('');
+      return isNested ? inner : `\n\n${inner.trim()}\n\n`;
+    }
 
     case 'li': {
-      const parentTag = el.parentElement?.tagName.toLowerCase();
-      if (parentTag === 'ol') {
-        const idx = Array.from(el.parentElement?.children || []).indexOf(el) + 1;
-        return `${idx}. ${childContent.trim()}\n`;
+      // Regn ut innrykksnivå basert på antall forfedre som er ul eller ol
+      let depth = 0;
+      let curr = el.parentElement;
+      while (curr && curr.tagName) {
+        const t = curr.tagName.toLowerCase();
+        if (t === 'ul' || t === 'ol') {
+          depth++;
+        }
+        if (curr.classList?.contains('academic-editor-surface') || curr.getAttribute?.('contenteditable') === 'true') {
+          break;
+        }
+        curr = curr.parentElement;
       }
-      return `- ${childContent.trim()}\n`;
+      const listLevel = Math.max(0, depth - 1);
+      const indent = '  '.repeat(listLevel);
+      const parentTag = el.parentElement?.tagName.toLowerCase();
+
+      // Skille mellom inline innhold og underlister
+      const inlineChildren: Node[] = [];
+      const nestedListChildren: Node[] = [];
+
+      for (let i = 0; i < el.childNodes.length; i++) {
+        const child = el.childNodes[i];
+        if (child.nodeType === Node.ELEMENT_NODE && ['ul', 'ol'].includes((child as HTMLElement).tagName.toLowerCase())) {
+          nestedListChildren.push(child);
+        } else {
+          inlineChildren.push(child);
+        }
+      }
+
+      const rawText = inlineChildren.map(walkDomNodeToMarkdown).join('').trim();
+      const capitalized = capitalizeListItemText(rawText);
+
+      let prefix = '- ';
+      if (parentTag === 'ol') {
+        let idx = 1;
+        let prev = el.previousElementSibling;
+        while (prev) {
+          if (prev.tagName.toLowerCase() === 'li') idx++;
+          prev = prev.previousElementSibling;
+        }
+        prefix = `${idx}. `;
+      }
+
+      let line = `${indent}${prefix}${capitalized}\n`;
+
+      if (nestedListChildren.length > 0) {
+        line += nestedListChildren.map(walkDomNodeToMarkdown).join('');
+      }
+
+      return line;
     }
 
     case 'p':
