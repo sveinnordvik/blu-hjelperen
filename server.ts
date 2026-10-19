@@ -126,7 +126,21 @@ process.on("uncaughtException", (error) => {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  
+  // Støtt CLI-argumenter som --port 3000 fra dev-runneren
+  let portFromArgs: number | undefined;
+  const portIdx = process.argv.indexOf("--port");
+  if (portIdx !== -1 && process.argv[portIdx + 1]) {
+    const parsed = Number(process.argv[portIdx + 1]);
+    if (!isNaN(parsed) && parsed > 0) {
+      portFromArgs = parsed;
+    }
+  }
+
+  // I AI Studio dev-miljø er Nginx bundet til port 8080 og proxyer til localhost:3000.
+  // Dev-serveren må derfor lytte på port 3000 i development.
+  const isDev = process.env.NODE_ENV !== "production";
+  const PORT = portFromArgs || (isDev ? 3000 : (Number(process.env.PORT) || 3000));
 
   // Tillat kall fra eksterne klienter (som Firebase Hosting) til dette Cloud Run-backenhet
   app.use(cors());

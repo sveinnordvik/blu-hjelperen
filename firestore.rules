@@ -365,5 +365,13 @@ service cloud.firestore {
     match /active_tasks/{taskId} {
       allow read, write: if isSignedIn();
     }
+
+    match /itp_templates/{templateId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /barnehage_innstillinger/{docId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }

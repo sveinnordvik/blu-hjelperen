@@ -52,6 +52,7 @@ import KompetanseMatrise from './KompetanseMatrise';
 import Personalhandbok from './Personalhandbok';
 import DelegertHMS from './DelegertHMS';
 import PersonalHR from './PersonalHR';
+import ITPMalbygger from './ITPMalbygger';
 
 interface Department {
   id: string;
@@ -106,7 +107,7 @@ const StyrernApp: React.FC = () => {
   // Sub-fane styring for sammenslåtte hovedkategorier
   const [personalSubTab, setPersonalSubTab] = useState<'ansatte' | 'vaktliste' | 'bemanning' | 'kompetanse' | 'handbok'>('ansatte');
   const [kvalitetSubTab, setKvalitetSubTab] = useState<'avvik' | 'delegerthms' | 'tilsyn'>('avvik');
-  const [ressurserSubTab, setRessurserSubTab] = useState<'profil' | 'aarshjul' | 'progresjon' | 'lovverk'>('profil');
+  const [ressurserSubTab, setRessurserSubTab] = useState<'profil' | 'aarshjul' | 'progresjon' | 'lovverk' | 'itpmal'>('profil');
   const [exportTriggerCount, setExportTriggerCount] = useState(0);
 
   // OPPDATERT: Slått sammen til 5 krystallklare hovedfaner, pluss Kontrollpanel til høyre
@@ -179,6 +180,12 @@ const StyrernApp: React.FC = () => {
       case 'lovverk':
         setActiveTab('ressurser');
         setRessurserSubTab('lovverk');
+        break;
+      case 'itpmal':
+      case 'itp-mal':
+      case 'malbygger':
+        setActiveTab('ressurser');
+        setRessurserSubTab('itpmal');
         break;
       case 'ressurser':
         setActiveTab('ressurser');
@@ -519,12 +526,27 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
                 <BookOpen size={16} />
                 <span>Styre, Lovverk & Beredskap</span>
               </button>
+              <button
+                onClick={() => setRessurserSubTab('itpmal')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  ressurserSubTab === 'itpmal'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Settings size={16} />
+                <span>Malbygger: Tiltaksplan (ITP) 📋</span>
+              </button>
             </div>
 
-            <AarshjulOgLovverk 
-              activeSection={ressurserSubTab} 
-              onNavigate={handleNavigate} 
-            />
+            {ressurserSubTab === 'itpmal' ? (
+              <ITPMalbygger onNavigate={handleNavigate} />
+            ) : (
+              <AarshjulOgLovverk 
+                activeSection={ressurserSubTab} 
+                onNavigate={handleNavigate} 
+              />
+            )}
           </div>
         );
 

@@ -23,7 +23,8 @@ import {
   Layers,
   HeartHandshake,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  FileSignature
 } from 'lucide-react';
 
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
@@ -35,6 +36,7 @@ import MorgenPulsen from './MorgenPulsen';
 import DenSokratiskePlanleggeren from './DenSokratiskePlanleggeren';
 import DidaktiskPlanlegger from '../DidaktiskPlanlegger';
 import PPTVeileder from './PPTVeileder';
+import TiltaksplanBygger from './TiltaksplanBygger';
 import SamtaleMentor from './SamtaleMentor';
 import Lederstotte from './Lederstotte';
 import DagensDagsrytmeAvdeling from './DagensDagsrytmeAvdeling';
@@ -63,7 +65,7 @@ export function PedlederenLayout({ avdelingNavn = 'Blåbærtua' }: PedledernAppP
   const [dokumentasjonSubTab, setDokumentasjonSubTab] = useState<'bilde' | 'manedsbrev'>('bilde');
   const [planleggingSubTab, setPlanleggingSubTab] = useState<'ukeplan' | 'sokratisk' | 'ai'>('ukeplan');
   const [driftSubTab, setDriftSubTab] = useState<'avdeling' | 'morgenpuls' | 'brief' | 'fagmoter'>('avdeling');
-  const [lederstotteSubTab, setLederstotteSubTab] = useState<'observasjoner' | 'ppt' | 'sparring'>('observasjoner');
+  const [lederstotteSubTab, setLederstotteSubTab] = useState<'observasjoner' | 'ppt' | 'tiltaksplan' | 'sparring'>('observasjoner');
 
   // Visning inni Ukeplan (rutenett vs liste)
   const [ukeplanVisning, setUkeplanVisning] = useState<'didaktisk' | 'oversikt'>('didaktisk');
@@ -728,6 +730,17 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                   <span>PPT-Skjold (Bekymringsruten) 🛡️</span>
                 </button>
                 <button
+                  onClick={() => setLederstotteSubTab('tiltaksplan')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    lederstotteSubTab === 'tiltaksplan'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileSignature className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Tiltaksplan (ITP) 📋</span>
+                </button>
+                <button
                   onClick={() => setLederstotteSubTab('sparring')}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                     lederstotteSubTab === 'sparring'
@@ -783,6 +796,12 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                 avdelingNavn={avdelingNavn} 
                 initialObservasjon={pptPreloadObservasjon}
                 onNavigateToObservasjoner={() => setLederstotteSubTab('observasjoner')}
+              />
+            )}
+
+            {lederstotteSubTab === 'tiltaksplan' && (
+              <TiltaksplanBygger 
+                onNavigateToPPT={() => setLederstotteSubTab('ppt')}
               />
             )}
 

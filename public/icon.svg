@@ -1,44 +1,194 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
+    <!-- Bakgrunnsgradient: Dyp nattblå til akademisk kongeblå -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#064e3b" />
-      <stop offset="50%" stop-color="#047857" />
-      <stop offset="100%" stop-color="#065f46" />
+      <stop offset="0%" stop-color="#0a192f" />
+      <stop offset="45%" stop-color="#0f2b5c" />
+      <stop offset="100%" stop-color="#1e3a8a" />
     </linearGradient>
+
+    <!-- Subtil radial lysatmosfære -->
+    <radialGradient id="ambientGlow" cx="50%" cy="46%" r="54%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.32" />
+      <stop offset="55%" stop-color="#1d4ed8" stop-opacity="0.10" />
+      <stop offset="100%" stop-color="#0a192f" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Gylden gradient for fyllepenn og vekstspire -->
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fde047" />
-      <stop offset="100%" stop-color="#f59e0b" />
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="25%" stop-color="#fde047" />
+      <stop offset="60%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
     </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.3" />
+
+    <!-- Dypere gullskygge for konturer og dybde -->
+    <linearGradient id="goldDeepGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+
+    <!-- Venstre bokside gradient (lysrefleksjon) -->
+    <linearGradient id="leftPageGrad" x1="100%" y1="50%" x2="0%" y2="50%">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="15%" stop-color="#f8fafc" />
+      <stop offset="85%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+
+    <!-- Høyre bokside gradient -->
+    <linearGradient id="rightPageGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#e2e8f0" />
+      <stop offset="15%" stop-color="#ffffff" />
+      <stop offset="85%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+
+    <!-- Undersider / bokblokk for å gi tykkelse (fagbok) -->
+    <linearGradient id="pageStackGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#cbd5e1" />
+      <stop offset="100%" stop-color="#64748b" />
+    </linearGradient>
+
+    <!-- Myk dybdeskygge -->
+    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#020817" flood-opacity="0.45" />
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#020817" flood-opacity="0.3" />
+    </filter>
+
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#f59e0b" flood-opacity="0.4" />
     </filter>
   </defs>
 
-  <!-- Bakgrunn med myke hjørner -->
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <!-- Full bakgrunn som fyller hele lerretet (perfekt for PWA og Android maskable) -->
+  <rect width="512" height="512" fill="url(#bgGrad)" />
 
-  <!-- Subtil lyssirkel -->
-  <circle cx="256" cy="220" r="160" fill="#ffffff" fill-opacity="0.05" />
+  <!-- Subtil lysatmosfære i senter -->
+  <rect width="512" height="512" fill="url(#ambientGlow)" />
 
-  <!-- Hovedemblem (Kamera & spire / bok) -->
-  <g filter="url(#shadow)" transform="translate(106, 96)">
-    <!-- Ytre ramme -->
-    <rect x="0" y="30" width="300" height="210" rx="40" fill="#ffffff" />
-    
-    <!-- Linse / kikkert -->
-    <circle cx="150" cy="135" r="64" fill="#064e3b" />
-    <circle cx="150" cy="135" r="48" fill="#047857" />
-    <circle cx="150" cy="135" r="28" fill="#10b981" />
-    <circle cx="138" cy="123" r="10" fill="#ffffff" fill-opacity="0.8" />
-    
-    <!-- Søker / blits -->
-    <circle cx="240" cy="75" r="14" fill="url(#goldGrad)" />
-    
-    <!-- Spire / pedagogisk vekst -->
-    <path d="M150 0 C150 0 170 20 170 34 C170 44 162 50 150 50 C138 50 130 44 130 34 C130 20 150 0 150 0 Z" fill="url(#goldGrad)" />
+  <!-- Bakgrunnsring med akademisk finesse (diskrete linjer i gull/blått) -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#60a5fa" stroke-opacity="0.12" stroke-width="2" />
+  <circle cx="256" cy="256" r="176" fill="none" stroke="#fbbf24" stroke-opacity="0.18" stroke-width="1.5" stroke-dasharray="6 6" />
+
+  <!-- HOVEDEMBLEM MED DYBDESKYGGE -->
+  <g filter="url(#iconShadow)">
+
+    <!-- 1. BOKBLOKK UNDERLIGGENDE SIDER (viser at dette er en fyldig fagbok) -->
+    <!-- Venstre undersider -->
+    <path d="M 256 364 C 205 364 140 354 100 338 L 100 348 C 140 364 205 374 256 374 Z" fill="url(#pageStackGrad)" />
+    <!-- Høyre undersider -->
+    <path d="M 256 364 C 307 364 372 354 412 338 L 412 348 C 372 364 307 374 256 374 Z" fill="url(#pageStackGrad)" opacity="0.9" />
+
+    <!-- Perm / bokrygg kant nederst -->
+    <path d="M 96 346 C 140 366 205 378 256 378 C 307 378 372 366 416 346 L 416 352 C 372 372 307 384 256 384 C 205 384 140 372 96 352 Z" fill="#b45309" />
+
+    <!-- 2. VENSTRE HOVEDSIDE (ÅPEN BOK) -->
+    <path d="M 256 238
+             C 210 216 150 212 104 226
+             C 100 227 98 230 98 234
+             L 98 335
+             C 98 339 101 342 105 341
+             C 148 327 210 332 256 358
+             Z"
+          fill="url(#leftPageGrad)" />
+
+    <!-- 3. HØYRE HOVEDSIDE (ÅPEN BOK) -->
+    <path d="M 256 238
+             C 302 216 362 212 408 226
+             C 412 227 414 230 414 234
+             L 414 335
+             C 414 339 411 342 407 341
+             C 364 327 302 332 256 358
+             Z"
+          fill="url(#rightPageGrad)" />
+
+    <!-- Midtrygg / boksøm skygge -->
+    <path d="M 253 238 Q 256 298 253 358 Q 256 298 259 238 Z" fill="#94a3b8" opacity="0.6" />
+
+    <!-- Subtile faglige linjer på venstre side (notater / refleksjon) -->
+    <path d="M 132 256 C 165 248 205 252 232 264" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.4" />
+    <path d="M 130 278 C 165 270 205 274 232 286" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.4" />
+    <path d="M 132 300 C 165 292 205 296 232 308" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.35" />
+
+    <!-- Subtile linjer på høyre side -->
+    <path d="M 280 264 C 307 252 347 248 380 256" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.4" />
+    <path d="M 280 286 C 307 274 347 270 382 278" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.4" />
+    <path d="M 280 308 C 307 296 347 292 380 300" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" opacity="0.35" />
+
+    <!-- 4. FYLLEPENN OG SKRIVEHODE I SENTER -->
+    <!-- Pennekropp i dyp blå og gull nederst -->
+    <path d="M 248 340 L 264 340 L 262 382 L 250 382 Z" fill="#0f172a" />
+    <rect x="247" y="348" width="18" height="5" rx="1.5" fill="url(#goldGrad)" />
+
+    <!-- Gullholder for pennespiss -->
+    <path d="M 245 288 L 267 288 L 265 316 L 247 316 Z" fill="url(#goldDeepGrad)" />
+    <rect x="244" y="286" width="24" height="4" rx="1" fill="#fde047" />
+
+    <!-- Fyllepenn-spiss (detaljert klassisk ornament) -->
+    <g filter="url(#goldGlow)">
+      <!-- Spiss-kropp -->
+      <path d="M 256 160
+               C 259 185 272 204 274 235
+               C 275 252 268 288 268 288
+               L 244 288
+               C 244 288 237 252 238 235
+               C 240 204 253 185 256 160
+               Z"
+            fill="url(#goldGrad)"
+            stroke="#b45309"
+            stroke-width="1.5" />
+
+      <!-- Spiss gravering og detaljer -->
+      <!-- Pustehull (breather hole) -->
+      <circle cx="256" cy="228" r="4.5" fill="#0f2b5c" />
+      
+      <!-- Pennespiss-splitt (ink slit) -->
+      <line x1="256" y1="160" x2="256" y2="223.5" stroke="#78350f" stroke-width="2" stroke-linecap="round" />
+
+      <!-- Elegante graverte sidebuer på pennespissen -->
+      <path d="M 246 250 C 250 240 252 232 250 220" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M 266 250 C 262 240 260 232 262 220" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round" />
+      <path d="M 248 268 C 252 262 254 256 252 246" fill="none" stroke="#fef08a" stroke-width="1" stroke-linecap="round" />
+      <path d="M 264 268 C 260 262 258 256 260 246" fill="none" stroke="#fef08a" stroke-width="1" stroke-linecap="round" />
+    </g>
+
+    <!-- 5. VEKSTSPIRE SOM VOKSER UT AV PENNEN (Kunnskap, pedagogikk og vekst) -->
+    <g filter="url(#goldGlow)">
+      <!-- Hovedstilk / spirende kjerne -->
+      <path d="M 256 162 C 256 142 256 118 256 102" stroke="url(#goldGrad)" stroke-width="4.5" stroke-linecap="round" />
+
+      <!-- Venstre blad (organisk, elegant sving) -->
+      <path d="M 256 138
+               C 245 132 216 128 214 104
+               C 214 94 224 88 234 94
+               C 246 102 254 118 256 138 Z"
+            fill="url(#goldGrad)"
+            stroke="#b45309"
+            stroke-width="1" />
+
+      <!-- Venstre blad nerve -->
+      <path d="M 255 136 C 248 126 238 114 226 102" fill="none" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.8" />
+
+      <!-- Høyre blad (løfter seg mot læring og fremtid) -->
+      <path d="M 256 126
+               C 268 118 296 112 298 88
+               C 298 78 288 72 278 78
+               C 266 86 258 104 256 126 Z"
+            fill="url(#goldGrad)"
+            stroke="#b45309"
+            stroke-width="1" />
+
+      <!-- Høyre blad nerve -->
+      <path d="M 257 124 C 264 112 274 100 286 86" fill="none" stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" opacity="0.8" />
+
+      <!-- Toppspire / nyskudd i midten -->
+      <path d="M 256 104 C 252 92 252 82 256 74 C 260 82 260 92 256 104 Z" fill="#fef08a" />
+      <circle cx="256" cy="72" r="3.5" fill="#ffffff" />
+    </g>
+
+    <!-- Subtil lysglans / stjerne ved vekstpunktet -->
+    <path d="M 256 62 L 258 69 L 265 71 L 258 73 L 256 80 L 254 73 L 247 71 L 254 69 Z" fill="#ffffff" opacity="0.9" />
+
   </g>
-
-  <!-- Tekstbranding -->
-  <text x="256" y="390" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="44" fill="#ffffff" letter-spacing="1">Pedleder'n</text>
-  <text x="256" y="430" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="20" fill="#a7f3d0" letter-spacing="3">FAGPORTAL</text>
 </svg>

@@ -20,6 +20,8 @@ import DenSokratiskePlanleggeren from './components/portalen/DenSokratiskePlanle
 import DidaktiskPlanlegger from './components/DidaktiskPlanlegger';
 import Lederstotte from './components/portalen/Lederstotte';
 import Observasjoner from './components/portalen/Observasjoner';
+import TiltaksplanBygger from './components/portalen/TiltaksplanBygger';
+import ITPMalbygger from './components/portalen/ITPMalbygger';
 
 // =====================================================================
 // 🛑 TILGANGSKONTROLL FOR UTVIKLERMENY (KUN FOR SVEIN) 🛑
@@ -66,7 +68,9 @@ const DevRoleBar: React.FC<{ current: string; onSelect: (role: string) => void }
     { id: 'STUDENTN', label: "BLU-hjelperen (Student)", bg: 'bg-indigo-600' },
     { id: 'PEDLEDERN', label: "Pedleder'n", bg: 'bg-teal-600' },
     { id: 'STYRERN', label: "Styrer'n", bg: 'bg-indigo-600' },
+    { id: 'ITPMAL', label: "ITP Malbygger (Styrer) ⚙️", bg: 'bg-indigo-700' },
     { id: 'OBSERVASJONER', label: "Observasjoner 📝", bg: 'bg-emerald-600' },
+    { id: 'TILTAKSPLAN', label: "Tiltaksplan (ITP) 📋", bg: 'bg-emerald-600' },
     { id: 'LEDERSTOTTE', label: "Lederstøtte 🧠", bg: 'bg-emerald-700' },
     { id: 'DIDAKTISK', label: "Didaktisk Planlegger 📅", bg: 'bg-emerald-600' },
     { id: 'SOKRATISK', label: "Sokratisk Planlegger ✨", bg: 'bg-amber-600' },
@@ -164,6 +168,14 @@ const App = () => {
       </>
     );
   }
+  if (canViewDevRoleBar && effectivePreview === "ITPMAL") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-10 font-sans text-slate-800">
+        <ITPMalbygger />
+        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
+      </div>
+    );
+  }
   if (canViewDevRoleBar && effectivePreview === "PEDLEDERN") {
     return (
       <>
@@ -176,6 +188,14 @@ const App = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-12 font-sans text-slate-800">
         <Observasjoner />
+        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
+      </div>
+    );
+  }
+  if (canViewDevRoleBar && effectivePreview === "TILTAKSPLAN") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-10 font-sans text-slate-800">
+        <TiltaksplanBygger />
         <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
       </div>
     );
@@ -269,8 +289,12 @@ const App = () => {
         {/* Andre apper i økosystemet (STRENGT LÅST KUN FOR SVEIN) */}
         <Route path="/pedleder" element={canViewDevRoleBar ? <PedledernApp /> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/pedledern" element={canViewDevRoleBar ? <PedledernApp /> : <Navigate to="/blu-hjelperen" replace />} />
+        <Route path="/tiltaksplan" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><TiltaksplanBygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
+        <Route path="/itp" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><TiltaksplanBygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/styrer" element={canViewDevRoleBar ? <StyrernApp /> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/styrern" element={canViewDevRoleBar ? <StyrernApp /> : <Navigate to="/blu-hjelperen" replace />} />
+        <Route path="/styrer/itp-mal" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><ITPMalbygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
+        <Route path="/itp-mal" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><ITPMalbygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/fagarbeider" element={canViewDevRoleBar ? <FagarbeidernApp /> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/fagarbeidern" element={canViewDevRoleBar ? <FagarbeidernApp /> : <Navigate to="/blu-hjelperen" replace />} />
         <Route path="/assistent" element={canViewDevRoleBar ? <AssistentnApp /> : <Navigate to="/blu-hjelperen" replace />} />
