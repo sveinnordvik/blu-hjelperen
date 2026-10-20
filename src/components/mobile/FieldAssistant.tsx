@@ -24,6 +24,7 @@ import { callGoogleAIProxy } from '../../services/geminiService';
 import { db } from '../../firebase';
 import { getAuth } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { saveFieldNote, FieldNote, NoteCategory } from '../../services/fieldNotesService';
 
 export interface ChatMessage {
   id: string;
@@ -38,6 +39,7 @@ interface FieldAssistantProps {
   onSaveToNotes?: (title: string, content: string, category: string) => void;
   onSendToProcessLog?: (msg: ChatMessage) => void;
   onGoToProcessLog?: () => void;
+  onSwitchToSuperveileder?: () => void;
   user?: any;
 }
 
@@ -71,6 +73,7 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
   onSaveToNotes,
   onSendToProcessLog,
   onGoToProcessLog,
+  onSwitchToSuperveileder,
   user
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -266,33 +269,21 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     const rawPreview = msg.content.replace(/[#*`_]/g, '').trim();
     const title = rawPreview.substring(0, 45) + '...';
     const content = msg.content;
-    const category = msg.content.toLowerCase().includes('rammeplan') ? 'Rammeplanen' : 'Didaktisk idé';
+    const category: NoteCategory = msg.content.toLowerCase().includes('rammeplan') ? 'Rammeplanen' : 'Didaktisk idé';
 
     if (onSaveToNotes) {
       onSaveToNotes(title, content, category);
     } else {
       try {
-        const saved = localStorage.getItem('blu_field_notes');
-        const notes = saved ? JSON.parse(saved) : [];
-        const newNote = {
-          id: `fn-${Date.now()}`,
+        const newNote: FieldNote = {
+          id: `fn-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           title: `[Veilederråd] ${title}`,
           content: content,
           category: category,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        localStorage.setItem('blu_field_notes', JSON.stringify([newNote, ...notes]));
-
-        // Sync note to Firestore if signed in
-        const auth = getAuth();
-        const currentUser = user || auth.currentUser;
-        if (currentUser) {
-          await setDoc(doc(db, 'fieldNotes', newNote.id), {
-            ...newNote,
-            userId: currentUser.uid
-          }, { merge: true });
-        }
+        await saveFieldNote(newNote);
       } catch (e) {
         console.error('Feil ved lagring til Kladdebok:', e);
       }
@@ -606,60 +597,104 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBIL VISNING (Kompakt og tilpasset feltsituasjonen, skjult på md:)        */}
+      {/* MOBIL VISNING (Kompakt, profesjonell og tilpasset feltsituasjonen, skjult på md:) */}
       {/* ========================================================================= */}
-      <div className="md:hidden w-full max-w-xl mx-auto pb-24 px-3 sm:px-4 flex flex-col min-h-[calc(100vh-140px)]">
-        {/* Header Banner */}
-        <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white rounded-3xl p-5 shadow-md mb-3 flex items-center justify-between shrink-0">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Feltveileder
-              </span>
-              <span className="text-[10px] text-indigo-200">
-                <Cloud className="w-3 h-3 inline mr-0.5" />
-                {isCloudSynced ? 'Sky-lagret' : 'Aktiv'}
-              </span>
+      <div className="md:hidden w-full max-w-xl mx-auto px-3 sm:px-6 pb-48 flex flex-col min-h-[calc(100vh-140px)]">
+        {/* Header Banner - identisk designspråk som Kladdebok og Prosesslogg */}
+        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-900 text-white rounded-3xl p-5 sm:p-7 shadow-md mb-4 relative overflow-hidden shrink-0">
+          <div className="relative z-10 flex flex-col gap-3">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-bold text-white tracking-wide">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Didaktisk sparring i felt
+                </span>
+                <span className="text-[11px] font-semibold text-indigo-100 flex items-center gap-1 bg-indigo-900/40 px-2.5 py-1 rounded-full">
+                  {user ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      Sky-synkronisert ({messages.length} meldinger)
+                    </>
+                  ) : (
+                    <>
+                      <Cloud className="w-3 h-3 text-indigo-300" />
+                      Lokal modus ({messages.length} meldinger)
+                    </>
+                  )}
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
+                Feltveileder
+              </h1>
+              <p className="text-xs sm:text-sm text-indigo-100/95 max-w-xl mt-1 leading-relaxed">
+                Lynrask faglig sparring for barnehagepraksis. Forankret i Rammeplanen og sentral pedagogisk teori.
+              </p>
             </div>
-            <h2 className="text-xl font-black mt-2 tracking-tight">Rask faglig sparring</h2>
-            <p className="text-xs text-indigo-100 mt-0.5">
-              Rammeplan, didaktikk og teori i lomma.
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleStartNySamtale}
-              title="Start ny samtale"
-              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleSlettChat}
-              title="Slett samtale"
-              className="p-2 bg-rose-500/30 hover:bg-rose-500/50 text-white rounded-xl transition-all cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleStartNySamtale}
+                className="flex-1 py-3 px-4 bg-white text-indigo-950 hover:bg-indigo-50 font-bold rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4 text-indigo-600" /> Start ny samtale
+              </button>
+              {messages.length > 1 && (
+                <button
+                  onClick={handleSlettChat}
+                  title="Slett samtale-historikk"
+                  className="p-3 bg-white/10 hover:bg-rose-500/30 text-white rounded-2xl transition-all text-xs cursor-pointer flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Suggestion Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2 shrink-0">
+        {/* Hurtig-snarveier mellom Kladdebok og Prosesslogg i felt */}
+        <div className="grid grid-cols-2 gap-2 mb-3 shrink-0">
+          {onGoToNotes && (
+            <button
+              onClick={onGoToNotes}
+              className="py-2 px-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-between border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="truncate">Kladdebok</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0" />
+            </button>
+          )}
+          {onGoToProcessLog && (
+            <button
+              onClick={onGoToProcessLog}
+              className="py-2 px-3 rounded-2xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center justify-between border border-amber-200 transition-colors cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="truncate">Prosesslogg</span>
+              </div>
+              <ArrowRight className="w-3 h-3 text-amber-500 shrink-0" />
+            </button>
+          )}
+        </div>
+
+        {/* Suggestion Chips - didaktiske temaer for rask inspirasjon */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-3 shrink-0">
           {FIELD_SUGGESTIONS.map((item, idx) => (
             <button
               key={`mob-sug-${idx}`}
               onClick={() => handleSend(item.prompt)}
               disabled={isLoading}
-              className="px-3 py-1.5 bg-white border border-indigo-100 hover:border-indigo-300 text-indigo-900 rounded-xl text-xs font-bold whitespace-nowrap shadow-2xs hover:bg-indigo-50/50 transition-all shrink-0 disabled:opacity-50 cursor-pointer"
+              className="px-3 py-1.5 bg-white border border-indigo-100 hover:border-indigo-300 text-indigo-900 rounded-xl text-xs font-bold whitespace-nowrap shadow-2xs hover:bg-indigo-50/50 transition-all shrink-0 disabled:opacity-50 cursor-pointer flex items-center gap-1 active:scale-95"
             >
-              {item.label}
+              <Sparkles className="w-3 h-3 text-indigo-500 shrink-0" />
+              <span>{item.label}</span>
             </button>
           ))}
         </div>
 
         {/* Messages Scroll Area */}
-        <div className="flex-1 space-y-3 py-2 overflow-y-auto">
+        <div className="flex-1 space-y-3.5 py-1 overflow-y-auto">
           {messages.map((m) => {
             const isUser = m.role === 'user';
             return (
@@ -674,54 +709,79 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
               >
                 <div
                   className={cn(
-                    "max-w-[90%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs",
+                    "max-w-[92%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs space-y-2",
                     isUser
                       ? "bg-indigo-600 text-white rounded-br-xs font-medium"
-                      : "bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs"
+                      : "bg-white text-slate-800 border border-slate-200/90 rounded-bl-xs"
                   )}
                 >
                   {!isUser ? (
-                    <div className="prose prose-xs sm:prose-sm max-w-none text-slate-800">
+                    <div className="prose prose-xs sm:prose-sm max-w-none text-slate-800 leading-relaxed">
                       <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
                   ) : (
                     <p className="whitespace-pre-wrap">{m.content}</p>
                   )}
 
-                  {/* Assistant message action: Lagre til Kladdebok */}
+                  {/* Handlinger under assistentsvar på mobil */}
                   {!isUser && m.id !== 'msg-welcome' && (
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                      <button
-                        onClick={() => handleSaveToKladdebok(m)}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer",
-                          savedSuccessId === m.id
-                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : "bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700"
-                        )}
-                      >
-                        {savedSuccessId === m.id ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Lagret i Kladdebok!</span>
-                          </>
-                        ) : (
-                          <>
-                            <BookmarkPlus className="w-3.5 h-3.5 text-indigo-600" />
-                            <span>Lagre til Kladdebok</span>
-                          </>
-                        )}
-                      </button>
-
-                      {onGoToNotes && (
+                    <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Lagre til Kladdebok */}
                         <button
-                          onClick={onGoToNotes}
-                          className="text-[11px] text-slate-400 hover:text-indigo-600 font-bold flex items-center gap-0.5 cursor-pointer"
+                          onClick={() => handleSaveToKladdebok(m)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
+                            savedSuccessId === m.id
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
+                          )}
                         >
-                          <span>Se notater</span>
-                          <ArrowRight className="w-3 h-3" />
+                          {savedSuccessId === m.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>Lagret i Kladdebok!</span>
+                            </>
+                          ) : (
+                            <>
+                              <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>Lagre i Kladdebok</span>
+                            </>
+                          )}
                         </button>
-                      )}
+
+                        {/* Send til Prosesslogg */}
+                        <button
+                          onClick={() => handleSendToLog(m)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
+                            logSuccessId === m.id
+                              ? "bg-amber-100 text-amber-800 border border-amber-300"
+                              : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
+                          )}
+                        >
+                          {logSuccessId === m.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>Sendt til logg!</span>
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>Send til logg</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Kopier knapp */}
+                        <button
+                          onClick={() => handleCopy(m)}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors ml-auto cursor-pointer"
+                          title="Kopier svar"
+                        >
+                          {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -730,39 +790,41 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
           })}
 
           {isLoading && (
-            <div className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-2xl w-fit">
+            <div className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-2xl w-fit shadow-xs">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-              <span className="text-xs text-slate-500 font-medium">Veilederen tenker didaktisk...</span>
+              <span className="text-xs text-slate-500 font-medium">Feltveilederen henter didaktiske perspektiver...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Bar */}
-        <div className="sticky bottom-0 pt-2 bg-gradient-to-t from-white via-white to-transparent">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend();
-            }}
-            className="flex items-center gap-2 bg-white border-2 border-indigo-200 focus-within:border-indigo-600 rounded-2xl p-1.5 shadow-md transition-colors"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Spør om Rammeplan, didaktikk, lekesituasjon..."
-              disabled={isLoading}
-              className="flex-1 px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none bg-transparent"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl disabled:opacity-40 transition-all flex items-center justify-center shrink-0 cursor-pointer"
+        {/* Input Bar - plassert perfekt over mobil-subnavigasjonen */}
+        <div className="fixed bottom-[104px] left-0 right-0 z-[80] bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-3 py-2 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+          <div className="max-w-xl mx-auto">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex items-center gap-2 bg-slate-50 border-2 border-indigo-200 focus-within:border-indigo-600 focus-within:bg-white rounded-2xl p-1.5 shadow-2xs transition-colors"
             >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </form>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Spør om Rammeplan, didaktikk, situasjon..."
+                disabled={isLoading}
+                className="flex-1 px-3 py-1.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none bg-transparent"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading}
+                className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl disabled:opacity-40 transition-all flex items-center justify-center shrink-0 cursor-pointer shadow-xs active:scale-95"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

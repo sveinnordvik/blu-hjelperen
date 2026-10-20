@@ -4612,7 +4612,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
       <main className={cn(
         "flex-1 w-full mx-auto flex flex-col transition-all duration-300",
         !['pricing', 'admin'].includes(activeTab)
-          ? "max-w-[99vw] px-2 sm:px-4 md:px-5 lg:px-6 py-1 pb-1 overflow-visible"
+          ? "max-w-[99vw] px-2 sm:px-4 md:px-5 lg:px-6 py-1 pb-1 overflow-x-hidden md:overflow-visible"
           : "max-w-7xl p-4 md:p-6 pb-[140px] md:pb-8 overflow-x-hidden",
         isFocusMode && "max-w-3xl pt-12"
       )}>
@@ -4664,12 +4664,22 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'field-assistant' && (
-            <Superveileder 
+            <FieldAssistant 
               key="field-assistant" 
               user={user} 
-              initialAssistant="feltveileder"
-              didacticProfile={pedagogicalProfile} 
-              onAssistantChange={(ass) => setActiveTab(ass === 'feltveileder' ? 'field-assistant' : 'assistant')}
+              initialPrompt={fieldAssistantPrompt}
+              onGoToNotes={() => {
+                setActiveTab('field-notes');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onGoToProcessLog={() => {
+                setActiveTab('process-log');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onSwitchToSuperveileder={() => {
+                setActiveTab('assistant');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           )}
 
@@ -4948,6 +4958,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 onOpenSettings={() => setActiveTab('settings')} 
                 onBackToHome={() => setActiveTab('home')} 
                 onSwitchToSuperveileder={() => setActiveTab('assistant')}
+                onSwitchToFeltveileder={() => setActiveTab('field-assistant')}
               />
             </div>
           )}

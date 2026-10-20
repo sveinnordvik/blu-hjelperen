@@ -1333,7 +1333,7 @@ export function Superveileder({
         const activeFolder = currentFolders.find(f => f.id === activeChat?.folderId);
         return (
           <>
-            <div className="flex flex-col h-auto md:h-auto min-h-[1050px] bg-slate-50/50 overflow-visible relative">
+            <div className="flex flex-col h-auto md:h-auto min-h-[1050px] bg-slate-50/50 w-full max-w-full overflow-x-hidden md:overflow-visible relative">
             
             {/* Top Bar Switcher: Direktekoblet med Feltveilederen, Superveilederen og BLU-hjelperen */}
             <div className="bg-slate-900 text-white border-b border-slate-800 px-3 sm:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
