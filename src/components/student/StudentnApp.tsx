@@ -3790,12 +3790,11 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           animate={{ opacity: 1, scale: 1 }}
           className="flex flex-col items-center gap-6"
         >
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-            <GraduationCap className="w-10 h-10 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <div className="w-16 h-16 bg-[#465568] rounded-2xl shadow-lg flex items-center justify-center animate-pulse">
+            <HandHelping className="text-white w-9 h-9" strokeWidth={2.2} />
           </div>
           <div className="text-center">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">BLU-Hjelperen</h2>
+            <h2 className="font-serif font-black text-2xl text-slate-900 tracking-tight">BLU-Hjelperen</h2>
             <p className="text-sm text-slate-500 font-medium mt-1">Gjør klar din personlige assistent...</p>
           </div>
         </motion.div>
@@ -4102,19 +4101,18 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         isFocusMode && "opacity-0 -translate-y-full pointer-events-none"
       )}>
         <div className="max-w-7xl mx-auto px-4 md:px-6">
-    <div className="flex items-center h-16 gap-4 lg:gap-8">
-      <div 
-        id="app-main-logo"
-        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity group shrink-0 p-2 bg-white"
+          <div className="flex items-center h-16 gap-4 lg:gap-8">
+            <div 
+              id="app-main-logo"
+        className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity group shrink-0 py-1 px-1 bg-white select-none"
         onClick={() => setActiveTab('home')}
       >
-        <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-          <HandHelping className="text-white w-5 h-5 lg:w-6 lg:h-6" />
+        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#465568] rounded-2xl shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+          <HandHelping className="text-white w-6 h-6 sm:w-6.5 sm:h-6.5" strokeWidth={2.2} />
         </div>
-        <div className="flex flex-col">
-          <h1 className="font-black text-lg lg:text-xl tracking-tighter text-slate-900 leading-none">BLU-Hjelperen</h1>
-          <span className="hidden sm:block text-[8px] lg:text-[10px] font-bold text-primary uppercase tracking-widest mt-0.5 opacity-90">Skrivepartner</span>
-        </div>
+        <h1 className="font-serif font-black text-2xl sm:text-[26px] tracking-tight text-slate-900 leading-none m-0">
+          BLU-Hjelperen
+        </h1>
       </div>
 
       {/* Desktop Main Nav */}
