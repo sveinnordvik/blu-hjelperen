@@ -177,11 +177,6 @@ export async function callGoogleAIProxy(params: {
            throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
-           const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
-           if (clientApiKey && clientApiKey.length > 10) {
-             console.warn("Backend 404 - forsøker direkte Gemini-kall med VITE_GEMINI_API_KEY.");
-             return await callDirectGeminiApi(targetModel, validatedContents, params.config);
-           }
            throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller API-innstillinger.`);
         }
         
@@ -198,11 +193,6 @@ export async function callGoogleAIProxy(params: {
            throw new Error("Feil: Forespørselen ble blokkert av sikkerhetsinnstillingene til AI Studio fordi nettleseren din mangler en informasjonskapsel (cookie). Prøv et vanlig vindu i Chrome uten Inkognito.");
         }
         if (textResponse.substring(0, 300).toLowerCase().includes("<html") || textResponse.substring(0, 300).toLowerCase().includes("<!doctype")) {
-           const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
-           if (clientApiKey && clientApiKey.length > 10) {
-             console.warn("Fikk HTML fra /api/gemini/generate - faller tilbake til direkte Gemini API-kall.");
-             return await callDirectGeminiApi(targetModel, validatedContents, params.config);
-           }
            throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting uten en aktiv API-backend.`);
         }
         throw new Error("Feil ved tolking av svar fra API: " + parseError.message);
@@ -230,17 +220,6 @@ export async function callGoogleAIProxy(params: {
         throw new Error(msg);
       }
 
-      // Direkte fallback hvis backend feiler og klientnøkkel er til stede
-      const clientApiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
-      if (clientApiKey && clientApiKey.length > 10 && (msg.includes("Failed to fetch") || msg.includes("NetworkError") || error?.isServerError)) {
-        try {
-          console.warn("Backend utilgjengelig eller nettverksfeil - forsøker direkte Gemini API-kall.");
-          return await callDirectGeminiApi(targetModel, validatedContents, params.config);
-        } catch (directErr: any) {
-          console.warn("Direkte fallback feilet også:", directErr);
-        }
-      }
-
       if (attempt >= maxRetries) {
         if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || error?.status === 429) {
           throw new Error("Superveilederen opplever stor pågang akkurat nå (mange studenter bruker tjenesten samtidig). Vent 10–15 sekunder og prøv igjen.");
@@ -261,93 +240,6 @@ export async function callGoogleAIProxy(params: {
   }
 
   throw new Error(UIfriendlyError);
-}
-
-
-/**
- * Klient-fallback som kaller Google Generative Language API direkte dersom statisk hosting mangler backend eller returnerer 404/HTML
- */
-async function callDirectGeminiApi(model: string, contents: any, config?: any): Promise<{ text: string }> {
-  const apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
-  if (!apiKey) {
-    throw new Error("Mangler GEMINI_API_KEY for direkte kall. Vennligst legg inn GEMINI_API_KEY under Settings -> Secrets i AI Studio, eller i GitHub Secrets.");
-  }
-
-  let preferred = (typeof model === 'string' && model.trim()) ? model.trim() : "gemini-3.8-flash";
-  if (preferred.includes("1.5") || preferred.includes("2.0") || preferred === "gemini-pro") {
-    preferred = "gemini-3.8-flash";
-  }
-
-  const modelCandidates = [
-    preferred,
-    preferred === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
-  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
-
-  let lastError: any = null;
-
-  for (let i = 0; i < modelCandidates.length; i++) {
-    const candidate = modelCandidates[i];
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${candidate}:generateContent?key=${apiKey}`;
-
-      const body: any = { contents };
-      if (config?.systemInstruction) {
-        const sysText = typeof config.systemInstruction === 'string'
-          ? config.systemInstruction
-          : (config.systemInstruction.parts?.[0]?.text || config.systemInstruction.text || '');
-        if (sysText) {
-          body.systemInstruction = { parts: [{ text: sysText }] };
-        }
-      }
-      if (config?.temperature !== undefined || config?.maxOutputTokens !== undefined) {
-        body.generationConfig = {};
-        if (config?.temperature !== undefined) body.generationConfig.temperature = config.temperature;
-        if (config?.maxOutputTokens !== undefined) body.generationConfig.maxOutputTokens = config.maxOutputTokens;
-      }
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const errObj = await res.json().catch(() => ({}));
-        const errMsg = errObj?.error?.message || `Google API feil: ${res.status}`;
-        
-        // Kritiske feil med API-nøkkelen kan ikke løses ved å bytte modell
-        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid")) {
-          throw new Error("Ugyldig Gemini API-nøkkel satt opp. Sjekk at GEMINI_API_KEY i AI Studio / GitHub Secrets er gyldig og aktiv.");
-        }
-        
-        if (errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted")) {
-          throw new Error("Kredittsaldoen for denne API-nøkkelen er oppbrukt (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på saldo.");
-        }
-
-        console.warn(`Direkte API-kall feilet for modell ${candidate} (status ${res.status}): ${errMsg}. Prøver neste kandidat...`);
-        lastError = new Error(errMsg);
-        
-        // Vent kort før neste forsøk ved rate limit
-        if (errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429") || res.status === 429) {
-          await new Promise(r => setTimeout(r, 1200));
-        }
-        continue;
-      }
-
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return { text };
-    } catch (callErr: any) {
-      lastError = callErr;
-      if (callErr?.message?.includes("Ugyldig Gemini API-nøkkel") || callErr?.message?.includes("credits are depleted")) {
-        throw callErr;
-      }
-    }
-  }
-
-  throw lastError || new Error("Kunne ikke hente svar fra Google Gemini API. Prøv igjen om et lite øyeblikk.");
 }
 
 export const SYSTEM_INSTRUCTION = `${GLOBAL_SAFETY_SYSTEM_INSTRUCTION}

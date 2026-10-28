@@ -3,4 +3,10 @@ node_modules/
 *.log
 .env*
 !.env.example
+dist/
+build/
+backups/
+.aistudio/
+*.local
+
 

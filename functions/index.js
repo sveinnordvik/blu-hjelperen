@@ -285,6 +285,20 @@ exports.handleNewUserReferral = onDocumentCreated(
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenAI } = require("@google/genai");
 
+// Enkel rate limiter for å forhindre tap av tokens og bots
+const functionRateLimit = new Map();
+function checkFuncRateLimit(ip, limit = 30, windowMs = 60000) {
+  const now = Date.now();
+  const rec = functionRateLimit.get(ip);
+  if (!rec || now > rec.resetTime) {
+    functionRateLimit.set(ip, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  if (rec.count >= limit) return false;
+  rec.count++;
+  return true;
+}
+
 exports.api = onRequest(
   {
     region: "europe-west1",
@@ -304,7 +318,12 @@ exports.api = onRequest(
       return res.status(405).json({ error: "Method Not Allowed" });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const clientIp = (req.headers["x-forwarded-for"] || req.ip || "unknown").split(",")[0].trim();
+    if (!checkFuncRateLimit(clientIp, 30, 60000)) {
+      return res.status(429).json({ error: "For mange forespørsler. Vennligst vent litt (Rate limit)." });
+    }
+
+    let apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       try {
         apiKey = functions.config().gemini?.key;
@@ -339,9 +358,7 @@ exports.api = onRequest(
         // Kandidater med uavhengige kvoter
         const candidates = [
           requestedModel,
-          requestedModel === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash",
-          "gemini-3.1-flash-lite",
-          "gemini-flash-latest"
+          "gemini-3.1-flash-lite"
         ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
         let lastErr = null;
@@ -541,7 +558,7 @@ exports.superveilederenChat = functions.region('europe-west1').https.onCall(asyn
     { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
   ];
 
-  let apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+  let apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     try {
       apiKey = functions.config().gemini?.key;

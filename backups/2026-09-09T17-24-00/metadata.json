@@ -1,9 +1,0 @@
-{
-  "name": "BLU-hjelperen",
-  "description": "Din digitale skrivepartner gjennom barnehagelærerstudiet. Fra praksis til papir – vi hjelper deg med struktur, drøfting og kildebruk.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
-

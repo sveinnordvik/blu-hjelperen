@@ -72,12 +72,10 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   }
 
   // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
-  // gemini-3.1-flash-lite har separat kvotepool og er lynrask, ideell som umiddelbar fallback ved rate limit
+  // gemini-3.1-flash-lite har separat kvotepool og er lynrask som umiddelbar fallback
   const modelCandidates = [
     initial,
-    "gemini-3.8-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
+    "gemini-3.1-flash-lite"
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;
@@ -146,6 +144,31 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
 
+  // In-memory rate limiting map for å beskytte mot automatiserte bots og uendelige løkker
+  const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  function checkRateLimit(ip: string, limit = 30, windowMs = 60000): boolean {
+    const now = Date.now();
+    const record = rateLimitMap.get(ip);
+    if (!record || now > record.resetTime) {
+      rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+      return true;
+    }
+    if (record.count >= limit) {
+      return false;
+    }
+    record.count++;
+    return true;
+  }
+
+  // Rate-limiting på alle AI-relaterte proxy-ruter (maks 30 forespørsler per minutt per IP)
+  app.use(["/api/gemini", "/api/chat", "/api/superveileder"], (req, res, next) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    if (!checkRateLimit(clientIp, 30, 60000)) {
+      return res.status(429).json({ error: "For mange forespørsler fra denne klienten. Vennligst vent litt (Rate limit beskyttelse)." });
+    }
+    next();
+  });
+
   // Helse-sjekk
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "BLU-Hjelperen Backend er oppe og kjører!" });
@@ -154,11 +177,7 @@ async function startServer() {
   // Dedicated Chat Endpoint for BLU-hjelperen (/api/chat/message)
   app.post("/api/chat/message", async (req, res) => {
     try {
-      let apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        apiKey = process.env.VITE_GEMINI_API_KEY;
-      }
-
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
         return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren." });
       }
@@ -166,6 +185,10 @@ async function startServer() {
       const { history = [], newMessage, fileContext = '', fileName = '' } = req.body;
       if (!newMessage || typeof newMessage !== 'string') {
         return res.status(400).json({ error: "Mangler 'newMessage' i forespørselen." });
+      }
+
+      if (newMessage.length > 50000 || (typeof fileContext === 'string' && fileContext.length > 100000)) {
+        return res.status(400).json({ error: "Forespørselen overstiger maksimal tillatt datastørrelse." });
       }
 
       const { GoogleGenAI } = await import("@google/genai");
@@ -259,18 +282,21 @@ Når du svarer, følg disse retningslinjene:
   // Gemini Proxy Endpoint
   app.post("/api/gemini/generate", async (req, res) => {
     try {
-      let apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        apiKey = process.env.VITE_GEMINI_API_KEY;
-      }
+      const apiKey = process.env.GEMINI_API_KEY;
       
-      // Fix validering i tilfelle MY_GEMINI_API_KEY ligger igjen som default verdi
+      // Validering i tilfelle MY_GEMINI_API_KEY ligger igjen som default verdi
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-         return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren. Hvis du er i AI Studio: Gå til Settings -> Secrets. Hvis du er i Google Cloud Run: Gå til 'Edit & Deploy New Revision' -> fanen 'Containers' -> rull ned til 'Environment variables' og legg til GEMINI_API_KEY." });
+         return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren. Vennligst legg inn GEMINI_API_KEY under Settings -> Secrets." });
       }
 
       const { model, contents, config, prompt } = req.body;
       const actualContents = contents || prompt;
+
+      // Beskyttelse mot gigantiske payloads
+      const payloadStr = typeof actualContents === 'string' ? actualContents : JSON.stringify(actualContents || '');
+      if (payloadStr.length > 150000) {
+        return res.status(400).json({ error: "Payload for stor (maks 150 000 tegn)." });
+      }
       
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey });
@@ -321,10 +347,7 @@ Når du svarer, følg disse retningslinjene:
   // Gemini Image Generation Proxy Endpoint
   app.post("/api/gemini/generate-image", async (req, res) => {
     try {
-      let apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        apiKey = process.env.VITE_GEMINI_API_KEY;
-      }
+      const apiKey = process.env.GEMINI_API_KEY;
       
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
         return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren." });
@@ -421,8 +444,8 @@ Når du svarer, følg disse retningslinjene:
   // Superveilederen Chat Endpoint med dynamisk system-prompt
   app.post(["/api/superveilederen", "/api/superveilederenChat"], async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
         return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
       }
 
