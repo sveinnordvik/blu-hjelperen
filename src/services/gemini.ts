@@ -13,10 +13,24 @@ export const sendChatMessage = async (
   fileName?: string
 ): Promise<string> => {
   try {
+    let idToken = '';
+    try {
+      const { getAuth } = await import('firebase/auth');
+      const user = getAuth().currentUser;
+      if (user) {
+        idToken = await user.getIdToken();
+      }
+    } catch {}
+
+    if (!idToken) {
+      throw new Error("Du må være logget inn for å bruke chat-assistenten.");
+    }
+
     const response = await fetch('/api/chat/message', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
       },
       body: JSON.stringify({ 
         history, 
@@ -58,7 +72,10 @@ export const sendChatMessage = async (
 
       const fallbackResp = await fetch('/api/gemini/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           model: 'gemini-3.8-flash',
           contents: formattedContents,

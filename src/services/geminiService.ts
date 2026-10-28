@@ -137,6 +137,22 @@ export async function callGoogleAIProxy(params: {
   }
   const targetModel = requestedModel;
 
+  // Hent brukerens Firebase Auth ID-token for sikker autentisering
+  let idToken = '';
+  try {
+    const { getAuth } = await import('firebase/auth');
+    const user = getAuth().currentUser;
+    if (user) {
+      idToken = await user.getIdToken();
+    }
+  } catch (authErr) {
+    console.warn("Kunne ikke hente Firebase ID-token:", authErr);
+  }
+
+  if (!idToken) {
+    throw new Error("Du må være logget inn for å bruke KI-assistenten.");
+  }
+
   while (attempt <= maxRetries) {
     try {
       // Ved gjentatte forsøk ved 429 eller 503 prøver vi alternative modell-pooler med egen kvote
@@ -153,7 +169,10 @@ export async function callGoogleAIProxy(params: {
       const targetUrl = `${apiUrl}/api/gemini/generate`;
       const resp = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({
           model: modelForAttempt,
           contents: validatedContents,
@@ -165,6 +184,11 @@ export async function callGoogleAIProxy(params: {
         const errData = await resp.json().catch(() => ({}));
         const statusMsg = errData.error || `HTTP error! status: ${resp.status}`;
         
+        // 401 Uautorisert / Ikke innlogget
+        if (resp.status === 401) {
+           throw new Error(statusMsg || "Du må være logget inn for å bruke denne funksjonen.");
+        }
+
         // Kritiske konfigurasjonsfeil som ikke kan løses med retry
         if (resp.status === 500 && typeof statusMsg === 'string' && statusMsg.includes("Mangler GEMINI_API_KEY")) {
            throw new Error(statusMsg);

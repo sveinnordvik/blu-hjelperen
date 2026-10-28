@@ -323,6 +323,23 @@ exports.api = onRequest(
       return res.status(429).json({ error: "For mange forespørsler. Vennligst vent litt (Rate limit)." });
     }
 
+    // Krav om innlogging: Verifiser Firebase ID-token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Innlogging kreves for å bruke denne KI-funksjonen." });
+    }
+    const token = authHeader.split("Bearer ")[1]?.trim();
+    if (!token) {
+      return res.status(401).json({ error: "Mangler gyldig autentiseringstoken." });
+    }
+
+    try {
+      const decodedUser = await admin.auth().verifyIdToken(token);
+      req.user = decodedUser;
+    } catch (authErr) {
+      return res.status(401).json({ error: "Ugyldig eller utløpt innloggingstoken. Vennligst logg inn på nytt." });
+    }
+
     let apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       try {

@@ -160,11 +160,32 @@ async function startServer() {
     return true;
   }
 
-  // Rate-limiting på alle AI-relaterte proxy-ruter (maks 30 forespørsler per minutt per IP)
-  app.use(["/api/gemini", "/api/chat", "/api/superveileder"], (req, res, next) => {
+  // Autentiserings- og Rate-limiting middleware på alle AI-relaterte proxy-ruter
+  app.use(["/api/gemini", "/api/chat", "/api/superveileder"], async (req, res, next) => {
+    // 1. Rate limiting per IP
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
     if (!checkRateLimit(clientIp, 30, 60000)) {
       return res.status(429).json({ error: "For mange forespørsler fra denne klienten. Vennligst vent litt (Rate limit beskyttelse)." });
+    }
+
+    // 2. Krav om innlogging (Bearer token)
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Innlogging kreves for å bruke KI-assistenten." });
+    }
+    const token = authHeader.split("Bearer ")[1]?.trim();
+    if (!token) {
+      return res.status(401).json({ error: "Mangler gyldig autentiseringstoken." });
+    }
+
+    // Hvis Firebase Admin er tilgjengelig, verifiser signaturen på ID-tokenet
+    if (admin.apps.length) {
+      try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        (req as any).user = decoded;
+      } catch (tokenErr) {
+        return res.status(401).json({ error: "Ugyldig eller utløpt innlogging. Vennligst logg inn på nytt." });
+      }
     }
     next();
   });
