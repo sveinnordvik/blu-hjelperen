@@ -430,6 +430,28 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.1',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.1: Bugfixes og API-stabilitet',
+    changes: [
+      'KI-veiledning feilretting: Løst 404-feil og tilkoblingsavbrudd for Feltveilederen og Superveilederen (/api/gemini/generate og /api/chat/message).',
+      'Intelligent modell-fallback: Flerlags automatisk veksling mellom Gemini-modeller for å garantere svar selv ved stor samtidig pågang.',
+      'Smidig feilhåndtering: Tydelige, beroligende norske veiledningsmeldinger og forbedret Prøv igjen-funksjon.',
+      'Oppdatert versjonsindikator: Synlig versjon v3.5.1 Bugfixes i bunntekst, profil og innstillinger.'
+    ]
+  },
+  {
+    version: 'v3.5.0',
+    date: '2026-10-15',
+    title: 'Oppgradering til versjon 3.5.0: Ekte A4-Word-ark og akademisk verktøylinje',
+    changes: [
+      'Ekte Word A4-ark: Separate sider med 2,54 cm marger, topp- og bunntekst og automatisk sideoverføring.',
+      '2-linjers verktøylinje: Angre/Gjenta, skrifttyper, linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og APA-kilder.',
+      'Word-stil Zoom: Hurtig glidebryter (50 % - 175 %) og forhåndsinnstillinger for lesbarhet.',
+      'Utvidet Fokusmodus: Fleksible bredder (Normal, Bred 1024px, Full) og skriftstørrelser (18px-28px).'
+    ]
+  },
+  {
     version: 'v3.4.3',
     date: '2026-09-29',
     title: 'Oppgradering til versjon 3.4.3: Kildebank-avhuking og smart oppgaveoverføring',

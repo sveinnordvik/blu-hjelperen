@@ -379,16 +379,28 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
             <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-xs font-extrabold shadow-2xs">
-              v3.5.0 (Produksjon)
+              v3.5.1 (Bugfixes)
             </span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Høydepunkter i v3.5.0:</span>
+              <span>Høydepunkter i v3.5.1 Bugfixes:</span>
             </div>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🛠️</span>
+                <div>
+                  <strong className="text-slate-800">Stabilitet for KI-veiledning:</strong> Løst tilkoblings- og 404-feil mot API-endepunkter for Feltveilederen og Superveilederen.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🔄</span>
+                <div>
+                  <strong className="text-slate-800">Intelligent modell-fallback:</strong> Sikrer rask respons med automatisk flermodell-fallback ved stor pågang.
+                </div>
+              </li>
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                 <span className="text-indigo-600 font-bold">📄</span>
                 <div>
@@ -398,19 +410,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                 <span className="text-indigo-600 font-bold">🎛️</span>
                 <div>
-                  <strong className="text-slate-800">2-linjers verktøylinje:</strong> Angre/Gjenta, skrifttyper, linjeavstand, synlig Søk & erstatt og APA-kilder.
-                </div>
-              </li>
-              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <span className="text-indigo-600 font-bold">🔍</span>
-                <div>
-                  <strong className="text-slate-800">Zoom & Forstørrelse:</strong> Word-glidebryter (50 % - 175 %) og rask forstørrelsesmeny.
-                </div>
-              </li>
-              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <span className="text-indigo-600 font-bold">🧘‍♂️</span>
-                <div>
-                  <strong className="text-slate-800">Utvidet Fokusmodus:</strong> Valgfri bredde (Normal, Bred 1024px, Full) og skriftstørrelser (18px-28px).
+                  <strong className="text-slate-800">2-linjers verktøylinje & Zoom:</strong> Angre/Gjenta, skrifttyper, linjeavstand, Søk & erstatt, APA-kilder og glidebryter.
                 </div>
               </li>
             </ul>

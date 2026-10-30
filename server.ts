@@ -212,7 +212,7 @@ async function startServer() {
   });
 
   // Dedicated Chat Endpoint for BLU-hjelperen (/api/chat/message)
-  app.post("/api/chat/message", async (req, res) => {
+  app.post(["/api/chat/message", "/api/chat/message/", "/chat/message"], async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
@@ -312,12 +312,17 @@ Når du svarer, følg disse retningslinjene:
           error: "KI-modellen opplever midlertidig stor pågang (503). Vent noen sekunder og prøv igjen."
         });
       }
+      if (error?.status === 404 || errMsg.toLowerCase().includes("not found")) {
+        return res.status(502).json({
+          error: "KI-modellen er midlertidig utilgjengelig eller opplever modell-migrering. Vennligst prøv igjen om noen sekunder."
+        });
+      }
       res.status(error?.status || 500).json({ error: errMsg || "Klarte ikke å hente svar fra KI-modellen." });
     }
   });
 
   // Gemini Proxy Endpoint
-  app.post("/api/gemini/generate", async (req, res) => {
+  app.post(["/api/gemini/generate", "/api/gemini/generate/", "/gemini/generate"], async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       
@@ -376,13 +381,18 @@ Når du svarer, følg disse retningslinjene:
           error: "KI-modellen opplever midlertidig stor pågang (503). Vent noen sekunder og prøv igjen."
         });
       }
+      if (error?.status === 404 || errMsg.toLowerCase().includes("not found")) {
+        return res.status(502).json({
+          error: "KI-modellen er midlertidig utilgjengelig eller ikke funnet. Vennligst prøv igjen."
+        });
+      }
 
       res.status(error?.status || 500).json({ error: errMsg || "Klarte ikke å generere innhold." });
     }
   });
 
   // Gemini Image Generation Proxy Endpoint
-  app.post("/api/gemini/generate-image", async (req, res) => {
+  app.post(["/api/gemini/generate-image", "/api/gemini/generate-image/", "/gemini/generate-image"], async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       

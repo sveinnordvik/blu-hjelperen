@@ -247,6 +247,8 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
         userNotice = '🔒 Du må være logget inn for å bruke Feltveilederen. Vennligst logg inn med din studentkonto øverst i appen.';
       } else if (msg.includes('429') || msg.includes('pågang') || msg.includes('kvote')) {
         userNotice = '⏳ Feltveilederen opplever stor pågang akkurat nå. Vent noen sekunder og send meldingen din på nytt.';
+      } else if (msg.includes('404') || msg.includes('API-endepunkt') || msg.includes('utilgjengelig')) {
+        userNotice = 'Det oppstod et midlertidig avbrudd i tilkoblingen til veilederen. Klikk på «Prøv igjen» nedenfor for å koble til på nytt.';
       } else if (msg && !msg.includes('[object') && msg.length < 250) {
         userNotice = msg;
       }

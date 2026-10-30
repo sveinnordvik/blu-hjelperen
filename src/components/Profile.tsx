@@ -1031,7 +1031,7 @@ export function Profile({
               <div className="hidden md:block">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
                   <Info className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>BLU-Hjelperen v3.4.3</span>
+                  <span>BLU-Hjelperen v3.5.1 (Bugfixes)</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
@@ -1087,10 +1087,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.5.0 (September 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.5.1 Bugfixes (Oktober 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Ekte Word A4-ark med separate sider, 2,54 cm akademiske marger, topp- og bunntekst, samt automatisk tekstoverføring ved overskridelse. 2-linjers akademisk verktøylinje med Angre/Gjenta, skrifttyper (Times New Roman, Calibri, Arial, Georgia), linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og + Kilde (APA 7). Word-stil Zoom-glidebryter (50 % – 175 %) og hurtigmeny. Ekspansiv Fokusmodus med valgfrie bredder (Normal, Bred 1024px, Ekstra bred, Full) og skriftstørrelser (18px–28px) uten indre scrollbokser. Sanntidsanalyse med ord, tegn, avsnitt, lesetid og LIX-lesbarhetsindeks.</span>
+                        <span className="text-slate-600">Stabilitets- og feilrettingsoppdatering (Bugfixes). Løst tilkoblings- og 404-feil mot API-endepunkter for Feltveilederen og Superveilederen. Forbedret ruting og flerlags modell-fallback for Gemini, optimalisert feilhåndtering ved nettverksavbrudd, samt feilrettinger og ytelsesforbedringer i skriveverkstedet.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1102,7 +1102,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.4.3, v3.4.2, v3.4.1, v3.4.0, v3.3.0)</span>
+                            <span>Tidligere versjoner (v3.5.0, v3.4.3, v3.4.2, v3.4.1, v3.4.0)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1113,6 +1113,10 @@ export function Profile({
 
                         {showOlderVersions && (
                           <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.5.0 (September 2026)</strong>
+                              <span className="text-slate-500">Ekte Word A4-ark med separate sider, 2,54 cm akademiske marger, topp- og bunntekst, samt automatisk tekstoverføring ved overskridelse. 2-linjers akademisk verktøylinje med Angre/Gjenta, skrifttyper (Times New Roman, Calibri, Arial, Georgia), linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og + Kilde (APA 7). Word-stil Zoom-glidebryter (50 % – 175 %) og hurtigmeny. Ekspansiv Fokusmodus med valgfrie bredder og skriftstørrelser.</span>
+                            </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.3 (September 2026)</strong>
                               <span className="text-slate-500">Avhuking (multi-select) og smart kildeoverføring i Kildebanken: Huk av kilder fra standardpensum eller egne kilder, og overfør dem direkte til valgfri oppgave/mappe med automatisk APA 7-alfabetisering, flytende handlingslinje for hurtigkopiering av kildelister, samt forklaring av pensum-RAG på Hjem-fanen.</span>

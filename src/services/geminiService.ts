@@ -226,12 +226,17 @@ export async function callGoogleAIProxy(params: {
         if (typeof statusMsg === 'string' && (statusMsg.includes("API key not valid") || statusMsg.includes("API_KEY_INVALID"))) {
            throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
         }
-        if (resp.status === 404 && typeof statusMsg === 'string' && statusMsg.includes("is not found for API version")) {
+        if (resp.status === 404 && typeof statusMsg === 'string' && (statusMsg.includes("is not found") || statusMsg.includes("NOT_FOUND") || statusMsg.includes("not found"))) {
            console.warn(`Modell ${modelForAttempt} ikke tilgjengelig, prøver fallback-modell...`);
            throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
-           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller API-innstillinger.`);
+           if (attempt === 0) {
+             console.warn(`Endepunkt ${targetUrl} returnerte 404, forsøker fallback-modell...`);
+             attempt++;
+             continue;
+           }
+           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller prøv igjen om noen sekunder.`);
         }
         
         // 429, 503 eller serverfeil sendes til catch for backoff og modullveksling

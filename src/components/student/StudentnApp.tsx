@@ -6473,10 +6473,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             <button 
               onClick={() => setActiveTab('profile')}
               className="hover:text-primary transition-colors py-1 font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1.5"
-              title="Vis versjonshistorikk i profilen"
+              title="BLU-Hjelperen v3.5.1 (Bugfixes) – Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.4.3
+              v3.5.1 Bugfixes
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}
