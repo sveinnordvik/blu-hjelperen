@@ -591,9 +591,39 @@
         "snapshot": { "type": "array" }
       },
       "required": ["templateId", "title", "base", "status"]
+    },
+    "LiteratureDocument": {
+      "title": "LiteratureDocument",
+      "description": "Academic literature document for private curriculum or shared open access archive",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "authors": { "type": "array" },
+        "year": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "sourceType": { "type": "string" },
+        "access": { "type": "string", "enum": ["privat", "felles"] },
+        "userId": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["title", "authors", "year", "sourceType", "access"]
     }
   },
   "firestore": {
+    "/users/{userId}/litteratur/{documentId}": {
+      "schema": "LiteratureDocument",
+      "description": "User's private copyrighted literature silo"
+    },
+    "/brukere/{userId}/litteratur/{documentId}": {
+      "schema": "LiteratureDocument",
+      "description": "User's private copyrighted literature silo (Norwegian path alias)"
+    },
+    "/felles_litteratur/{documentId}": {
+      "schema": "LiteratureDocument",
+      "description": "Shared Open Access academic literature archive"
+    },
     "/checklists_templates/{templateId}": {
       "schema": "ChecklistTemplate",
       "description": "Checklist templates"

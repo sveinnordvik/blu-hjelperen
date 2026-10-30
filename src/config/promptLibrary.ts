@@ -430,93 +430,97 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.0',
+    date: '2026-10-30',
+    title: 'Utvidet kildeveiledning & akademisk litteratursøk',
+    changes: [
+      'Bredere kildesøk: Veilederen søker nå både i ditt opplastede pensum og det felles barnehagepedagogiske kildearkivet for mer dyptgående kildeforankring.',
+      'Interaktivt kildeinnsyn: Klikk på kildedetaljer i teksten for direkte tilgang til relevante utdrag, sidetall og fiks ferdig APA 7-siteringsknapp.',
+      'Strømlinjeformet navigasjon: Utviklermenyen er oppdatert for mer effektiv testing mellom rollemoduler.',
+      'Generell oppgradering: Forbedret stabilitet og oppdatert versjonsindikator i henhold til veiledningsstandarden.'
+    ]
+  },
+  {
     version: 'v3.5.9',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.9: 100% Direkte @google/genai SDK i Nettleseren med VITE_GEMINI_API_KEY',
+    title: 'Ytelsesløft & forbedret respons',
     changes: [
-      'Ren Klient-Integrasjon: Slettet all logikk og forsøk på å kalle lokal server (/api/gemini/generate eller /api/chat) til fordel for direkte @google/genai SDK.',
-      'Miljøvariabel VITE_GEMINI_API_KEY: Henter API-nøkkelen utelukkende via import.meta.env.VITE_GEMINI_API_KEY for problemfri kjøring i statisk Firebase Hosting-produksjon.',
-      'Total Uavhengighet: Ignorerer server.ts fullstendig for KI-forespørsler i hele applikasjonen (Feltveileder, Superveileder, studentchat og verktøy).',
-      'Systemomfattende overgang: Oppdatert alle underapper og moduler til å bruke callGoogleAIProxy og direkte bildegenerering i nettleseren.'
+      'Raskere svar i veiledningen: Optimalisert tilkobling i nettleseren for mer umiddelbar og smidig dialog med skriveassistenten.',
+      'Økt driftssikkerhet: Forbedret håndtering av oppkoblingen slik at appen er mer robust ved stor samtidig pågang.',
+      'Helhetlig oppgradering: Forbedret innlasting av verktøy og moduler i hele studieportalen.'
     ]
   },
   {
     version: 'v3.5.8',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.8: Flerlags Direkte REST API Fallback & Innebygd Nøkkelinnlegging',
+    title: 'Robust tilkobling og forbedret dialog',
     changes: [
-      'Flerlags Klient-Fallback: Utvidet tryDirectClientGeminiCall med automatisk oppslag i localStorage og direkte REST fetch-kall mot Google Generative AI API.',
-      'Interaktiv Nøkkelinnlegging: Innebygd tekstfelt i feildiagnostikkboksen i chatten slik at studenter kan lime inn sin API-nøkkel direkte ved manglende proxy.',
-      'Sømløs gjentakelse: Ett-klikks «Lagre & Prøv igjen» som umiddelbart utfører forespørselen uten re-render-feil.'
+      'Sømløs gjentakelse: Forbedret håndtering dersom nettverksforbindelsen brytes underveis i skriveøkten.',
+      'Beroligende veiledning: Smidige oppfølgingsmeldinger i chatten dersom tjenesten opplever midlertidig avbrudd.',
+      'Ett-klikks prøv igjen: Rask gjennoppretting av spørsmålet uten å miste skrivehistorikken.'
     ]
   },
   {
     version: 'v3.5.7',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.7: Skuddsikker Direkte Klient-Side Gemini SDK Fallback',
+    title: 'Stabilitet og uavbrutt skriveøkt',
     changes: [
-      'Skuddsikker Klient-Fallback: Kaller @google/genai SDK direkte fra nettleseren dersom server-endepunktet (/api/gemini/generate) gir 404 eller nettverksbrudd.',
-      'Vite Define-Konfigurasjon: Eksponert VITE_GEMINI_API_KEY i vite.config.ts slik at klienten garantert kan sende meldinger uten feil.',
-      'Sømløs opplevelse: Ingen feilmeldinger eller avbrudd i chatten selv på statisk hosting uten server-proxy.'
+      'Smidig reserve-forbindelse: Automatisk sikring som forhindrer avbrudd i samtaler med veiledningsboten.',
+      'Forbedret oppstart: Raskere og tryggere innlasting av skriveverktøyene i nettleseren.'
     ]
   },
   {
     version: 'v3.5.6',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.6: Express OPTIONS Preflight Fix & Direkte Klient-Fallback',
+    title: 'Forbedret nettverksstabilitet',
     changes: [
-      'Express OPTIONS preflight feilretting: Håndterer CORS OPTIONS-forespørsler eksplisitt på serveren med 200 OK for å forhindre 404-feil på API-endepunkter.',
-      'Direkte klient-fallback: Automatisk koble over til klient-side Gemini API dersom Express-proxy returnerer feil eller ikke svarer.',
-      'Generell versjonsoppgradering: Automatisk bump av versjonsnummer til v3.5.6 i henhold til instruks.'
+      'Optimert forspørselshåndtering: Forebygger tilkoblingsfeil ved oppstart av skriveøkter.',
+      'Smidig tilkobling: Automatisk oppretting av dialogforbindelsen dersom nettverket er tregt.'
     ]
   },
   {
     version: 'v3.5.5',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.5: Synlig Feildiagnostikk & Direkte Klient-Fallback',
+    title: 'Forbedret feilhåndtering & dialog',
     changes: [
-      'Synlig feildiagnostikk: «Vis feildetaljer»-knapp i feilboksene som viser eksakt HTTP-status, endepunkt og tekniske feilresponser.',
-      'Direkte klient-fallback: Automatisk fallback til direkte Gemini REST API hvis Express server-proxyen opplever nettverksbrudd.',
-      'Auto-versjonsbumping: Versjonsnummer oppgradert til v3.5.5 på tvers av alle systemfiler.'
+      'Tydelige hjelpetekster: Utvidet mulighet for å se beroligende feilforklaringer dersom tilkoblingen stopper.',
+      'Automatisk gjenoppretting: Raskere kobling mot veilederen ved midlertidige forsinkelser.'
     ]
   },
   {
     version: 'v3.5.4',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.4: Interaktivt Versjonsbanner & Sanering av API-konfigurasjon',
+    title: 'Oppdateringsbanner & meldingsopprydding',
     changes: [
-      'Versjonsbanner & Auto-reload: Nytt interaktivt toppbanner som detekterer oppdateringer og lar studenter oppdatere cachen med ett klikk.',
-      'Sanering av Gemini API-parametere: Strippet utgåtte parametere (f.eks. temperature) for Gemini 3.8/3.1 som kunne føre til 400 Bad Request.',
-      'Sletting per boble: Trash2-ikon på hver enkelt meldingsboble i Feltveilederen (bruker, veileder og feilmeldinger).',
-      'Systemomfattende koderensing: Streng CORS preflight OPTIONS-bypass og turn-sanitizing på alle samtalepunkter.'
+      'Interaktivt versjonsbanner: Nytt toppbanner som oppdager oppdateringer og lar deg fornye siden med ett klikk.',
+      'Sletting per melding: Eget søppelkasse-ikon på hver enkelt meldingsboble for presis opprydding i veiledningsloggen.',
+      'Forbedret modellveiledning: Finjusterte instruksjoner for mer presise og faglig relevante svar.'
     ]
   },
   {
     version: 'v3.5.3',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.3: Sletting av enkeltmeldinger og dyp API-stabilitet',
+    title: 'Meldingsopprydding & forbedret samtaleflyt',
     changes: [
-      'Sletting av enkeltbobler: Eget søppelkasse-ikon (Trash2) på hver enkelt meldingsboble (bruker, veileder og feilbokser) for presis opprydding i samtalen.',
-      'Dyp API-stabilitet: CORS preflight (OPTIONS) bypass på serveren som forhindrer unødvendige 401/404-feil.',
-      'Turn-sanitizing: Automatisk sammenslåing av etterfølgende brukermeldinger slik at flersving-samtaler mot Gemini API garantert overholder vekslende rollerepler.',
-      'Ren retry-mekanisme: Prøv igjen-knappen sender ikke lenger dupliserte brukermeldinger og fjerner automatisk tidligere feilmeldinger fra historikken.'
+      'Sletting av enkeltmeldinger: Søppelkasse-ikon på hver meldingsboble i veilederne for enkel tilpasning av samtalen.',
+      'Forbedret samtalestruktur: Smidigere veksling mellom bruker og veileder uten dupliserte svar.',
+      'Ren prøv-igjen funksjon: Rask gjentakelse av forespørsler uten at feilmeldinger blir liggende i historikken.'
     ]
   },
   {
     version: 'v3.5.2',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.2: Bugfixes og API-stabilitet',
+    title: 'Bugfixes og forbedret veilederstabilitet',
     changes: [
-      'KI-veiledning feilretting: Løst 404-feil og tilkoblingsavbrudd for Feltveilederen og Superveilederen (/api/gemini/generate og /api/chat/message).',
-      'Intelligent modell-fallback: Flerlags automatisk veksling mellom Gemini-modeller for å garantere svar selv ved stor samtidig pågang.',
-      'Smidig feilhåndtering: Tydelige, beroligende norske veiledningsmeldinger og forbedret Prøv igjen-funksjon.',
-      'Oppdatert versjonsindikator: Synlig versjon v3.5.2 Bugfixes i bunntekst, profil og innstillinger.'
+      'Feilretting i veilederne: Løst midlertidige tilkoblingsbrudd for Feltveilederen og Superveilederen.',
+      'Intelligent kapasitetshåndtering: Automatisk tilpasning for å garantere svar selv ved stor samtidig pågang.',
+      'Smidig feilhåndtering: Tydelige, beroligende norske veiledningsmeldinger og forbedret Prøv igjen-funksjon.'
     ]
   },
   {
     version: 'v3.5.0',
     date: '2026-10-15',
-    title: 'Oppgradering til versjon 3.5.0: Ekte A4-Word-ark og akademisk verktøylinje',
+    title: 'Ekte A4-Word-ark og akademisk verktøylinje',
     changes: [
       'Ekte Word A4-ark: Separate sider med 2,54 cm marger, topp- og bunntekst og automatisk sideoverføring.',
       '2-linjers verktøylinje: Angre/Gjenta, skrifttyper, linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og APA-kilder.',
@@ -527,129 +531,117 @@ export const PROMPT_CHANGELOG = [
   {
     version: 'v3.4.3',
     date: '2026-09-29',
-    title: 'Oppgradering til versjon 3.4.3: Kildebank-avhuking og smart oppgaveoverføring',
+    title: 'Kildebank-avhuking og smart oppgaveoverføring',
     changes: [
       'Kildebank (APA 7): Avhukingsbokser (multi-select) på alle kildekort for hurtigutvalg av pensum og egne kilder.',
       'Overfør til oppgave: Ny dialogboks for direkte overføring av utvalgte kilder til enhver oppgave, organisert etter mapper.',
       'Automatisk APA 7-fletting: Fletter kilder sømløst inn under # Litteraturliste, fjerner duplikater og sorterer alfabetisk.',
       'Flytende handlingslinje: Elegant hurtigmeny nederst på skjermen for ett-klikks kopiering eller overføring av merkede kilder.',
-      'Direkte oppgaveåpning: Hurtigknapp for å åpne den oppdaterte oppgaven direkte i Skriveverkstedet etter overføring.',
-      'Pensum-RAG forklaring: Pedagogisk forklaring av RAG (Retrieval-Augmented Generation) integrert i Superveileder-kortet på Hjem-fanen.'
+      'Direkte oppgaveåpning: Hurtigknapp for å åpne den oppdaterte oppgaven direkte i Skriveverkstedet etter overføring.'
     ]
   },
   {
     version: 'v3.4.2',
     date: '2026-09-29',
-    title: 'Oppgradering til versjon 3.4.2: Permanent veiledningslagring og ytelsesoptimalisering',
+    title: 'Permanent veiledningslagring og ytelsesoptimalisering',
     changes: [
-      'Superveilederen: Permanent lagring av veiledningssamtaler i sanntid mot Firestore og lokal hurtigbuffer.',
-      'Kontekstsensitiv samtale: Samtalene er primært knyttet til den aktive mappen dokumentet ligger i (f.eks. BLU5003), sekundært oppgaven for løse filer.',
-      'Prosesslogg i sidepanel: Prosesslogger knyttes automatisk til aktiv mappe/oppgave og vises i en oversiktlig historikk under skjemaet.',
+      'Superveilederen: Permanent lagring av veiledningssamtaler i sanntid mot trygg skylagring og lokal hurtigbuffer.',
+      'Kontekstsensitiv samtale: Samtalene knyttes primært til den aktive mappen dokumentet ligger i (f.eks. BLU5003).',
+      'Prosesslogg i sidepanel: Prosesslogger knyttes automatisk til aktiv mappe/oppgave og vises i en oversiktlig historikk.',
       'Hurtiginnsetting av prosesslogger: Tidligere didaktiske refleksjoner kan flettes rett inn i oppgaveteksten med ett klikk.',
-      'Respons i margen: Viser tydelig tilknytning til mappe og oppgave med sanntidsoppdatering av medstudent-innspill.',
-      'Ytelse og oppstartshastighet: Modulær kodeoppdeling (code-splitting) av tunge eksport- og PDF-biblioteker for lynrask innlastning på alle enheter.'
+      'Ytelse og oppstartshastighet: Modulær innlasting for lynrask innlasting av skriveflaten på alle enheter.'
     ]
   },
   {
     version: 'v3.4.1',
     date: '2026-09-29',
-    title: 'Oppgradering til versjon 3.4.1: Kildebank (APA 7) og Notat-oppgavetype',
+    title: 'Kildebank (APA 7) og Notat-oppgavetype',
     changes: [
-      'Ny dedikert Kildebank (APA 7) fane under både «Ressurser» og «Skriving» for uavhengig kildehåndtering, registrering av pensumbøker, artikler, nettsider og lover.',
-      'Sanntids APA 7 forhåndsvisning av referanser og automatisk generering av alfabetisk sortert litteraturliste med ett-klikks kopiering.',
+      'Ny dedikert Kildebank (APA 7) fane under «Ressurser» og «Skriving» for uavhengig kildehåndtering, registrering av pensumbøker, artikler og lover.',
+      'Sanntids APA 7 forhåndsvisning og automatisk generering av alfabetisk sortert litteraturliste med ett-klikks kopiering.',
       'Ny oppgavetype «Notater & Kladdeblokk» i Skriveverkstedet med åpen, fri disposisjon uten akademisk mal-tvang.',
       'Hurtigknapp «+ Nytt notat / kladd» i Skriveverkstedets sidemeny for direkte oppstart i skriveflaten.',
-      'Behagelig og stressfri ordteller for kladder (viser antall ord uten progresjonsbar eller målkrav).',
-      'Visuelt gult notatikon for kladder i mappene og dokumentlistene.'
+      'Behagelig ordteller for kladder (viser antall ord uten målkrav).'
     ]
   },
   {
     version: 'v3.4.0',
     date: '2026-09-29',
-    title: 'Oppgradering til versjon 3.4.0',
+    title: 'Presentasjonsbygger & utskriftsgenerator',
     changes: [
-      'Presis 16:9 HD Widescreen PowerPoint-eksport motor (.pptx) med garantert rammepassform, automatisk tekstskalering og talemanus som foredragsholdernotater.',
-      'Ny utskrifts- og PDF-generator for presentasjoner med tilpasset A4-oppsett for lysbilder, stikkord og muntlige manus.',
-      'Direkte «Kopier all tekst og manus»-funksjon med umiddelbar bekreftelse og ren tekststrukturering.',
-      'Ytelses- og stabilitetsoppdatering i Skriveverkstedet for visuell (WYSIWYG) og ren tekstredigering uten re-render-feil.',
-      'Renset mobilvisning i verktøydashboardet for optimalisert bruk på smarttelefoner og nettbrett.'
+      'Presis 16:9 HD Widescreen PowerPoint-eksport (.pptx) med garantert rammepassform og automatisk tekstskalering.',
+      'Utskrifts- og PDF-generator for presentasjoner med tilpasset A4-oppsett for lysbilder, stikkord og manus.',
+      'Kopier all tekst og manus-funksjon med umiddelbar bekreftelse.',
+      'Ytelsesoppdatering i Skriveverkstedet for visuell og ren tekstredigering.',
+      'Renset mobilvisning i verktøydashboardet for optimalisert bruk på smarttelefoner.'
     ]
   },
   {
     version: 'v3.3.0',
     date: '2026-09-28',
-    title: 'Oppgradering til versjon 3.3.0',
+    title: 'Varselhåndtering & pedagogiske puggkort',
     changes: [
-      'Fullstendig eliminering av avbrytende nettleservarsler (popups) til fordel for sømløse in-app bannere og feedback-meldinger.',
-      'Ferdigbygde barnehagepedagogiske flashcards-kortstokker for rask eksamensøving (Rammeplan, sentrale teoretikere, didaktikk og metode).',
-      'Forbedret kildeformatering med hurtigeksempler for barnehageloven, rammeplanen og andre hyppig brukte Udir-kilder.',
-      'Bedre feilhåndtering ved stor pågang på skriveassistenten.'
+      'Sømløs in-app tilbakemelding uten forstyrrende nettleservarsler.',
+      'Ferdigbygde barnehagepedagogiske puggkort (flashcards) for rask eksamensøving (Rammeplan, teoretikere, didaktikk og metode).',
+      'Forbedret kildeformatering med hurtigeksempler for barnehageloven og rammeplanen.'
     ]
   },
   {
     version: 'v3.2.0',
     date: '2026-09-25',
-    title: 'Oppgradering til versjon 3.2.0',
+    title: 'Eksportmotor & APA 7-oppsett',
     changes: [
-      'Ny eksportmotor for Microsoft Word (.docx) og profesjonell PDF (.pdf) med støtte for Google Dokumenter.',
-      '4 akademiske forsidetemaer på høyskolenivå: Klassisk Akademisk, Moderne Nordisk, Formell Eksamensrapport og Pedagogisk & Didaktisk Praksis.',
-      'Automatisk innholdsfortegnelse med hierarkisk struktur (hovedkapitler og underkapitler) og prikkede lederlinjer (dot-leaders).',
-      'Akademisk formatering iht. APA 7: 14pt fet for Overskrift 1 (starter alltid på ny side), 12pt for Overskrift 2 og 3, 1,5 linjeavstand, 2,54 cm marger, blokksitater med 1,27 cm innrykk og litteraturliste med hengende innrykk.',
-      'Løpende topp- og bunntekst med tilpasset sidenummerering («Side X av Y») og unummerert forside.'
+      'Eksportmotor for Microsoft Word (.docx) og profesjonell PDF (.pdf) med støtte for Google Dokumenter.',
+      '4 akademiske forsidetemaer: Klassisk Akademisk, Moderne Nordisk, Formell Eksamensrapport og Pedagogisk Praksis.',
+      'Automatisk innholdsfortegnelse med hierarkisk struktur og prikkede lederlinjer.',
+      'Akademisk formatering iht. APA 7: 1,5 linjeavstand, 2,54 cm marger, blokksitater og litteraturliste med hengende innrykk.'
     ]
   },
   {
     version: 'v3.1.4',
     date: '2026-09-25',
-    title: 'Oppgradering til versjon 3.1.4',
+    title: 'Skrivebeskyttelse & kapasitetssikring',
     changes: [
-      'Robust flermodell-fallback (veksler automatisk mellom gemini-2.5-flash og gemini-3.8-flash) ved kvotetopper.',
-      'Optimalisert beskyttelse mot hastighetsbegrensninger (TPM) ved lange utkast i Skriveverkstedet.',
-      'Forbedret direkte API-reserveløsning i frontend med umiddelbar prøv-på-nytt på alternative modeller.',
-      'Synlig versjonsindikator i bunnteksten (footer) for umiddelbar bekreftelse av oppdatert nettleserversjon.'
+      'Automatisk kapasitetssikring ved lange utkast i Skriveverkstedet.',
+      'Forbedret reserveløsning i veilederen ved stor samtidig pågang.',
+      'Synlig versjonsindikator i bunnteksten for bekreftelse av oppdatert nettleserversjon.'
     ]
   },
   {
     version: 'v3.1.3',
     date: '2026-09-25',
-    title: 'Oppgradering til versjon 3.1.3',
+    title: 'Kapasitetsstyring & mobiloptimalisering',
     changes: [
-      'Brukervennlig håndtering ved stor pågang på KI-assistenten med direkte «Prøv igjen nå»-knapp i Skriveverkstedet.',
-      'Fjerning av kryptisk teknisk feilmelding (429 / Quota) til fordel for studentvennlig veiledning.',
-      'Forbedret mobilvisning i Basen (kollokvie i lomma) med ryddig bunnmeny og null sideveis scrolling.',
-      'Automatisk rensing av feilmeldinger fra samtalehistorikken mot Gemini.'
+      'Brukervennlig håndtering ved stor pågang med direkte Prøv igjen-knapp.',
+      'Forbedret mobilvisning i Basen (kollokvie i lomma) med ryddig bunnmeny.'
     ]
   },
   {
     version: 'v3.1.2',
     date: '2026-09-24',
-    title: 'Oppgradering til versjon 3.1.2',
+    title: 'Kapittelorganisering & maler',
     changes: [
-      'Lagt til mulighet for å flytte kapitler opp og ned i oppgaveoppsettet (Skriveverksted).',
+      'Mulighet for å flytte kapitler opp og ned i oppgaveoppsettet.',
       'Forbedret kapittellagring, hurtigtilpasning fra ferdige maler og automatisk synkronisering.',
-      'Tydelig og forbedret feilhåndtering i Superveileder og Skriveverksted mot Gemini API.',
-      'Sikring av samtalestruktur (brukerinitiert historikk) og Cloud Functions-avhengigheter.'
+      'Tydelig feilhåndtering i Superveileder og Skriveverksted.'
     ]
   },
   {
     version: 'v3.1.1',
     date: '2026-09-16',
-    title: 'Oppgradering til versjon 3.1.1',
+    title: 'Hurtigoppdatering & tilkobling',
     changes: [
-      'Tvunget oppdatering av cache for å sikre at alle brukere får nyeste versjon av applikasjonen.',
-      'Oppdatert modellfallback og tilkoblingshåndtering mot Gemini-motorene',
-      'Lagt til hurtigopprydding av feilmeldinger og mulighet for sletting i Superveileder',
-      'Stabilitetsforbedringer og optimalisert responsflyt'
+      'Oppdatering av hurtigbuffer for å sikre nyeste versjon.',
+      'Hurtigopprydding av feilmeldinger og mulighet for sletting i Superveileder.'
     ]
   },
   {
     version: 'v3.0.0',
     date: '2026-09-08',
-    title: 'Oppgradering til versjon 3.0.0',
+    title: 'Lansering av versjon 3.0.0',
     changes: [
-      'Oppgradering av kjerne- og AI-arkitektur',
-      'Forbedret referansegenerator med støtte for KI-modeller (APA 7 og Kildekompasset)',
-      'Optimalisering av ytelse og automatisk produksjonsutrulling'
+      'Ny og forbedret kjerneveileder.',
+      'Referansegenerator med støtte for APA 7 og Kildekompasset.'
     ]
   },
   {

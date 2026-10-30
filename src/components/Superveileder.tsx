@@ -53,6 +53,7 @@ import { FolderExportModal } from './tools/FolderExportModal';
 import { FolderContextModal } from './tools/FolderContextModal';
 import AIWarning from './AIWarning';
 import { cn } from '../lib/utils';
+import { CitationBadge } from './Superveilederen/CitationBadge';
 
 export interface ChatMessage {
   id: string;

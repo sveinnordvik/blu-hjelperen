@@ -15,11 +15,6 @@ import PedledernApp from './components/portalen/PedledernApp';
 import FagarbeidernApp from './components/portalen/FagarbeidernApp';
 import AssistentnApp from './components/portalen/AssistentnApp';
 import VikarnApp from './components/portalen/VikarnApp';
-import MorgenPulsen from './components/portalen/MorgenPulsen';
-import DenSokratiskePlanleggeren from './components/portalen/DenSokratiskePlanleggeren';
-import DidaktiskPlanlegger from './components/DidaktiskPlanlegger';
-import Lederstotte from './components/portalen/Lederstotte';
-import Observasjoner from './components/portalen/Observasjoner';
 import TiltaksplanBygger from './components/portalen/TiltaksplanBygger';
 import ITPMalbygger from './components/portalen/ITPMalbygger';
 
@@ -64,20 +59,13 @@ const DevRoleBar: React.FC<{ current: string; onSelect: (role: string) => void }
   const [collapsed, setCollapsed] = useState(false);
 
   const roles = [
-    { id: 'LIVE', label: "Forside (Portal)", bg: 'bg-blue-600' },
-    { id: 'STUDENTN', label: "BLU-hjelperen (Student)", bg: 'bg-indigo-600' },
-    { id: 'PEDLEDERN', label: "Pedleder'n", bg: 'bg-teal-600' },
-    { id: 'STYRERN', label: "Styrer'n", bg: 'bg-indigo-600' },
-    { id: 'ITPMAL', label: "ITP Malbygger (Styrer) ⚙️", bg: 'bg-indigo-700' },
-    { id: 'OBSERVASJONER', label: "Observasjoner 📝", bg: 'bg-emerald-600' },
-    { id: 'TILTAKSPLAN', label: "Tiltaksplan (ITP) 📋", bg: 'bg-emerald-600' },
-    { id: 'LEDERSTOTTE', label: "Lederstøtte 🧠", bg: 'bg-emerald-700' },
-    { id: 'DIDAKTISK', label: "Didaktisk Planlegger 📅", bg: 'bg-emerald-600' },
-    { id: 'SOKRATISK', label: "Sokratisk Planlegger ✨", bg: 'bg-amber-600' },
-    { id: 'MORGENPULSEN', label: "Morgen-pulsen ☀️", bg: 'bg-amber-600' },
-    { id: 'FAGARBEIDERN', label: "Fagarbeider'n", bg: 'bg-amber-700' },
-    { id: 'ASSISTENTN', label: "Assistent'n", bg: 'bg-sky-600' },
-    { id: 'VIKARN', label: "Vikar'n", bg: 'bg-emerald-600' }
+    { id: 'LIVE', label: "Forside", bg: 'bg-blue-600' },
+    { id: 'STUDENTN', label: "BLU-hjelperen", bg: 'bg-indigo-600' },
+    { id: 'STYRERN', label: "Styrern", bg: 'bg-indigo-600' },
+    { id: 'PEDLEDERN', label: "Pedledern", bg: 'bg-teal-600' },
+    { id: 'FAGARBEIDERN', label: "Fagarbeidern", bg: 'bg-amber-700' },
+    { id: 'ASSISTENTN', label: "Assistentn", bg: 'bg-sky-600' },
+    { id: 'VIKARN', label: "Vikarn", bg: 'bg-emerald-600' }
   ];
 
   return (
@@ -159,7 +147,15 @@ const App = () => {
   // Hvis brukeren IKKE er Svein, overstyr ALLTID til "LIVE" (som ruter direkte til StudentnApp)
   const effectivePreview = canViewDevRoleBar ? activePreview : "LIVE";
 
-  // -- SVEINS OVERSTYRINGER UNDER UTVIKLING --
+  // -- SVEINS OVERSTYRINGER UNDER UTVIKLING (KUN 7 STRØMLINJEFORMEDE VERKTØY) --
+  if (canViewDevRoleBar && effectivePreview === "STUDENTN") {
+    return (
+      <>
+        <StudentnApp />
+        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
+      </>
+    );
+  }
   if (canViewDevRoleBar && effectivePreview === "STYRERN") {
     return (
       <>
@@ -168,68 +164,10 @@ const App = () => {
       </>
     );
   }
-  if (canViewDevRoleBar && effectivePreview === "ITPMAL") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-10 font-sans text-slate-800">
-        <ITPMalbygger />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </div>
-    );
-  }
   if (canViewDevRoleBar && effectivePreview === "PEDLEDERN") {
     return (
       <>
         <PedledernApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "OBSERVASJONER") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-12 font-sans text-slate-800">
-        <Observasjoner />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </div>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "TILTAKSPLAN") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center p-4 md:p-8 pt-10 font-sans text-slate-800">
-        <TiltaksplanBygger />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </div>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "LEDERSTOTTE") {
-    return (
-      <>
-        <Lederstotte />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "DIDAKTISK") {
-    return (
-      <>
-        <DidaktiskPlanlegger avdelingNavn="Blåbærtua" />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "SOKRATISK") {
-    return (
-      <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          <DenSokratiskePlanleggeren avdelingNavn="Blåbærtua" />
-        </div>
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </div>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "MORGENPULSEN") {
-    return (
-      <>
-        <MorgenPulsen />
         <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
       </>
     );
@@ -254,14 +192,6 @@ const App = () => {
     return (
       <>
         <VikarnApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "STUDENTN") {
-    return (
-      <>
-        <StudentnApp />
         <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
       </>
     );

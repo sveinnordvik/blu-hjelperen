@@ -141,10 +141,11 @@ export async function callGoogleAIProxy(params: {
     validatedContents = normalizedList.length > 0 ? normalizedList : [{ role: 'user', parts: [{ text: "Hei" }] }];
   }
 
-  // Modellnavn type validation fallback
-  let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : "gemini-3.8-flash";
+  // Modellnavn type validation fallback med dynamisk VITE_GEMINI_MODEL miljøvariabel for fremtidssikring
+  const defaultEnvModel = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
+  let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : defaultEnvModel;
   if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
-    requestedModel = "gemini-3.8-flash";
+    requestedModel = defaultEnvModel;
   }
 
   const cleanConfig = { ...(params.config || {}) };
@@ -1959,35 +1960,23 @@ export async function superAgentRouter(userInput: string): Promise<AgentRouteCat
   return 'GENERELL';
 }
 
+import { askSuperveilederen } from './ragChatService';
+
 /**
- * RAG-boten: Spesialist på Rammeplan for barnehagen (2017) og Barnehageloven
+ * RAG-boten: Spesialist på Rammeplan for barnehagen (2017), Barnehageloven og opplastet akademisk litteratur
  */
 export async function askRagAgent(
   question: string,
-  chatHistory: Array<{ role: string; content: string }> = []
+  chatHistory: Array<{ role: string; content: string }> = [],
+  userId: string = 'anonymous'
 ) {
   try {
-    const formattedHistory = (chatHistory || []).map(msg => ({
-      role: msg.role === 'assistant' || msg.role === 'model' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    }));
-
-    const contents = [...formattedHistory, { role: "user", parts: [{ text: question }] }];
-
-    const response = await callGoogleAIProxy({
-      model: RAG_BOT_CONFIG.model,
-      contents,
-      config: {
-        systemInstruction: RAG_BOT_CONFIG.systemInstruction,
-        temperature: RAG_BOT_CONFIG.temperature,
-      },
-    });
-
+    const response = await askSuperveilederen(userId, chatHistory, question);
     return response.text;
   } catch (error: any) {
-    console.error("Feil i askRagAgent:", error);
+    console.error("Feil i askRagAgent (via askSuperveilederen):", error);
     const msg = error instanceof Error ? error.message : (error?.message || (typeof error === 'string' ? error : ''));
-    throw new Error(msg || "Klarte ikke hente svar fra Rammeplan- og lovverksassistenten akkurat nå.");
+    throw new Error(msg || "Klarte ikke hente svar fra Rammeplan- og RAG-assistenten akkurat nå.");
   }
 }
 

@@ -29,8 +29,9 @@ export const sendChatMessage = async (
     }
     formattedContents.push({ role: 'user', parts: [{ text: userPrompt }] });
 
+    const modelName = import.meta.env.VITE_GEMINI_MODEL || 'gemini-3.8-flash';
     const result = await callGoogleAIProxy({
-      model: 'gemini-3.8-flash',
+      model: modelName,
       contents: formattedContents,
       config: {
         systemInstruction: "Du er BLU-hjelperen, en pedagogisk ekspert og veileder for barnehagelærerstudenter i Norge. Gi faglige, reflekterte og støttende svar med god forankring i Rammeplanen for barnehagen.",

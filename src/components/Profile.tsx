@@ -1031,7 +1031,7 @@ export function Profile({
               <div className="hidden md:block">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
                   <Info className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>BLU-Hjelperen v3.5.9 (Bugfixes)</span>
+                  <span>BLU-Hjelperen v3.6.1 (IP-beskyttelse & Sikkerhet)</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
@@ -1087,10 +1087,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.5.9 Bugfixes (Oktober 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.6.1 IP-beskyttelse & Sikkerhetsstrategi (Oktober 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Direkte klient-integrasjon via @google/genai SDK i nettleseren med VITE_GEMINI_API_KEY. Fjerning av alle upålitelige server-proxy-kall for ren statisk produksjon.</span>
+                        <span className="text-slate-600">Strategisk oppdatering og sanering av utadrettet endringslogg for beskyttelse av teknisk arkitektur, samt smidig versjonsoppgradering.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1102,7 +1102,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.5.8, v3.5.7, v3.5.6, v3.5.5, v3.5.0)</span>
+                            <span>Tidligere versjoner (v3.6.0, v3.5.9, v3.5.8, v3.5.7, v3.5.6)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1114,52 +1114,56 @@ export function Profile({
                         {showOlderVersions && (
                           <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.6.0 (Oktober 2026)</strong>
+                              <span className="text-slate-500">Utvidet kildeveiledning & akademisk litteratursøk med direkte innsyn i siterte tekstavsnitt og ferdig APA 7-siterering.</span>
+                            </li>
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.5.0 (September 2026)</strong>
-                              <span className="text-slate-500">Ekte Word A4-ark med separate sider, 2,54 cm akademiske marger, topp- og bunntekst, samt automatisk tekstoverføring ved overskridelse. 2-linjers akademisk verktøylinje med Angre/Gjenta, skrifttyper (Times New Roman, Calibri, Arial, Georgia), linjeavstand, overskrifter (H1–H3), synlig Søk & erstatt og + Kilde (APA 7). Word-stil Zoom-glidebryter (50 % – 175 %) og hurtigmeny. Ekspansiv Fokusmodus med valgfrie bredder og skriftstørrelser.</span>
+                              <span className="text-slate-500">Ekte Word A4-ark med separate sider, 2,54 cm akademiske marger, topp- og bunntekst, akademisk verktøylinje og utvidet fokusmodus.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.3 (September 2026)</strong>
-                              <span className="text-slate-500">Avhuking (multi-select) og smart kildeoverføring i Kildebanken: Huk av kilder fra standardpensum eller egne kilder, og overfør dem direkte til valgfri oppgave/mappe med automatisk APA 7-alfabetisering, flytende handlingslinje for hurtigkopiering av kildelister, samt forklaring av pensum-RAG på Hjem-fanen.</span>
+                              <span className="text-slate-500">Smart kildebank med automatisk APA 7-alfabetisering, overføring til oppgaver og hurtigkopiering av kildelister.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.2 (September 2026)</strong>
-                              <span className="text-slate-500">Permanent sky- og hurtigbufferlagring av samtaler i Superveilederen og prosesslogger knyttet direkte til mapper og oppgaver, visning av lagrede prosesslogger i sidepanelet med mulighet for hurtiginnsetting i oppgaveteksten, samt modulær ytelsesoptimalisering (code-splitting av eksport- og PDF-motorer) for maksimal responsivitet og rask oppstart.</span>
+                              <span className="text-slate-500">Lagring av veiledningssamtaler og prosesslogger knyttet til mapper og oppgaver, med hurtiginnsetting av refleksjoner i skriveflaten.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.1 (September 2026)</strong>
-                              <span className="text-slate-500">Ny frittstående Kildebank (APA 7) integrert under Ressurser og Skriving for enkel kildehåndtering uavhengig av oppgaver, ny oppgavetype «Notater & Kladdeblokk» med åpen og fri disposisjon, samt hurtigknapp «+ Nytt notat / kladd» for umiddelbar skriving og idémyldring i Skriveverkstedet.</span>
+                              <span className="text-slate-500">Ny frittstående Kildebank (APA 7) for pensum og lover, samt ny oppgavetype «Notater & Kladdeblokk» for fri ideutvikling.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.4.0 (September 2026)</strong>
-                              <span className="text-slate-500">Presis 16:9 HD Widescreen PowerPoint-eksport motor (.pptx) med garantert rammepassform og automatiske foredragsholdernotater, ny utskrifts- og PDF-generator for presentasjoner, direkte utklippstavle-kopiering av fullstendig tekst og manus, stabilitetsoppgradering i Skriveverkstedet (WYSIWYG), samt renset mobilvisning i verktøydashboardet.</span>
+                              <span className="text-slate-500">Presentasjonsbygger med PowerPoint-eksport, manusnotater, utskrifts- og PDF-generator.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.3.0 (September 2026)</strong>
-                              <span className="text-slate-500">Brukergrensesnitt- og stabilitetsoppgradering. Fullstendig eliminering av avbrytende nettleservarsler (popups) til fordel for sømløse in-app bannere, nye ferdigbygde barnehagepedagogiske flashcards-kortstokker, og forbedret kildeformatering.</span>
+                              <span className="text-slate-500">Sømløs in-app tilbakemelding, puggkort (flashcards) for eksamensøving og forbedret kildeformatering.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.2.0 (September 2026)</strong>
-                              <span className="text-slate-500">Avansert dokumenteksport til Word (.docx) og PDF (.pdf) med 4 høyskolenivå forsidetemaer, innholdsfortegnelse med hierarki og dot-leaders, samt APA 7-krav (14pt/12pt overskrifter med sideskift for H1, 1,5 linjeavstand, 2,54 cm marger, blokksitater og hengende innrykk).</span>
+                              <span className="text-slate-500">Avansert dokumenteksport til Word og PDF med akademiske forsidetemaer, innholdsfortegnelse og APA 7-krav.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.1.4 (September 2026)</strong>
-                              <span className="text-slate-500">Robust flermodell-fallback (veksler automatisk mellom Gemini-modeller ved kvotebegrensninger), optimalisert token-beskyttelse og synlig versjonsindikator i bunnteksten.</span>
+                              <span className="text-slate-500">Automatisk kapasitetssikring ved lange utkast og synlig versjonsindikator i bunnteksten.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.1.3 (September 2026)</strong>
-                              <span className="text-slate-500">Brukervennlig håndtering ved stor pågang på KI-assistenten med «Prøv igjen nå»-knapp, studentvennlig feilvarsling og forbedret Basen-mobilvisning.</span>
+                              <span className="text-slate-500">Brukervennlig håndtering ved stor pågang med Prøv igjen-funksjon og forbedret mobilvisning i Basen.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.1.1 (September 2026)</strong>
-                              <span className="text-slate-500">Oppgradert Gemini-modellfallback, forbedret feilhåndtering og feilrensing i Superveileder, samt optimalisert ytelse.</span>
+                              <span className="text-slate-500">Forbedret veilederstabilitet og feilhåndtering.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.0.0 (September 2026)</strong>
-                              <span className="text-slate-500">Ny WorkspaceLayout-sidemeny, samlet Konto-hub, automatisk deployment og optimalisert ytelse.</span>
+                              <span className="text-slate-500">Ny sidemeny, samlet Konto-hub og optimalisert innlasting.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v2.0.0 (April 2026)</strong>
-                              <span className="text-slate-500">Lansering av Basen, didaktisk planlegger og oppgraderte AI-motorer.</span>
+                              <span className="text-slate-500">Lansering av Basen, didaktisk planlegger og oppgradert veileder.</span>
                             </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v1.0.0 (Februar 2026)</strong>
