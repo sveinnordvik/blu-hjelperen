@@ -33,6 +33,7 @@ export interface ChatMessage {
   timestamp: string;
   isError?: boolean;
   retryPrompt?: string;
+  errorDetails?: string;
 }
 
 interface FieldAssistantProps {
@@ -95,6 +96,11 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [expandedErrorIds, setExpandedErrorIds] = useState<string[]>([]);
+
+  const toggleErrorDetails = (id: string) => {
+    setExpandedErrorIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasTriggeredInitial = useRef(false);
@@ -274,22 +280,23 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     } catch (err: any) {
       console.error('Field assistant error:', err);
       const msg = err?.message || String(err || '');
-      let userNotice = 'Det oppstod en midlertidig feil under tilkobling til veilederen. Vennligst prøv på nytt om et øyeblikk.';
+      let userNotice = 'Det oppstod et midlertidig avbrudd i tilkoblingen til veilederen. Klikk på «Prøv igjen» nedenfor for å koble til på nytt.';
 
       if (msg.includes('logget inn') || msg.includes('autentisering') || msg.includes('401')) {
         userNotice = '🔒 Du må være logget inn for å bruke Feltveilederen. Vennligst logg inn med din studentkonto øverst i appen.';
       } else if (msg.includes('429') || msg.includes('pågang') || msg.includes('kvote')) {
         userNotice = '⏳ Feltveilederen opplever stor pågang akkurat nå. Vent noen sekunder og send meldingen din på nytt.';
-      } else if (msg.includes('404') || msg.includes('API-endepunkt') || msg.includes('utilgjengelig')) {
-        userNotice = 'Det oppstod et midlertidig avbrudd i tilkoblingen til veilederen. Klikk på «Prøv igjen» nedenfor for å koble til på nytt.';
       } else if (msg && !msg.includes('[object') && msg.length < 250) {
         userNotice = msg;
       }
+
+      const technicalDetails = `Endepunkt: /api/gemini/generate\nStatus: ${err?.status || 'NETTVERK / API-AVBRUDD'}\nMottatt feil: ${msg || 'Ingen detaljert feilmelding mottatt'}\nTidsstempel: ${new Date().toLocaleString()}`;
 
       const errorMsg: ChatMessage = {
         id: `asst-err-${Date.now()}`,
         role: 'assistant',
         content: userNotice,
+        errorDetails: technicalDetails,
         timestamp: new Date().toISOString(),
         isError: true,
         retryPrompt: prompt
@@ -591,27 +598,63 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                     {/* Handlinger under veileder-svar */}
                     {!isUser && m.id !== 'msg-welcome' && (
                       m.isError || m.id.startsWith('asst-err') ? (
-                        <div className="pt-2.5 mt-2.5 border-t border-rose-100 flex items-center justify-between gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleRetry(m.retryPrompt)}
-                            disabled={isLoading}
-                            className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                          >
-                            <RotateCw className="w-3.5 h-3.5 text-rose-600" />
-                            <span>Prøv igjen</span>
-                          </button>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                        <div className="pt-2.5 mt-2.5 border-t border-rose-100 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
                             <button
                               type="button"
-                              onClick={() => handleDeleteSingleMessage(m.id)}
-                              className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
-                              title="Slett denne feilmeldingen"
+                              onClick={() => handleRetry(m.retryPrompt)}
+                              disabled={isLoading}
+                              className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <RotateCw className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Prøv igjen</span>
                             </button>
+                            <div className="flex items-center gap-2">
+                              {m.errorDetails && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleErrorDetails(m.id)}
+                                  className="text-[11px] font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                                >
+                                  {expandedErrorIds.includes(m.id) ? 'Skjul feildetaljer' : 'Vis feildetaljer'}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSingleMessage(m.id)}
+                                className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
+                                title="Slett denne feilmeldingen"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
+
+                          {m.errorDetails && expandedErrorIds.includes(m.id) && (
+                            <div className="p-3 bg-slate-900 text-rose-200 rounded-xl text-[11px] font-mono whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner space-y-2">
+                              <p className="font-bold text-amber-300 border-b border-slate-800 pb-1">Teknisk feildiagnostikk:</p>
+                              <div>{m.errorDetails}</div>
+                              <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 font-sans">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(m.errorDetails || '');
+                                    showToast('Feilrapport kopiert!');
+                                  }}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Copy className="w-3 h-3" /> Kopier feilrapport
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => window.location.reload()}
+                                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <RotateCw className="w-3 h-3" /> Tøm cache & oppdater
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="pt-3 mt-3 border-t border-slate-200/70 flex items-center justify-between gap-3">
@@ -860,27 +903,63 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                   {/* Handlinger under assistentsvar på mobil */}
                   {!isUser && m.id !== 'msg-welcome' && (
                     m.isError || m.id.startsWith('asst-err') ? (
-                      <div className="pt-2 mt-2 border-t border-rose-100 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleRetry(m.retryPrompt)}
-                          disabled={isLoading}
-                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                        >
-                          <RotateCw className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Prøv igjen</span>
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                      <div className="pt-2 mt-2 border-t border-rose-100 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
                           <button
                             type="button"
-                            onClick={() => handleDeleteSingleMessage(m.id)}
-                            className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
-                            title="Slett denne feilmeldingen"
+                            onClick={() => handleRetry(m.retryPrompt)}
+                            disabled={isLoading}
+                            className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <RotateCw className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Prøv igjen</span>
                           </button>
+                          <div className="flex items-center gap-2">
+                            {m.errorDetails && (
+                              <button
+                                type="button"
+                                onClick={() => toggleErrorDetails(m.id)}
+                                className="text-[10px] font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                              >
+                                {expandedErrorIds.includes(m.id) ? 'Skjul feildetaljer' : 'Vis feildetaljer'}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleMessage(m.id)}
+                              className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
+                              title="Slett denne feilmeldingen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
+
+                        {m.errorDetails && expandedErrorIds.includes(m.id) && (
+                          <div className="p-2.5 bg-slate-900 text-rose-200 rounded-xl text-[10px] font-mono whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner space-y-2">
+                            <p className="font-bold text-amber-300 border-b border-slate-800 pb-1">Teknisk feildiagnostikk:</p>
+                            <div>{m.errorDetails}</div>
+                            <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2 font-sans">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(m.errorDetails || '');
+                                  showToast('Feilrapport kopiert!');
+                                }}
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[9px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" /> Kopier feilrapport
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <RotateCw className="w-3 h-3" /> Tøm cache & oppdater
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">

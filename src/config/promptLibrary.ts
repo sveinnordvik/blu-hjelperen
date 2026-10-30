@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.5',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.5: Synlig Feildiagnostikk & Direkte Klient-Fallback',
+    changes: [
+      'Synlig feildiagnostikk: «Vis feildetaljer»-knapp i feilboksene som viser eksakt HTTP-status, endepunkt og tekniske feilresponser.',
+      'Direkte klient-fallback: Automatisk fallback til direkte Gemini REST API hvis Express server-proxyen opplever nettverksbrudd.',
+      'Auto-versjonsbumping: Versjonsnummer oppgradert til v3.5.5 på tvers av alle systemfiler.'
+    ]
+  },
+  {
     version: 'v3.5.4',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.4: Interaktivt Versjonsbanner & Sanering av API-konfigurasjon',
