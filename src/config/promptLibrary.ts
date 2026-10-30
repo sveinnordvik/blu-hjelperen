@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.6',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.6: Express OPTIONS Preflight Fix & Direkte Klient-Fallback',
+    changes: [
+      'Express OPTIONS preflight feilretting: Håndterer CORS OPTIONS-forespørsler eksplisitt på serveren med 200 OK for å forhindre 404-feil på API-endepunkter.',
+      'Direkte klient-fallback: Automatisk koble over til klient-side Gemini API dersom Express-proxy returnerer feil eller ikke svarer.',
+      'Generell versjonsoppgradering: Automatisk bump av versjonsnummer til v3.5.6 i henhold til instruks.'
+    ]
+  },
+  {
     version: 'v3.5.5',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.5: Synlig Feildiagnostikk & Direkte Klient-Fallback',

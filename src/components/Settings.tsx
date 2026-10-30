@@ -379,14 +379,14 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
             <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-xs font-extrabold shadow-2xs">
-              v3.5.5 (Bugfixes)
+              v3.5.6 (Bugfixes)
             </span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Høydepunkter i v3.5.5 Bugfixes:</span>
+              <span>Høydepunkter i v3.5.6 Bugfixes:</span>
             </div>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">

@@ -240,6 +240,7 @@ async function startServer() {
 
   // Tillat kall fra eksterne klienter (som Firebase Hosting) til dette Cloud Run-backenhet
   app.use(cors());
+  app.options('*', cors());
   app.use(express.json({ limit: '50mb' }));
 
   // In-memory rate limiting map for å beskytte mot automatiserte bots og uendelige løkker
@@ -260,9 +261,9 @@ async function startServer() {
 
   // Autentiserings- og Rate-limiting middleware på alle AI-relaterte proxy-ruter
   app.use(["/api/gemini", "/api/chat", "/api/superveileder", "/api/superveilederen", "/api/superveilederenChat"], async (req, res, next) => {
-    // 0. Tillat OPTIONS for CORS-preflight uten token-sjekk
+    // 0. Tillat OPTIONS for CORS-preflight uten token-sjekk (svarer 200 OK med CORS-headere)
     if (req.method === "OPTIONS") {
-      return next();
+      return res.sendStatus(200);
     }
 
     // 1. Rate limiting per IP (tillat 60 forespørsler per minutt for høyt trafikk-bruk)
