@@ -132,7 +132,7 @@ export async function callGoogleAIProxy(params: {
 
   // Modellnavn type validation fallback
   let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : "gemini-3.8-flash";
-  if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel === "gemini-pro") {
+  if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
     requestedModel = "gemini-3.8-flash";
   }
   const targetModel = requestedModel;
@@ -140,17 +140,39 @@ export async function callGoogleAIProxy(params: {
   // Hent brukerens Firebase Auth ID-token for sikker autentisering
   let idToken = '';
   try {
-    const { getAuth } = await import('firebase/auth');
-    const user = getAuth().currentUser;
-    if (user) {
-      idToken = await user.getIdToken();
+    const { auth } = await import('../firebase');
+    if (auth) {
+      if (typeof auth.authStateReady === 'function') {
+        try {
+          await auth.authStateReady();
+        } catch (readyErr) {
+          console.warn("authStateReady advarsel:", readyErr);
+        }
+      }
+
+      if (auth.currentUser) {
+        try {
+          idToken = await auth.currentUser.getIdToken(false);
+        } catch (e) {
+          console.warn("Prøver force refresh av idToken:", e);
+          try {
+            idToken = await auth.currentUser.getIdToken(true);
+          } catch (refreshErr) {
+            console.error("Feil ved force refresh av idToken:", refreshErr);
+          }
+        }
+      }
     }
   } catch (authErr) {
     console.warn("Kunne ikke hente Firebase ID-token:", authErr);
   }
 
   if (!idToken) {
-    throw new Error("Du må være logget inn for å bruke KI-assistenten.");
+    if (import.meta.env.DEV) {
+      idToken = 'dev-guest-token';
+    } else {
+      throw new Error("Du må være logget inn med din studentkonto for å bruke KI-assistenten.");
+    }
   }
 
   while (attempt <= maxRetries) {
@@ -158,7 +180,7 @@ export async function callGoogleAIProxy(params: {
       // Ved gjentatte forsøk ved 429 eller 503 prøver vi alternative modell-pooler med egen kvote
       let modelForAttempt = targetModel;
       if (attempt === 1) {
-        modelForAttempt = targetModel === "gemini-2.5-flash" ? "gemini-3.8-flash" : "gemini-2.5-flash";
+        modelForAttempt = "gemini-3.8-flash";
       } else if (attempt === 2) {
         modelForAttempt = "gemini-3.1-flash-lite";
       } else if (attempt >= 3) {
@@ -186,7 +208,15 @@ export async function callGoogleAIProxy(params: {
         
         // 401 Uautorisert / Ikke innlogget
         if (resp.status === 401) {
-           throw new Error(statusMsg || "Du må være logget inn for å bruke denne funksjonen.");
+          try {
+            const { auth } = await import('../firebase');
+            if (auth.currentUser && attempt === 0) {
+              idToken = await auth.currentUser.getIdToken(true);
+              attempt++;
+              continue;
+            }
+          } catch {}
+          throw new Error(statusMsg || "Du må være logget inn for å bruke denne funksjonen.");
         }
 
         // Kritiske konfigurasjonsfeil som ikke kan løses med retry
@@ -239,7 +269,10 @@ export async function callGoogleAIProxy(params: {
         msg.includes("prepayment credits are depleted") ||
         msg.includes("credits are depleted") ||
         msg.includes("Kritisk feil:") ||
-        msg.includes("Feil (404)")
+        msg.includes("Feil (404)") ||
+        msg.includes("Du må være logget inn") ||
+        msg.includes("Innlogging kreves") ||
+        msg.includes("Ugyldig eller utløpt")
       ) {
         throw new Error(msg);
       }

@@ -42,10 +42,14 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
 
     serviceAccount = JSON.parse(keyStr);
     
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    console.log("Firebase Admin initialized for FCM");
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log("Firebase Admin initialized for FCM");
+    } else {
+      console.log("Firebase Admin already initialized");
+    }
   } catch (error) {
     console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY.");
     console.error("Please ensure it is a valid JSON string, a base64-encoded JSON string, or a path to the JSON file.");
@@ -66,8 +70,8 @@ const _dirname = getDirname();
 // Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
 async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
   let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
-  // Oppgrader utgåtte modeller (1.5 og 2.0) til 3.8-flash
-  if (initial.includes("1.5") || initial.includes("2.0") || initial === "gemini-pro") {
+  // Oppgrader utgåtte modeller (1.5, 2.0, 2.5) til 3.8-flash
+  if (initial.includes("1.5") || initial.includes("2.0") || initial.includes("2.5") || initial === "gemini-pro") {
     initial = "gemini-3.8-flash";
   }
 
@@ -125,13 +129,24 @@ process.on("uncaughtException", (error) => {
 async function startServer() {
   const app = express();
   
-  // Støtt CLI-argumenter som --port 3000 fra dev-runneren
+  // Støtt CLI-argumenter som --port 3000, --port=3000, --host 0.0.0.0, --host=0.0.0.0 fra dev-runneren
   let portFromArgs: number | undefined;
-  const portIdx = process.argv.indexOf("--port");
-  if (portIdx !== -1 && process.argv[portIdx + 1]) {
-    const parsed = Number(process.argv[portIdx + 1]);
-    if (!isNaN(parsed) && parsed > 0) {
-      portFromArgs = parsed;
+  let hostFromArgs: string = "0.0.0.0";
+  for (let i = 0; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    if (arg === "--port" && process.argv[i + 1]) {
+      const parsed = Number(process.argv[i + 1]);
+      if (!isNaN(parsed) && parsed > 0) portFromArgs = parsed;
+    } else if (arg.startsWith("--port=")) {
+      const parsed = Number(arg.split("=")[1]);
+      if (!isNaN(parsed) && parsed > 0) portFromArgs = parsed;
+    } else if (arg === "-p" && process.argv[i + 1]) {
+      const parsed = Number(process.argv[i + 1]);
+      if (!isNaN(parsed) && parsed > 0) portFromArgs = parsed;
+    } else if (arg === "--host" && process.argv[i + 1]) {
+      hostFromArgs = process.argv[i + 1];
+    } else if (arg.startsWith("--host=")) {
+      hostFromArgs = arg.split("=")[1];
     }
   }
 
@@ -139,6 +154,7 @@ async function startServer() {
   // Dev-serveren må derfor lytte på port 3000 i development.
   const isDev = process.env.NODE_ENV !== "production";
   const PORT = portFromArgs || (isDev ? 3000 : (Number(process.env.PORT) || 3000));
+  const HOST = hostFromArgs;
 
   // Tillat kall fra eksterne klienter (som Firebase Hosting) til dette Cloud Run-backenhet
   app.use(cors());
@@ -179,7 +195,7 @@ async function startServer() {
     }
 
     // Hvis Firebase Admin er tilgjengelig, verifiser signaturen på ID-tokenet
-    if (admin.apps.length) {
+    if (admin.apps.length && token !== "dev-guest-token") {
       try {
         const decoded = await admin.auth().verifyIdToken(token);
         (req as any).user = decoded;
@@ -563,7 +579,7 @@ Dokumentinnhold:
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: process.env.DISABLE_HMR !== 'true' },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -581,9 +597,36 @@ Dokumentinnhold:
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  const tryListen = (attemptsLeft = 5, delay = 500) => {
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`Server running on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
+    });
+
+    server.on("error", (err: any) => {
+      if (err.code === "EADDRINUSE" && attemptsLeft > 0) {
+        console.warn(`Port ${PORT} is busy, retrying in ${delay}ms... (${attemptsLeft} attempts remaining)`);
+        setTimeout(() => tryListen(attemptsLeft - 1, delay + 500), delay);
+      } else {
+        console.error("Server listen error:", err);
+        process.exit(1);
+      }
+    });
+
+    const shutdown = () => {
+      console.log("Shutting down server gracefully...");
+      server.close(() => {
+        process.exit(0);
+      });
+      setTimeout(() => process.exit(0), 1000).unref();
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+  };
+
+  tryListen();
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Fatal error starting server:", err);
+  process.exit(1);
+});

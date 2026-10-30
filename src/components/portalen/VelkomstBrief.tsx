@@ -391,7 +391,7 @@ Svar KUN i gyldig JSON-format uten markdown-ticks eller emojier:
 }`;
 
       const response = await callGoogleAIProxy({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           temperature: 0.3
@@ -529,7 +529,7 @@ Pauser: ${formData.pauser}
 Generer teksten basert på disse stikkordene. Skriv direkte til vikaren (Bruk "Hei ${formData.vikarNavn || 'Kari'}!"). Følg nøyaktig samme oppbygning og varme, profesjonelle tone som i eksempelet over. Svar KUN med den ferdige meldingsteksten uten noen innledende eller avsluttende kommentarer.`;
 
       const response = await callGoogleAIProxy({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           temperature: 0.25

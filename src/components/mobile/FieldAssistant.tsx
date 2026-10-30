@@ -15,14 +15,14 @@ import {
   Cloud,
   Copy,
   CheckCircle2,
-  Share2
+  Share2,
+  RotateCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../../lib/utils';
 import { callGoogleAIProxy } from '../../services/geminiService';
-import { db } from '../../firebase';
-import { getAuth } from 'firebase/auth';
+import { db, auth } from '../../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { saveFieldNote, FieldNote, NoteCategory } from '../../services/fieldNotesService';
 
@@ -31,6 +31,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  isError?: boolean;
+  retryPrompt?: string;
 }
 
 interface FieldAssistantProps {
@@ -114,7 +116,6 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
   // Henter og synkroniserer chat fra Firestore
   useEffect(() => {
     const fetchRemoteChat = async () => {
-      const auth = getAuth();
       const currentUser = user || auth.currentUser;
       if (!currentUser) {
         setIsCloudSynced(false);
@@ -140,7 +141,6 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
 
     fetchRemoteChat();
 
-    const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((u) => {
       if (u) {
         fetchRemoteChat();
@@ -152,7 +152,6 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
 
   const saveChatToFirebase = async (updatedMsgs: ChatMessage[]) => {
     try {
-      const auth = getAuth();
       const currentUser = user || auth.currentUser;
       if (!currentUser) return;
       await setDoc(doc(db, 'users', currentUser.uid, 'field_assistant_chats', 'main'), {
@@ -198,15 +197,27 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     setIsLoading(true);
 
     try {
-      // Prepare Gemini contents with conversation context
-      const chatHistory = updatedWithUser.slice(-8).map(m => ({
+      // Filtrer ut feilmeldinger og velkomsttekst slik at samtaleloggen er ren for Gemini
+      const cleanMessages = updatedWithUser.filter(m => {
+        if (!m || !m.content) return false;
+        if (m.id.startsWith('asst-err')) return false;
+        if (m.id === 'msg-welcome' && updatedWithUser.length > 2) return false;
+        if (m.content.includes('Det oppstod en midlertidig feil') || m.content.includes('Du må være logget inn')) return false;
+        return true;
+      });
+
+      // Sørg for at samtalen starter med en brukerspørring
+      const firstUserIdx = cleanMessages.findIndex(m => m.role === 'user');
+      const validHistory = firstUserIdx !== -1 ? cleanMessages.slice(firstUserIdx) : cleanMessages;
+
+      const chatHistory = validHistory.slice(-8).map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }]
       }));
 
       const rawResponse = await callGoogleAIProxy({
-        model: 'gemini-2.5-flash',
-        contents: chatHistory,
+        model: 'gemini-3.8-flash',
+        contents: chatHistory.length > 0 ? chatHistory : prompt,
         config: {
           systemInstruction: FIELD_SYSTEM_INSTRUCTION,
           temperature: 0.7,
@@ -229,11 +240,24 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
       await saveChatToFirebase(finalMsgs);
     } catch (err: any) {
       console.error('Field assistant error:', err);
+      const msg = err?.message || String(err || '');
+      let userNotice = 'Det oppstod en midlertidig feil under tilkobling til veilederen. Vennligst prøv på nytt om et øyeblikk.';
+
+      if (msg.includes('logget inn') || msg.includes('autentisering') || msg.includes('401')) {
+        userNotice = '🔒 Du må være logget inn for å bruke Feltveilederen. Vennligst logg inn med din studentkonto øverst i appen.';
+      } else if (msg.includes('429') || msg.includes('pågang') || msg.includes('kvote')) {
+        userNotice = '⏳ Feltveilederen opplever stor pågang akkurat nå. Vent noen sekunder og send meldingen din på nytt.';
+      } else if (msg && !msg.includes('[object') && msg.length < 250) {
+        userNotice = msg;
+      }
+
       const errorMsg: ChatMessage = {
         id: `asst-err-${Date.now()}`,
         role: 'assistant',
-        content: 'Det oppstod en midlertidig feil under tilkobling til veilederen. Sjekk internettforbindelsen og prøv på nytt.',
-        timestamp: new Date().toISOString()
+        content: userNotice,
+        timestamp: new Date().toISOString(),
+        isError: true,
+        retryPrompt: prompt
       };
       const finalWithErr = [...updatedWithUser, errorMsg];
       setMessages(finalWithErr);
@@ -241,6 +265,12 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetry = (retryPrompt?: string) => {
+    if (!retryPrompt || isLoading) return;
+    setMessages(prev => prev.filter(m => !m.id.startsWith('asst-err')));
+    handleSend(retryPrompt);
   };
 
   const handleStartNySamtale = async () => {
@@ -315,7 +345,6 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
         };
         localStorage.setItem('blu_process_logs_v2', JSON.stringify([newLog, ...logs]));
 
-        const auth = getAuth();
         const currentUser = user || auth.currentUser;
         if (currentUser) {
           await setDoc(doc(db, 'processLogs', newLog.id), {
@@ -505,52 +534,67 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
 
                     {/* Handlinger under veileder-svar */}
                     {!isUser && m.id !== 'msg-welcome' && (
-                      <div className="pt-3 mt-3 border-t border-slate-200/70 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
+                      m.isError || m.id.startsWith('asst-err') ? (
+                        <div className="pt-2.5 mt-2.5 border-t border-rose-100 flex items-center justify-between gap-2">
                           <button
-                            onClick={() => handleSaveToKladdebok(m)}
-                            className={cn(
-                              "inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
-                              savedSuccessId === m.id
-                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                : "bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            )}
+                            type="button"
+                            onClick={() => handleRetry(m.retryPrompt)}
+                            disabled={isLoading}
+                            className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                           >
-                            {savedSuccessId === m.id ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Lagret i Kladdebok!</span>
-                              </>
-                            ) : (
-                              <>
-                                <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Lagre til Kladdebok</span>
-                              </>
-                            )}
+                            <RotateCw className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Prøv igjen</span>
                           </button>
+                          <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                        </div>
+                      ) : (
+                        <div className="pt-3 mt-3 border-t border-slate-200/70 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSaveToKladdebok(m)}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                                savedSuccessId === m.id
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : "bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              )}
+                            >
+                              {savedSuccessId === m.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Lagret i Kladdebok!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Lagre til Kladdebok</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => handleSendToLog(m)}
+                              className={cn(
+                                "inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                                logSuccessId === m.id
+                                  ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                  : "bg-white hover:bg-amber-50 text-amber-800 border border-amber-200"
+                              )}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Send til Prosesslogg</span>
+                            </button>
+                          </div>
 
                           <button
-                            onClick={() => handleSendToLog(m)}
-                            className={cn(
-                              "inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
-                              logSuccessId === m.id
-                                ? "bg-amber-100 text-amber-800 border border-amber-300"
-                                : "bg-white hover:bg-amber-50 text-amber-800 border border-amber-200"
-                            )}
+                            onClick={() => handleCopy(m)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                            title="Kopier svar"
                           >
-                            <FileText className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Send til Prosesslogg</span>
+                            {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
-
-                        <button
-                          onClick={() => handleCopy(m)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                          title="Kopier svar"
-                        >
-                          {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      )
                     )}
                   </div>
                 </div>
@@ -725,64 +769,79 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
 
                   {/* Handlinger under assistentsvar på mobil */}
                   {!isUser && m.id !== 'msg-welcome' && (
-                    <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Lagre til Kladdebok */}
+                    m.isError || m.id.startsWith('asst-err') ? (
+                      <div className="pt-2 mt-2 border-t border-rose-100 flex items-center justify-between gap-2">
                         <button
-                          onClick={() => handleSaveToKladdebok(m)}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
-                            savedSuccessId === m.id
-                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
-                          )}
+                          type="button"
+                          onClick={() => handleRetry(m.retryPrompt)}
+                          disabled={isLoading}
+                          className="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
                         >
-                          {savedSuccessId === m.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>Lagret i Kladdebok!</span>
-                            </>
-                          ) : (
-                            <>
-                              <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>Lagre i Kladdebok</span>
-                            </>
-                          )}
+                          <RotateCw className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Prøv igjen</span>
                         </button>
-
-                        {/* Send til Prosesslogg */}
-                        <button
-                          onClick={() => handleSendToLog(m)}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
-                            logSuccessId === m.id
-                              ? "bg-amber-100 text-amber-800 border border-amber-300"
-                              : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
-                          )}
-                        >
-                          {logSuccessId === m.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Sendt til logg!</span>
-                            </>
-                          ) : (
-                            <>
-                              <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Send til logg</span>
-                            </>
-                          )}
-                        </button>
-
-                        {/* Kopier knapp */}
-                        <button
-                          onClick={() => handleCopy(m)}
-                          className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors ml-auto cursor-pointer"
-                          title="Kopier svar"
-                        >
-                          {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
+                        <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Lagre til Kladdebok */}
+                          <button
+                            onClick={() => handleSaveToKladdebok(m)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
+                              savedSuccessId === m.id
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            )}
+                          >
+                            {savedSuccessId === m.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>Lagret i Kladdebok!</span>
+                              </>
+                            ) : (
+                              <>
+                                <BookmarkPlus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>Lagre i Kladdebok</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Send til Prosesslogg */}
+                          <button
+                            onClick={() => handleSendToLog(m)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer active:scale-95",
+                              logSuccessId === m.id
+                                ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                : "bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
+                            )}
+                          >
+                            {logSuccessId === m.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>Sendt til logg!</span>
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>Send til logg</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* Kopier knapp */}
+                          <button
+                            onClick={() => handleCopy(m)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors ml-auto cursor-pointer"
+                            title="Kopier svar"
+                          >
+                            {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               </motion.div>

@@ -360,7 +360,7 @@ exports.api = onRequest(
         const ai = new GoogleGenAI({ apiKey });
 
         let requestedModel = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
-        if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel === "gemini-pro") {
+        if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
           requestedModel = "gemini-3.8-flash";
         }
 
