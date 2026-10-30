@@ -151,7 +151,14 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   // Sørg for at contents alltid er strengt vekslende og uten feilmeldinger
   const sanitizedContents = sanitizeContents(contents);
 
-  // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
+  // Saniter config: Fjern utgåtte/avviste samplingsparametere for Gemini 3.8/3.1
+  const sanitizedConfig = { ...(config || {}) };
+  delete sanitizedConfig.temperature;
+  delete sanitizedConfig.topP;
+  delete sanitizedConfig.topK;
+  delete sanitizedConfig.candidateCount;
+
+  // Modellrekke for robusthet mot 404, 429 (kvote) og 503 (stor pågang)
   const modelCandidates = [
     initial,
     "gemini-3.1-flash-lite"
@@ -165,7 +172,7 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
       const response = await ai.models.generateContent({
         model: currentModel,
         contents: sanitizedContents,
-        config,
+        config: sanitizedConfig,
       });
       return response;
     } catch (err: any) {

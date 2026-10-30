@@ -189,6 +189,12 @@ export async function callGoogleAIProxy(params: {
         modelForAttempt = "gemini-flash-latest";
       }
 
+      const cleanConfig = { ...(params.config || {}) };
+      delete cleanConfig.temperature;
+      delete cleanConfig.topP;
+      delete cleanConfig.topK;
+      delete cleanConfig.candidateCount;
+
       const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
       const targetUrl = `${apiUrl}/api/gemini/generate`;
       const resp = await fetch(targetUrl, {
@@ -200,7 +206,7 @@ export async function callGoogleAIProxy(params: {
         body: JSON.stringify({
           model: modelForAttempt,
           contents: validatedContents,
-          config: params.config,
+          config: cleanConfig,
         })
       });
 

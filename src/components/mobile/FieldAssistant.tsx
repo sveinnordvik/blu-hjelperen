@@ -240,7 +240,6 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
           contents: formattedTurns.length > 0 ? formattedTurns : prompt,
           config: {
             systemInstruction: FIELD_SYSTEM_INSTRUCTION,
-            temperature: 0.7,
           }
         });
 

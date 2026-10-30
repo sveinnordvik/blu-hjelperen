@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.4',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.4: Interaktivt Versjonsbanner & Sanering av API-konfigurasjon',
+    changes: [
+      'Versjonsbanner & Auto-reload: Nytt interaktivt toppbanner som detekterer oppdateringer og lar studenter oppdatere cachen med ett klikk.',
+      'Sanering av Gemini API-parametere: Strippet utgåtte parametere (f.eks. temperature) for Gemini 3.8/3.1 som kunne føre til 400 Bad Request.',
+      'Sletting per boble: Trash2-ikon på hver enkelt meldingsboble i Feltveilederen (bruker, veileder og feilmeldinger).',
+      'Systemomfattende koderensing: Streng CORS preflight OPTIONS-bypass og turn-sanitizing på alle samtalepunkter.'
+    ]
+  },
+  {
     version: 'v3.5.3',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.3: Sletting av enkeltmeldinger og dyp API-stabilitet',
