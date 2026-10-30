@@ -71,6 +71,12 @@ export async function callGoogleAIProxy(params: {
         text.includes("forespørselen ble avbrutt") ||
         text.includes("serverfeil ved kontakt med gemini") ||
         text.includes("ki-modellen opplever stor pågang") ||
+        text.includes("det oppstod et midlertidig avbrudd") ||
+        text.includes("det oppstod en midlertidig feil") ||
+        text.includes("midlertidig avbrudd") ||
+        text.includes("midlertidig feil") ||
+        text.includes("du må være logget inn") ||
+        text.includes("klarte ikke å nå api-endepunktet") ||
         text.includes("feil (404)") ||
         text.startsWith("feil:")
       ) {

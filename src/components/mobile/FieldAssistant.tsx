@@ -331,6 +331,14 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     showToast('🗑️ Chatten ble slettet.');
   };
 
+  const handleDeleteSingleMessage = async (msgId: string) => {
+    const updated = messages.filter(m => m.id !== msgId);
+    setMessages(updated);
+    localStorage.setItem('blu_field_assistant_chat', JSON.stringify(updated));
+    await saveChatToFirebase(updated);
+    showToast('🗑️ Meldingen ble slettet.');
+  };
+
   const handleSaveToKladdebok = async (msg: ChatMessage) => {
     const rawPreview = msg.content.replace(/[#*`_]/g, '').trim();
     const title = rawPreview.substring(0, 45) + '...';
@@ -565,7 +573,20 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                         <ReactMarkdown>{m.content}</ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="whitespace-pre-wrap">{m.content}</p>
+                      <>
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <div className="pt-2 mt-1 border-t border-indigo-500/40 flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-indigo-200">Bruker</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleMessage(m.id)}
+                            className="p-1 text-indigo-200 hover:text-white hover:bg-indigo-700 rounded-lg transition-colors cursor-pointer"
+                            title="Slett denne boblen"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </>
                     )}
 
                     {/* Handlinger under veileder-svar */}
@@ -581,7 +602,17 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                             <RotateCw className="w-3.5 h-3.5 text-rose-600" />
                             <span>Prøv igjen</span>
                           </button>
-                          <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleMessage(m.id)}
+                              className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
+                              title="Slett denne feilmeldingen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="pt-3 mt-3 border-t border-slate-200/70 flex items-center justify-between gap-3">
@@ -622,13 +653,24 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                             </button>
                           </div>
 
-                          <button
-                            onClick={() => handleCopy(m)}
-                            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
-                            title="Kopier svar"
-                          >
-                            {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(m)}
+                              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                              title="Kopier svar"
+                            >
+                              {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSingleMessage(m.id)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                              title="Slett denne boblen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       )
                     )}
@@ -800,7 +842,20 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                       <ReactMarkdown>{m.content}</ReactMarkdown>
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap">{m.content}</p>
+                    <>
+                      <p className="whitespace-pre-wrap">{m.content}</p>
+                      <div className="pt-1.5 mt-1 border-t border-indigo-500/40 flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-indigo-200">Bruker</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSingleMessage(m.id)}
+                          className="p-1 text-indigo-200 hover:text-white hover:bg-indigo-700 rounded-lg transition-colors cursor-pointer"
+                          title="Slett denne boblen"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   {/* Handlinger under assistentsvar på mobil */}
@@ -816,7 +871,17 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                           <RotateCw className="w-3.5 h-3.5 text-rose-600" />
                           <span>Prøv igjen</span>
                         </button>
-                        <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400">Midlertidig avbrudd</span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleMessage(m.id)}
+                            className="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-lg transition-colors cursor-pointer"
+                            title="Slett denne feilmeldingen"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
@@ -874,6 +939,16 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
                             title="Kopier svar"
                           >
                             {copiedMsgId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+
+                          {/* Slett enkelt-boble knapp */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleMessage(m.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Slett denne boblen"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>

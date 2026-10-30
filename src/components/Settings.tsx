@@ -379,38 +379,38 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
             </div>
             <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-xs font-extrabold shadow-2xs">
-              v3.5.2 (Bugfixes)
+              v3.5.3 (Bugfixes)
             </span>
           </div>
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Høydepunkter i v3.5.2 Bugfixes:</span>
+              <span>Høydepunkter i v3.5.3 Bugfixes:</span>
             </div>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-600">
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                <span className="text-indigo-600 font-bold">🗑️</span>
+                <div>
+                  <strong className="text-slate-800">Sletting av enkeltmeldinger:</strong> Eget søppelkasse-ikon på hver enkelt meldingsboble (bruker, veiledersvar og feilmeldinger) i chatten.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                 <span className="text-indigo-600 font-bold">🛠️</span>
                 <div>
-                  <strong className="text-slate-800">Stabilitet for KI-veiledning:</strong> Løst tilkoblings- og 404-feil mot API-endepunkter for Feltveilederen og Superveilederen.
+                  <strong className="text-slate-800">Dyp API-stabilitet & CORS-fix:</strong> Basetilstand for CORS preflight (OPTIONS) og automatisk opprensking av turstrukturer for flersving-samtaler.
                 </div>
               </li>
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                 <span className="text-indigo-600 font-bold">🔄</span>
                 <div>
-                  <strong className="text-slate-800">Intelligent modell-fallback:</strong> Sikrer rask respons med automatisk flermodell-fallback ved stor pågang.
-                </div>
-              </li>
-              <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
-                <span className="text-indigo-600 font-bold">📄</span>
-                <div>
-                  <strong className="text-slate-800">Ekte A4-Word-ark:</strong> Separate ark med 2,54 cm marger, topp-/bunntekst og automatisk sideoverføring.
+                  <strong className="text-slate-800">Sømløs gjenoppkobling:</strong> Automatisk filtrering av feilmeldinger og robust gjentakelsesmekanisme når man trykker «Prøv igjen».
                 </div>
               </li>
               <li className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
                 <span className="text-indigo-600 font-bold">🎛️</span>
                 <div>
-                  <strong className="text-slate-800">2-linjers verktøylinje & Zoom:</strong> Angre/Gjenta, skrifttyper, linjeavstand, Søk & erstatt, APA-kilder og glidebryter.
+                  <strong className="text-slate-800">Optimert minne og synkronisering:</strong> Raskere oppdatering og umiddelbar sletting fra lokal og skylagring.
                 </div>
               </li>
             </ul>

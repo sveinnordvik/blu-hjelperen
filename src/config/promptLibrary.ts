@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.3',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.3: Sletting av enkeltmeldinger og dyp API-stabilitet',
+    changes: [
+      'Sletting av enkeltbobler: Eget søppelkasse-ikon (Trash2) på hver enkelt meldingsboble (bruker, veileder og feilbokser) for presis opprydding i samtalen.',
+      'Dyp API-stabilitet: CORS preflight (OPTIONS) bypass på serveren som forhindrer unødvendige 401/404-feil.',
+      'Turn-sanitizing: Automatisk sammenslåing av etterfølgende brukermeldinger slik at flersving-samtaler mot Gemini API garantert overholder vekslende rollerepler.',
+      'Ren retry-mekanisme: Prøv igjen-knappen sender ikke lenger dupliserte brukermeldinger og fjerner automatisk tidligere feilmeldinger fra historikken.'
+    ]
+  },
+  {
     version: 'v3.5.2',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.2: Bugfixes og API-stabilitet',
