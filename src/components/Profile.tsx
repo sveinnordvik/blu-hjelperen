@@ -1031,7 +1031,7 @@ export function Profile({
               <div className="hidden md:block">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
                   <Info className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>BLU-Hjelperen v3.5.7 (Bugfixes)</span>
+                  <span>BLU-Hjelperen v3.5.8 (Bugfixes)</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
@@ -1087,10 +1087,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.5.7 Bugfixes (Oktober 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.5.8 Bugfixes (Oktober 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Direkte klient-side Gemini SDK fallback ved nettverksbrudd eller 404, utvidet Vite define-konfigurasjon for nøkler, og streng preflight-behandling.</span>
+                        <span className="text-slate-600">Flerlags direkte REST API fallback, søk etter Gemini API-nøkler i localStorage, samt interaktiv nøkkelinnlegging i feilpanelet.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1102,7 +1102,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.5.6, v3.5.5, v3.5.4, v3.5.0)</span>
+                            <span>Tidligere versjoner (v3.5.7, v3.5.6, v3.5.5, v3.5.0)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />

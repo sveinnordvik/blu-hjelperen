@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.8',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.8: Flerlags Direkte REST API Fallback & Innebygd Nøkkelinnlegging',
+    changes: [
+      'Flerlags Klient-Fallback: Utvidet tryDirectClientGeminiCall med automatisk oppslag i localStorage og direkte REST fetch-kall mot Google Generative AI API.',
+      'Interaktiv Nøkkelinnlegging: Innebygd tekstfelt i feildiagnostikkboksen i chatten slik at studenter kan lime inn sin API-nøkkel direkte ved manglende proxy.',
+      'Sømløs gjentakelse: Ett-klikks «Lagre & Prøv igjen» som umiddelbart utfører forespørselen uten re-render-feil.'
+    ]
+  },
+  {
     version: 'v3.5.7',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.7: Skuddsikker Direkte Klient-Side Gemini SDK Fallback',

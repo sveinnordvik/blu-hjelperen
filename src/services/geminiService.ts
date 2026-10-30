@@ -48,26 +48,37 @@ export async function kallGeminiCloudFunction(prompt: string): Promise<{ success
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
 async function tryDirectClientGeminiCall(model: string, contents: any, config: any): Promise<{ text: string } | null> {
-  const clientKey = 
+  let clientKey = 
     import.meta.env.VITE_GEMINI_API_KEY || 
     (typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || (process.env as any)?.VITE_GEMINI_API_KEY) : '') ||
     (typeof window !== 'undefined' ? (window as any)?.GEMINI_API_KEY : '');
 
   if (!clientKey || clientKey === 'MY_GEMINI_API_KEY') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        clientKey = localStorage.getItem('blu_gemini_api_key') || localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
+      }
+    } catch (e) {}
+  }
+
+  if (!clientKey || clientKey.trim() === '' || clientKey === 'MY_GEMINI_API_KEY') {
+    console.warn("⚠️ Ingen gyldig Gemini API-nøkkel funnet på klienten for direkte kall.");
     return null;
   }
 
+  const cleanKey = clientKey.trim();
+  const targetModel = (model && !model.includes("1.5") && !model.includes("2.0") && !model.includes("2.5")) ? model : "gemini-3.8-flash";
+
+  const cleanConfig = { ...(config || {}) };
+  delete cleanConfig.temperature;
+  delete cleanConfig.topP;
+  delete cleanConfig.topK;
+  delete cleanConfig.candidateCount;
+
+  // Forsøk 1: GoogleGenAI SDK (@google/genai)
   try {
     const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey: clientKey });
-    
-    const cleanConfig = { ...(config || {}) };
-    delete cleanConfig.temperature;
-    delete cleanConfig.topP;
-    delete cleanConfig.topK;
-    delete cleanConfig.candidateCount;
-
-    const targetModel = (model && !model.includes("1.5") && !model.includes("2.0") && !model.includes("2.5")) ? model : "gemini-3.8-flash";
+    const ai = new GoogleGenAI({ apiKey: cleanKey });
     const response = await ai.models.generateContent({
       model: targetModel,
       contents: contents,
@@ -75,12 +86,51 @@ async function tryDirectClientGeminiCall(model: string, contents: any, config: a
     });
 
     if (response?.text) {
-      console.log("✅ Direkte klient-side Gemini API-kall vellykket!");
+      console.log("✅ Direkte klient-side SDK Gemini API-kall vellykket!");
       return { text: response.text };
     }
   } catch (err) {
-    console.warn("Direkte client-side GoogleGenAI SDK-kall feilet:", err);
+    console.warn("Direkte client-side GoogleGenAI SDK-kall feilet, prøver direkte REST API:", err);
   }
+
+  // Forsøk 2: Direkte REST API-kall mot generativelanguage.googleapis.com
+  try {
+    const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${cleanKey}`;
+    let formattedContents: any[] = [];
+    if (typeof contents === 'string') {
+      formattedContents = [{ role: 'user', parts: [{ text: contents }] }];
+    } else if (Array.isArray(contents)) {
+      formattedContents = contents.map((turn: any) => ({
+        role: turn.role === 'model' ? 'model' : 'user',
+        parts: Array.isArray(turn.parts) ? turn.parts.map((p: any) => typeof p === 'string' ? { text: p } : p) : [{ text: turn.text || ' ' }]
+      }));
+    }
+
+    const payload: any = { contents: formattedContents };
+    if (cleanConfig.systemInstruction) {
+      payload.systemInstruction = {
+        parts: [{ text: typeof cleanConfig.systemInstruction === 'string' ? cleanConfig.systemInstruction : JSON.stringify(cleanConfig.systemInstruction) }]
+      };
+    }
+
+    const restResp = await fetch(restUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (restResp.ok) {
+      const restData = await restResp.json();
+      const textResult = restData?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (textResult) {
+        console.log("✅ Direkte REST API Gemini-kall vellykket!");
+        return { text: textResult };
+      }
+    }
+  } catch (restErr) {
+    console.warn("Direkte REST API fetch til Google Gemini feilet:", restErr);
+  }
+
   return null;
 }
 

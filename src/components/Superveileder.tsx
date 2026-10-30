@@ -287,6 +287,13 @@ export function Superveileder({
   const [savedToLogId, setSavedToLogId] = useState<string | null>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [confirmDeleteActiveChat, setConfirmDeleteActiveChat] = useState(false);
+  const [userApiKey, setUserApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('blu_gemini_api_key') || '';
+    } catch (e) {
+      return '';
+    }
+  });
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isInitialMount = useRef(true);
@@ -1657,15 +1664,52 @@ export function Superveileder({
                       </div>
 
                       {isErrorMsg ? (
-                        <div className="p-4 rounded-2xl text-sm leading-relaxed relative bg-rose-50/95 border border-rose-200 text-rose-950 rounded-bl-xs shadow-xs w-full">
-                          <div className="flex items-start gap-2 mb-2">
+                        <div className="p-4 rounded-2xl text-sm leading-relaxed relative bg-rose-50/95 border border-rose-200 text-rose-950 rounded-bl-xs shadow-xs w-full space-y-3">
+                          <div className="flex items-start gap-2">
                             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            <div className="font-bold text-rose-900 text-xs">Forespørselen ble avbrutt eller svar feilet</div>
+                            <div>
+                              <div className="font-bold text-rose-900 text-xs">Forespørselen ble avbrutt eller svar feilet</div>
+                              <p className="text-rose-900/90 text-xs mt-1 whitespace-pre-wrap leading-normal font-sans">
+                                {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-rose-900/90 text-xs mb-3 whitespace-pre-wrap leading-normal font-sans">
-                            {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}
+
+                          {/* Innebygd API-nøkkel innleggingspanel hvis API proxy mangler */}
+                          <div className="p-3 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-2">
+                            <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                              <span>🔑 Legg inn Gemini API-nøkkel for direkte tilkobling:</span>
+                              {userApiKey && <span className="text-[10px] text-emerald-400 font-normal">Nøkkel lagret i nettleser</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="password"
+                                placeholder="Lim inn AIzaSy... nøkkel fra Google AI Studio"
+                                value={userApiKey}
+                                onChange={(e) => setUserApiKey(e.target.value)}
+                                className="flex-1 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (userApiKey.trim()) {
+                                    localStorage.setItem('blu_gemini_api_key', userApiKey.trim());
+                                    const currentIdx = activeChat.messages.findIndex(m => m.id === msg.id);
+                                    const prevUserMsg = activeChat.messages.slice(0, currentIdx).reverse().find(m => m.role === 'user');
+                                    handleDeleteMessage(msg.id);
+                                    if (prevUserMsg) {
+                                      handleSendMessage(prevUserMsg.content, true);
+                                    }
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition-all cursor-pointer shadow-2xs shrink-0"
+                              >
+                                Lagre & Prøv igjen
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 pt-2 border-t border-rose-200/80">
+
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-200/80">
                             <button
                               type="button"
                               onClick={() => {
@@ -1676,16 +1720,32 @@ export function Superveileder({
                                   handleSendMessage(prevUserMsg.content, true);
                                 }
                               }}
-                              className="px-2.5 py-1 bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1.5 bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
                               title="Prøv på nytt"
                             >
-                              <RotateCcw className="w-3 h-3 text-rose-600" />
+                              <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
                               <span>Prøv igjen</span>
                             </button>
                             <button
                               type="button"
+                              onClick={() => {
+                                try {
+                                  if ('caches' in window) {
+                                    caches.keys().then(names => names.forEach(n => caches.delete(n)));
+                                  }
+                                } catch (e) {}
+                                window.location.reload();
+                              }}
+                              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                              title="Tøm hurtigbuffer og oppdater appen"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Tøm cache & oppdater</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleDeleteMessage(msg.id)}
-                              className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                              className="px-2.5 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                               title="Fjern meldingen"
                             >
                               <Trash2 className="w-3.5 h-3.5 text-rose-600" />
