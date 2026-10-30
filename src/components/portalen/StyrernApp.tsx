@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { callGoogleAIProxy } from '../../services/geminiService';
 import { 
   LayoutDashboard, 
   Users, 
@@ -332,17 +333,15 @@ Spørsmål fra styrer: "${textToSend}"
 
 Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formuleringer som styrer direkte kan bruke.`;
 
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt })
+      const data = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: fullPrompt
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (data?.text) {
         setAiChat(prev => [...prev, { 
           role: 'assistant', 
-          text: data.text || 'Beklager, mottok ikke noe svar fra modellen.', 
+          text: data.text, 
           time: new Date().toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' }) 
         }]);
       } else {

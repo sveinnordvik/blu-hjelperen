@@ -430,6 +430,17 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.9',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.9: 100% Direkte @google/genai SDK i Nettleseren med VITE_GEMINI_API_KEY',
+    changes: [
+      'Ren Klient-Integrasjon: Slettet all logikk og forsøk på å kalle lokal server (/api/gemini/generate eller /api/chat) til fordel for direkte @google/genai SDK.',
+      'Miljøvariabel VITE_GEMINI_API_KEY: Henter API-nøkkelen utelukkende via import.meta.env.VITE_GEMINI_API_KEY for problemfri kjøring i statisk Firebase Hosting-produksjon.',
+      'Total Uavhengighet: Ignorerer server.ts fullstendig for KI-forespørsler i hele applikasjonen (Feltveileder, Superveileder, studentchat og verktøy).',
+      'Systemomfattende overgang: Oppdatert alle underapper og moduler til å bruke callGoogleAIProxy og direkte bildegenerering i nettleseren.'
+    ]
+  },
+  {
     version: 'v3.5.8',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.8: Flerlags Direkte REST API Fallback & Innebygd Nøkkelinnlegging',

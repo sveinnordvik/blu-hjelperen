@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { callGoogleAIProxy } from '../../services/geminiService';
 import ProgressionModule from './ProgressionModule';
 import PresentationMagasinModal from './PresentationMagasinModal';
 import { jsPDF } from 'jspdf';
@@ -1194,17 +1195,14 @@ export default function AarshjulOgLovverk({ initialSection = 'alle', activeSecti
   const handleGenerateAIProgression = async () => {
     setAiGeneratingProgression(true);
     try {
-      const response = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gemini-3.8-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: `Lag et nytt progresjonsmatriseutkast for en norsk barnehage basert på Rammeplanen.
+      const res = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `Lag et nytt progresjonsmatriseutkast for en norsk barnehage basert på Rammeplanen.
 Svar i gyldig JSON med følgende struktur:
 {
   "title": "Kort tittel på satsingsområdet (f.eks. Kunst, fagområder, miljø, konfliktmestring)",
@@ -1212,30 +1210,26 @@ Svar i gyldig JSON med følgende struktur:
   "storbarnText": "Konkrete tiltak og fokus i hverdagen for 3-5 år (storbarn/skogsavdeling)",
   "skoleklubbText": "Konkrete tiltak og fokus i hverdagen for 5-6 år (førskoleklubb)"
 }`
-                }
-              ]
-            }
-          ],
-          config: { responseMimeType: 'application/json' }
-        })
+              }
+            ]
+          }
+        ],
+        config: { responseMimeType: 'application/json' }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.text) {
-          const parsed = JSON.parse(data.text);
-          if (parsed.title) {
-            const newM: ProgressionMatrix = {
-              id: `matrix_ai_${Date.now()}`,
-              title: parsed.title,
-              smaabarnText: parsed.smaabarnText || '',
-              storbarnText: parsed.storbarnText || '',
-              skoleklubbText: parsed.skoleklubbText || ''
-            };
-            setProgressionMatrices(prev => [...prev, newM]);
-            setSaveSuccessNotification(`Ny AI-generert progresjonsplan for "${parsed.title}" ble lagt til!`);
-            setTimeout(() => setSaveSuccessNotification(null), 3500);
-          }
+      if (res?.text) {
+        const parsed = JSON.parse(res.text);
+        if (parsed.title) {
+          const newM: ProgressionMatrix = {
+            id: `matrix_ai_${Date.now()}`,
+            title: parsed.title,
+            smaabarnText: parsed.smaabarnText || '',
+            storbarnText: parsed.storbarnText || '',
+            skoleklubbText: parsed.skoleklubbText || ''
+          };
+          setProgressionMatrices(prev => [...prev, newM]);
+          setSaveSuccessNotification(`Ny AI-generert progresjonsplan for "${parsed.title}" ble lagt til!`);
+          setTimeout(() => setSaveSuccessNotification(null), 3500);
         }
       }
     } catch {
@@ -1300,41 +1294,34 @@ Svar i gyldig JSON med følgende struktur:
   const handleGenerateAIMonthPlan = async () => {
     setAiGeneratingMonth(true);
     try {
-      const response = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gemini-3.8-flash',
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: `Generer et pedagogisk månedsutkast for ${activeMonth} i en norsk barnehage basert på Rammeplanen.
+      const res = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `Generer et pedagogisk månedsutkast for ${activeMonth} i en norsk barnehage basert på Rammeplanen.
 Svar i gyldig JSON med følgende felt:
 {
   "theme": "Kort inspirerende månedstema",
   "goals": "2-3 pedagogiske mål med forankring i Rammeplanen",
   "activities": "3-4 konkrete nøkkelaktiviteter, uteturer og formingsprosjekter"
 }`
-                }
-              ]
-            }
-          ],
-          config: { responseMimeType: 'application/json' }
-        })
+              }
+            ]
+          }
+        ],
+        config: { responseMimeType: 'application/json' }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.text) {
-          const parsed = JSON.parse(data.text);
-          if (parsed.theme) updateCurrentMonthData('theme', parsed.theme);
-          if (parsed.goals) updateCurrentMonthData('goals', parsed.goals);
-          if (parsed.activities) updateCurrentMonthData('activities', parsed.activities);
-          setMonthSaveMessage(`AI-utkast for ${activeMonth} generert!`);
-          setTimeout(() => setMonthSaveMessage(''), 3000);
-        }
+      if (res?.text) {
+        const parsed = JSON.parse(res.text);
+        if (parsed.theme) updateCurrentMonthData('theme', parsed.theme);
+        if (parsed.goals) updateCurrentMonthData('goals', parsed.goals);
+        if (parsed.activities) updateCurrentMonthData('activities', parsed.activities);
+        setMonthSaveMessage(`AI-utkast for ${activeMonth} generert!`);
+        setTimeout(() => setMonthSaveMessage(''), 3000);
       }
     } catch {
       updateCurrentMonthData('theme', `${activeMonth}: Oppdagelser og fellesskap i barnehagen`);
@@ -1384,17 +1371,14 @@ Svar i gyldig JSON med følgende felt:
       }
 
       try {
-        const response = await fetch('/api/gemini/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'gemini-3.8-flash',
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  {
-                    text: `Du er en pedagogisk rådgiver for norske barnehager. Ekstraher og strukturer følgende informasjon fra barnehagens dokumenter (${newFileNames.join(', ')}):
+        const res = await callGoogleAIProxy({
+          model: 'gemini-3.8-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `Du er en pedagogisk rådgiver for norske barnehager. Ekstraher og strukturer følgende informasjon fra barnehagens dokumenter (${newFileNames.join(', ')}):
 1. Visjon (1-2 inspirerende setninger)
 2. Verdigrunnlag (3-5 kulepunkter og kort forklaring om inkludering og trygghet)
 3. Vårt Helhetlige Læringssyn (hvordan barnehagen jobber med omsorg, lek, læring og danning)
@@ -1411,27 +1395,23 @@ Svar i gyldig JSON-format:
   "satsingsomraader": "...",
   "arbeidsmaater": "..."
 }`
-                  }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              temperature: 0.4
+                }
+              ]
             }
-          })
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.4
+          }
         });
 
-        if (response.ok) {
-          const resData = await response.json();
-          if (resData?.text) {
-            const parsed = JSON.parse(resData.text);
-            if (parsed.visjon) setVisjonText(parsed.visjon);
-            if (parsed.kjerneverdier) setKjerneverdierText(parsed.kjerneverdier);
-            if (parsed.laeringssyn) setLaeringssynText(parsed.laeringssyn);
-            if (parsed.satsingsomraader) setSatsingsomraaderText(parsed.satsingsomraader);
-            if (parsed.arbeidsmaater) setArbeidsmaaterText(parsed.arbeidsmaater);
-          }
+        if (res?.text) {
+          const parsed = JSON.parse(res.text);
+          if (parsed.visjon) setVisjonText(parsed.visjon);
+          if (parsed.kjerneverdier) setKjerneverdierText(parsed.kjerneverdier);
+          if (parsed.laeringssyn) setLaeringssynText(parsed.laeringssyn);
+          if (parsed.satsingsomraader) setSatsingsomraaderText(parsed.satsingsomraader);
+          if (parsed.arbeidsmaater) setArbeidsmaaterText(parsed.arbeidsmaater);
         }
       } catch (err) {
         console.error('Gemini import fallback:', err);

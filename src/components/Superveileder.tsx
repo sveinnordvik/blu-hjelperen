@@ -1675,40 +1675,6 @@ export function Superveileder({
                             </div>
                           </div>
 
-                          {/* Innebygd API-nøkkel innleggingspanel hvis API proxy mangler */}
-                          <div className="p-3 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-2">
-                            <div className="flex items-center justify-between text-xs font-bold text-amber-300">
-                              <span>🔑 Legg inn Gemini API-nøkkel for direkte tilkobling:</span>
-                              {userApiKey && <span className="text-[10px] text-emerald-400 font-normal">Nøkkel lagret i nettleser</span>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input 
-                                type="password"
-                                placeholder="Lim inn AIzaSy... nøkkel fra Google AI Studio"
-                                value={userApiKey}
-                                onChange={(e) => setUserApiKey(e.target.value)}
-                                className="flex-1 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (userApiKey.trim()) {
-                                    localStorage.setItem('blu_gemini_api_key', userApiKey.trim());
-                                    const currentIdx = activeChat.messages.findIndex(m => m.id === msg.id);
-                                    const prevUserMsg = activeChat.messages.slice(0, currentIdx).reverse().find(m => m.role === 'user');
-                                    handleDeleteMessage(msg.id);
-                                    if (prevUserMsg) {
-                                      handleSendMessage(prevUserMsg.content, true);
-                                    }
-                                  }
-                                }}
-                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-lg transition-all cursor-pointer shadow-2xs shrink-0"
-                              >
-                                Lagre & Prøv igjen
-                              </button>
-                            </div>
-                          </div>
-
                           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-200/80">
                             <button
                               type="button"

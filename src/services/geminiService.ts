@@ -11,7 +11,7 @@ export { Type }; // Re-export Type for components that use it from here
 
 /**
  * Kaller Firebase Cloud Functions 'pedlederAI' eller 'kallGeminiAPI' (Callable Function),
- * med automatisk fallback til server-proxyen (/api/gemini/generate) ved lokale tester.
+ * med direkte klient-fallback ved behov.
  */
 export async function kallGeminiCloudFunction(prompt: string): Promise<{ success: boolean; resultatTekst: string }> {
   try {
@@ -47,102 +47,21 @@ export async function kallGeminiCloudFunction(prompt: string): Promise<{ success
 
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
-async function tryDirectClientGeminiCall(model: string, contents: any, config: any): Promise<{ text: string } | null> {
-  let clientKey = 
-    import.meta.env.VITE_GEMINI_API_KEY || 
-    (typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || (process.env as any)?.VITE_GEMINI_API_KEY) : '') ||
-    (typeof window !== 'undefined' ? (window as any)?.GEMINI_API_KEY : '');
-
-  if (!clientKey || clientKey === 'MY_GEMINI_API_KEY') {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        clientKey = localStorage.getItem('blu_gemini_api_key') || localStorage.getItem('gemini_api_key') || localStorage.getItem('GEMINI_API_KEY') || '';
-      }
-    } catch (e) {}
-  }
-
-  if (!clientKey || clientKey.trim() === '' || clientKey === 'MY_GEMINI_API_KEY') {
-    console.warn("⚠️ Ingen gyldig Gemini API-nøkkel funnet på klienten for direkte kall.");
-    return null;
-  }
-
-  const cleanKey = clientKey.trim();
-  const targetModel = (model && !model.includes("1.5") && !model.includes("2.0") && !model.includes("2.5")) ? model : "gemini-3.8-flash";
-
-  const cleanConfig = { ...(config || {}) };
-  delete cleanConfig.temperature;
-  delete cleanConfig.topP;
-  delete cleanConfig.topK;
-  delete cleanConfig.candidateCount;
-
-  // Forsøk 1: GoogleGenAI SDK (@google/genai)
-  try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey: cleanKey });
-    const response = await ai.models.generateContent({
-      model: targetModel,
-      contents: contents,
-      config: cleanConfig,
-    });
-
-    if (response?.text) {
-      console.log("✅ Direkte klient-side SDK Gemini API-kall vellykket!");
-      return { text: response.text };
-    }
-  } catch (err) {
-    console.warn("Direkte client-side GoogleGenAI SDK-kall feilet, prøver direkte REST API:", err);
-  }
-
-  // Forsøk 2: Direkte REST API-kall mot generativelanguage.googleapis.com
-  try {
-    const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${cleanKey}`;
-    let formattedContents: any[] = [];
-    if (typeof contents === 'string') {
-      formattedContents = [{ role: 'user', parts: [{ text: contents }] }];
-    } else if (Array.isArray(contents)) {
-      formattedContents = contents.map((turn: any) => ({
-        role: turn.role === 'model' ? 'model' : 'user',
-        parts: Array.isArray(turn.parts) ? turn.parts.map((p: any) => typeof p === 'string' ? { text: p } : p) : [{ text: turn.text || ' ' }]
-      }));
-    }
-
-    const payload: any = { contents: formattedContents };
-    if (cleanConfig.systemInstruction) {
-      payload.systemInstruction = {
-        parts: [{ text: typeof cleanConfig.systemInstruction === 'string' ? cleanConfig.systemInstruction : JSON.stringify(cleanConfig.systemInstruction) }]
-      };
-    }
-
-    const restResp = await fetch(restUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (restResp.ok) {
-      const restData = await restResp.json();
-      const textResult = restData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (textResult) {
-        console.log("✅ Direkte REST API Gemini-kall vellykket!");
-        return { text: textResult };
-      }
-    }
-  } catch (restErr) {
-    console.warn("Direkte REST API fetch til Google Gemini feilet:", restErr);
-  }
-
-  return null;
-}
-
-// Hjelpefunksjon for å kalle via Google sin egen API direkte
+// Hjelpefunksjon for å kalle Google Gemini direkte fra nettleseren via @google/genai SDK
 export async function callGoogleAIProxy(params: {
   model: string;
   contents: any;
   config?: any;
 }) {
   const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
-  const maxRetries = 3;
+  const maxRetries = 2;
   let attempt = 0;
+
+  // Hent API-nøkkelen utelukkende via import.meta.env.VITE_GEMINI_API_KEY
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim() || apiKey === 'MY_GEMINI_API_KEY') {
+    throw new Error("Mangler VITE_GEMINI_API_KEY i miljøvariabler. Vennligst sjekk at VITE_GEMINI_API_KEY er lagt inn under Settings -> Secrets eller i GitHub Secrets.");
+  }
 
   // 1. STRICT API VALIDERING OG SANITISERING AV HISTORIKK
   let validatedContents = params.contents;
@@ -210,7 +129,6 @@ export async function callGoogleAIProxy(params: {
           const prevText = normalizedList[normalizedList.length - 1].parts[0]?.text || '';
           const currentText = validTurn.parts[0]?.text || '';
           if (prevText === currentText) {
-            // Ignorer identisk duplikat (f.eks. ved rask dobbeltklikk)
             continue;
           }
           normalizedList[normalizedList.length - 1].parts[0].text = `${prevText}\n\n${currentText}`;
@@ -228,208 +146,46 @@ export async function callGoogleAIProxy(params: {
   if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
     requestedModel = "gemini-3.8-flash";
   }
-  const targetModel = requestedModel;
 
-  // Hent brukerens Firebase Auth ID-token for sikker autentisering
-  let idToken = '';
-  try {
-    const { auth } = await import('../firebase');
-    if (auth) {
-      if (typeof auth.authStateReady === 'function') {
-        try {
-          await auth.authStateReady();
-        } catch (readyErr) {
-          console.warn("authStateReady advarsel:", readyErr);
-        }
-      }
+  const cleanConfig = { ...(params.config || {}) };
+  delete cleanConfig.temperature;
+  delete cleanConfig.topP;
+  delete cleanConfig.topK;
+  delete cleanConfig.candidateCount;
 
-      if (auth.currentUser) {
-        try {
-          idToken = await auth.currentUser.getIdToken(false);
-        } catch (e) {
-          console.warn("Prøver force refresh av idToken:", e);
-          try {
-            idToken = await auth.currentUser.getIdToken(true);
-          } catch (refreshErr) {
-            console.error("Feil ved force refresh av idToken:", refreshErr);
-          }
-        }
-      }
-    }
-  } catch (authErr) {
-    console.warn("Kunne ikke hente Firebase ID-token:", authErr);
-  }
-
-  if (!idToken) {
-    idToken = 'dev-guest-token';
-  }
+  const { GoogleGenAI } = await import("@google/genai");
+  const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
 
   while (attempt <= maxRetries) {
     try {
-      // Ved gjentatte forsøk ved 429 eller 503 prøver vi alternative modell-pooler med egen kvote
-      let modelForAttempt = targetModel;
+      let modelForAttempt = requestedModel;
       if (attempt === 1) {
-        modelForAttempt = "gemini-3.8-flash";
-      } else if (attempt === 2) {
         modelForAttempt = "gemini-3.1-flash-lite";
-      } else if (attempt >= 3) {
+      } else if (attempt >= 2) {
         modelForAttempt = "gemini-flash-latest";
       }
 
-      const cleanConfig = { ...(params.config || {}) };
-      delete cleanConfig.temperature;
-      delete cleanConfig.topP;
-      delete cleanConfig.topK;
-      delete cleanConfig.candidateCount;
-
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
-      const targetUrl = `${apiUrl}/api/gemini/generate`;
-      const resp = await fetch(targetUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({
-          model: modelForAttempt,
-          contents: validatedContents,
-          config: cleanConfig,
-        })
+      const response = await ai.models.generateContent({
+        model: modelForAttempt,
+        contents: validatedContents,
+        config: cleanConfig,
       });
 
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        const statusMsg = errData.error || `HTTP error! status: ${resp.status}`;
-        
-        // 401 Uautorisert / Ikke innlogget
-        if (resp.status === 401) {
-          try {
-            const { auth } = await import('../firebase');
-            if (auth.currentUser && attempt === 0) {
-              idToken = await auth.currentUser.getIdToken(true);
-              attempt++;
-              continue;
-            }
-          } catch {}
-          throw new Error(statusMsg || "Du må være logget inn for å bruke denne funksjonen.");
-        }
-
-        // Kritiske konfigurasjonsfeil som ikke kan løses med retry
-        if (resp.status === 500 && typeof statusMsg === 'string' && statusMsg.includes("Mangler GEMINI_API_KEY")) {
-           throw new Error(statusMsg);
-        }
-        if (typeof statusMsg === 'string' && (statusMsg.includes("API key not valid") || statusMsg.includes("API_KEY_INVALID"))) {
-           throw new Error("Ugyldig Gemini API-nøkkel satt opp. Legg inn din nøkkel i 'Settings -> Secrets' med navnet GEMINI_API_KEY (husk understrek, ikke bindestrek). Slett gjerne nøkler du ikke trenger lenger.");
-        }
-        if (resp.status === 404 && typeof statusMsg === 'string' && (statusMsg.includes("is not found") || statusMsg.includes("NOT_FOUND") || statusMsg.includes("not found"))) {
-           console.warn(`Modell ${modelForAttempt} ikke tilgjengelig, prøver fallback-modell...`);
-           throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
-        }
-        if (resp.status === 404) {
-           console.warn(`Endepunkt ${targetUrl} returnerte 404. Forsøker direkte klient-side Gemini API-kall...`);
-           const directRes = await tryDirectClientGeminiCall(modelForAttempt, validatedContents, cleanConfig);
-           if (directRes?.text) {
-             return { text: directRes.text };
-           }
-
-           // Automatisk redningsforsøk mot Firebase Cloud Functions dersom API-proxy mangler
-           try {
-             const { getFunctions, httpsCallable } = await import('firebase/functions');
-             const { app } = await import('../firebaseConfig');
-             const functions = getFunctions(app, 'europe-west1');
-             const promptText = typeof validatedContents === 'string'
-               ? validatedContents
-               : Array.isArray(validatedContents)
-                 ? validatedContents.map((t: any) => t.parts?.[0]?.text || '').join('\n')
-                 : JSON.stringify(validatedContents);
-
-             try {
-               const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
-               const cloudRes = await callable({ prompt: promptText });
-               if (cloudRes?.data?.resultatTekst) {
-                 return { text: cloudRes.data.resultatTekst };
-               }
-             } catch {
-               const callable2 = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'pedlederAI');
-               const cloudRes2 = await callable2({ prompt: promptText });
-               if (cloudRes2?.data?.resultatTekst) {
-                 return { text: cloudRes2.data.resultatTekst };
-               }
-             }
-           } catch (cfErr) {
-             console.warn("Cloud function fallback feilet:", cfErr);
-           }
-
-           if (attempt === 0) {
-             console.warn(`Endepunkt ${targetUrl} returnerte 404, forsøker på nytt...`);
-             attempt++;
-             continue;
-           }
-           throw new Error(`Feil (404): Klarte ikke å nå API-endepunktet (${targetUrl}). Sjekk nettverk eller prøv igjen om noen sekunder.`);
-        }
-        
-        // 429, 503 eller serverfeil sendes til catch for backoff og modullveksling
-        throw { status: resp.status, message: statusMsg, isServerError: true, url: targetUrl };
-      }
-
-      const textResponse = await resp.text();
-      let data: any;
-      try {
-        data = JSON.parse(textResponse);
-      } catch (parseError: any) {
-        if (resp.url && resp.url.includes("cookie_check")) {
-           throw new Error("Feil: Forespørselen ble blokkert av sikkerhetsinnstillingene til AI Studio fordi nettleseren din mangler en informasjonskapsel (cookie). Prøv et vanlig vindu i Chrome uten Inkognito.");
-        }
-        if (textResponse.substring(0, 300).toLowerCase().includes("<html") || textResponse.substring(0, 300).toLowerCase().includes("<!doctype")) {
-           console.warn(`Mottok HTML i stedet for JSON på ${targetUrl}. Forsøker direkte klient-side Gemini API-kall...`);
-           const directRes = await tryDirectClientGeminiCall(modelForAttempt, validatedContents, cleanConfig);
-           if (directRes?.text) {
-             return { text: directRes.text };
-           }
-
-           try {
-             const { getFunctions, httpsCallable } = await import('firebase/functions');
-             const { app } = await import('../firebaseConfig');
-             const functions = getFunctions(app, 'europe-west1');
-             const promptText = typeof validatedContents === 'string'
-               ? validatedContents
-               : Array.isArray(validatedContents)
-                 ? validatedContents.map((t: any) => t.parts?.[0]?.text || '').join('\n')
-                 : JSON.stringify(validatedContents);
-             const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
-             const cloudRes = await callable({ prompt: promptText });
-             if (cloudRes?.data?.resultatTekst) {
-               return { text: cloudRes.data.resultatTekst };
-             }
-           } catch {}
-           throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting uten en aktiv API-backend.`);
-        }
-        throw new Error("Feil ved tolking av svar fra API: " + parseError.message);
-      }
-
       return {
-        text: data.text || ""
+        text: response.text || ""
       };
     } catch (error: any) {
       const msg = error && typeof error === 'object' && error.message 
         ? String(error.message) 
         : (error instanceof Error ? error.message : String(error || ''));
 
-      // Returner feilen direkte hvis det er en permanent feil vi ikke skal repetere på
+      console.warn(`Gemini API-kall feilet (forsøk ${attempt + 1}/${maxRetries + 1}):`, msg);
+
       if (
-        msg.includes("Mangler GEMINI_API_KEY") || 
-        msg.includes("Ugyldig Gemini API-nøkkel") || 
-        msg.includes("API key not valid") ||
-        msg.includes("API_KEY_INVALID") ||
-        msg.includes("prepayment credits are depleted") ||
-        msg.includes("credits are depleted") ||
-        msg.includes("Kritisk feil:") ||
-        msg.includes("Feil (404)") ||
-        msg.includes("Du må være logget inn") ||
-        msg.includes("Innlogging kreves") ||
-        msg.includes("Ugyldig eller utløpt")
+        msg.includes("API key not valid") || 
+        msg.includes("API_KEY_INVALID")
       ) {
-        throw new Error(msg);
+        throw new Error("Ugyldig Gemini API-nøkkel (VITE_GEMINI_API_KEY). Vennligst kontroller nøkkelen din.");
       }
 
       if (attempt >= maxRetries) {
@@ -444,9 +200,7 @@ export async function callGoogleAIProxy(params: {
       
       attempt++;
       const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || error?.status === 429 || error?.status === 503;
-      // Vent 2.5s til 4.5s ved rate limit for å la per-sekund burst-kvoten resette seg
-      const delayMs = isRateOrBusy ? (attempt * 2500 + Math.floor(Math.random() * 800)) : (Math.pow(2, attempt) * 1000);
-      console.warn(`Gemini-kall feilet (forsøk ${attempt}/${maxRetries}), venter ${delayMs}ms før retry med alternativ modell...`);
+      const delayMs = isRateOrBusy ? 2000 : 1000;
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
@@ -2918,13 +2672,30 @@ REGLER:
     });
 
     let imagePromise: Promise<any>;
-    try {
-      imagePromise = fetch('/api/gemini/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt, aspectRatio: '16:9' })
-      }).then(r => r.json()).catch(() => ({ imageUrl: '' }));
-    } catch {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
+      imagePromise = (async () => {
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.1-flash-lite-image',
+            contents: { parts: [{ text: imagePrompt }] },
+            config: { imageConfig: { aspectRatio: '16:9' as any } }
+          });
+          for (const cand of response.candidates || []) {
+            for (const part of cand.content?.parts || []) {
+              if (part.inlineData?.data) {
+                return { imageUrl: `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}` };
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Bildegenerering for foreldreoppdatering feilet, bruker kuratert bilde:", e);
+        }
+        return { imageUrl: '' };
+      })();
+    } else {
       imagePromise = Promise.resolve({ imageUrl: '' });
     }
 
@@ -3049,23 +2820,66 @@ export const CURATED_SLIDE_BACKGROUNDS: CuratedSlideBackground[] = [
 ];
 
 /**
+ * Genererer et bilde direkte i nettleseren via @google/genai uten server-proxy
+ */
+export async function generateDirectImageBrowser(prompt: string, aspectRatio: '16:9' | '1:1' | '4:3' = '16:9'): Promise<string> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
+    try {
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { aspectRatio: aspectRatio as any } }
+      });
+      for (const cand of response.candidates || []) {
+        for (const part of cand.content?.parts || []) {
+          if (part.inlineData?.data) {
+            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Nettleser-bildegenerering feilet:", err);
+    }
+  }
+  return '';
+}
+
+/**
  * Genererer et KI-basert bakgrunnsbilde tilpasset presentasjonens pedagogiske tema
  */
 export async function generateSlideBackgroundImage(topic: string): Promise<string> {
-  const prompt = `A tasteful, subtle, minimalist and artistic background wallpaper for an academic slide presentation in a Norwegian early childhood kindergarten education (barnehagelærer) context about: ${topic}. Soft diffused Nordic natural light, uncluttered center, gentle watercolor and subtle texture, muted earth or pastel tones, peaceful atmosphere, horizontal 16:9 widescreen composition without any text, letters, typography or human faces.`;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
+    try {
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
+      const prompt = `A tasteful, subtle, minimalist and artistic background wallpaper for an academic slide presentation in a Norwegian early childhood kindergarten education (barnehagelærer) context about: ${topic}. Soft diffused Nordic natural light, uncluttered center, gentle watercolor and subtle texture, muted earth or pastel tones, peaceful atmosphere, horizontal 16:9 widescreen composition without any text, letters, typography or human faces.`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: {
+          parts: [{ text: prompt }]
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: '16:9' as any,
+          }
+        }
+      });
 
-  try {
-    const res = await fetch('/api/gemini/generate-image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, aspectRatio: '16:9' })
-    });
-    const data = await res.json();
-    if (data?.imageUrl) {
-      return data.imageUrl;
+      for (const cand of response.candidates || []) {
+        for (const part of cand.content?.parts || []) {
+          if (part.inlineData?.data) {
+            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Kunne ikke generere bilde via @google/genai, bruker kuratert bilde:", err);
     }
-  } catch (err) {
-    console.warn("Kunne ikke kalle /api/gemini/generate-image for lysbildebakgrunn:", err);
   }
 
   // Velg kuratert bakgrunn ved feil eller manglende bilde-respons

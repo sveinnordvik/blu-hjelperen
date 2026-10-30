@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { callGoogleAIProxy } from '../../services/geminiService';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 import { 
   Smile, 
@@ -116,15 +117,13 @@ Svar praktisk, kreativt og med høy yrkesstolthet.
 Spørsmål: "${msg}"
 Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktiviteten kan tilpasses ulike barn, og hvilke læringsmomenter som ligger i situasjonen.`;
 
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+      const data = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: prompt
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setAiLog(prev => [...prev, { role: 'assistant', text: data.text || 'Beklager, kunne ikke hente forslag akkurat nå.' }]);
+      if (data?.text) {
+        setAiLog(prev => [...prev, { role: 'assistant', text: data.text }]);
       } else {
         setTimeout(() => {
           setAiLog(prev => [...prev, {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { generateDirectImageBrowser } from '../../services/geminiService';
 import { 
   X, ChevronLeft, ChevronRight, Download, BookOpen, 
   Sparkles, Heart, Trees, Layers, Smile, ShieldCheck, 
@@ -621,15 +622,10 @@ export default function PresentationMagasinModal({
         styledPrompt += ", cinematic warm golden hour, outdoor kindergarten adventures, highly detailed photo";
       }
 
-      const res = await fetch("/api/gemini/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: styledPrompt, aspectRatio: "16:9" })
-      });
-      const data = await res.json();
-      if (data.imageUrl) {
+      const imageUrl = await generateDirectImageBrowser(styledPrompt, "16:9");
+      if (imageUrl) {
         updateCurrentPageGraphic({
-          imageSrc: data.imageUrl,
+          imageSrc: imageUrl,
           imageCaption: promptToUse.length > 55 ? promptToUse.slice(0, 52) + '...' : promptToUse,
           imageTag: 'AI-Generert'
         });
@@ -649,21 +645,16 @@ export default function PresentationMagasinModal({
     if (!editingBox || !promptText.trim()) return;
     setIsGeneratingAiImage(true);
     try {
-      const res = await fetch("/api/gemini/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: promptText + ", authentic norwegian kindergarten, joyful kids, realistic warm photography",
-          aspectRatio: "16:9"
-        })
-      });
-      const data = await res.json();
-      if (data.imageUrl) {
+      const imageUrl = await generateDirectImageBrowser(
+        promptText + ", authentic norwegian kindergarten, joyful kids, realistic warm photography",
+        "16:9"
+      );
+      if (imageUrl) {
         setEditingBox({
           ...editingBox,
           box: {
             ...editingBox.box,
-            imageSrc: data.imageUrl,
+            imageSrc: imageUrl,
             imageTag: 'AI-Bilde'
           }
         });

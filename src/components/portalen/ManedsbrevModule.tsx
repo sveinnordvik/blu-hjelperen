@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { generateDirectImageBrowser } from '../../services/geminiService';
 import { 
   BookOpen, 
   Sparkles, 
@@ -526,14 +527,9 @@ export default function ManedsbrevModule({
         styledPrompt += ", cinematic warm golden hour, outdoor kindergarten adventures, highly detailed photo";
       }
 
-      const res = await fetch("/api/gemini/generate-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: styledPrompt, aspectRatio: "16:9" })
-      });
-      const data = await res.json();
-      if (data.imageUrl) {
-        applyImageToTarget(data.imageUrl, aiPromptInput, 'AI-Generert');
+      const imageUrl = await generateDirectImageBrowser(styledPrompt, "16:9");
+      if (imageUrl) {
+        applyImageToTarget(imageUrl, aiPromptInput, 'AI-Generert');
         setIsGraphicModalOpen(false);
       } else {
         alert("Kunne ikke generere bilde akkurat nå. Vennligst velg et bilde fra det kurerte galleriet.");

@@ -290,7 +290,7 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
         userNotice = msg;
       }
 
-      const technicalDetails = `Endepunkt: /api/gemini/generate\nStatus: ${err?.status || 'NETTVERK / API-AVBRUDD'}\nMottatt feil: ${msg || 'Ingen detaljert feilmelding mottatt'}\nTidsstempel: ${new Date().toLocaleString()}`;
+      const technicalDetails = `Tjeneste: Google Gemini (@google/genai direkte)\nStatus: ${err?.status || 'NETTVERK / API-AVBRUDD'}\nMottatt feil: ${msg || 'Ingen detaljert feilmelding mottatt'}\nTidsstempel: ${new Date().toLocaleString()}`;
 
       const errorMsg: ChatMessage = {
         id: `asst-err-${Date.now()}`,

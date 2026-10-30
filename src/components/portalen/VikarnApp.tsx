@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { callGoogleAIProxy } from '../../services/geminiService';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 import { 
   Zap, 
@@ -86,15 +87,13 @@ export default function VikarnApp() {
 Vikar spør: "${msg}"
 Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn på sikkerhet og barns trygghet hvis relevant.`;
 
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+      const data = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: prompt
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setAiLog(prev => [...prev, { role: 'assistant', text: data.text || 'Beklager, kunne ikke hente råd.' }]);
+      if (data?.text) {
+        setAiLog(prev => [...prev, { role: 'assistant', text: data.text }]);
       } else {
         setTimeout(() => {
           setAiLog(prev => [...prev, {

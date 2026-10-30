@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { callGoogleAIProxy } from '../../services/geminiService';
 import { 
   Camera, 
   Calendar, 
@@ -132,15 +133,13 @@ Pedleder spør: "${msg}"
 
 Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag til progresjon, tilrettelegging for ulike aldersgrupper og Rammeplan-forankring.`;
 
-      const res = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+      const data = await callGoogleAIProxy({
+        model: 'gemini-3.8-flash',
+        contents: prompt
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setAiLog(prev => [...prev, { role: 'assistant', text: data.text || 'Kunne ikke generere svar.' }]);
+      if (data?.text) {
+        setAiLog(prev => [...prev, { role: 'assistant', text: data.text }]);
       } else {
         setTimeout(() => {
           setAiLog(prev => [...prev, {
