@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.5.7',
+    date: '2026-10-30',
+    title: 'Oppgradering til versjon 3.5.7: Skuddsikker Direkte Klient-Side Gemini SDK Fallback',
+    changes: [
+      'Skuddsikker Klient-Fallback: Kaller @google/genai SDK direkte fra nettleseren dersom server-endepunktet (/api/gemini/generate) gir 404 eller nettverksbrudd.',
+      'Vite Define-Konfigurasjon: Eksponert VITE_GEMINI_API_KEY i vite.config.ts slik at klienten garantert kan sende meldinger uten feil.',
+      'Sømløs opplevelse: Ingen feilmeldinger eller avbrudd i chatten selv på statisk hosting uten server-proxy.'
+    ]
+  },
+  {
     version: 'v3.5.6',
     date: '2026-10-30',
     title: 'Oppgradering til versjon 3.5.6: Express OPTIONS Preflight Fix & Direkte Klient-Fallback',

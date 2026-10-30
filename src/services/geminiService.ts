@@ -47,6 +47,43 @@ export async function kallGeminiCloudFunction(prompt: string): Promise<{ success
 
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
+async function tryDirectClientGeminiCall(model: string, contents: any, config: any): Promise<{ text: string } | null> {
+  const clientKey = 
+    import.meta.env.VITE_GEMINI_API_KEY || 
+    (typeof process !== 'undefined' ? (process.env?.GEMINI_API_KEY || (process.env as any)?.VITE_GEMINI_API_KEY) : '') ||
+    (typeof window !== 'undefined' ? (window as any)?.GEMINI_API_KEY : '');
+
+  if (!clientKey || clientKey === 'MY_GEMINI_API_KEY') {
+    return null;
+  }
+
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey: clientKey });
+    
+    const cleanConfig = { ...(config || {}) };
+    delete cleanConfig.temperature;
+    delete cleanConfig.topP;
+    delete cleanConfig.topK;
+    delete cleanConfig.candidateCount;
+
+    const targetModel = (model && !model.includes("1.5") && !model.includes("2.0") && !model.includes("2.5")) ? model : "gemini-3.8-flash";
+    const response = await ai.models.generateContent({
+      model: targetModel,
+      contents: contents,
+      config: cleanConfig,
+    });
+
+    if (response?.text) {
+      console.log("✅ Direkte klient-side Gemini API-kall vellykket!");
+      return { text: response.text };
+    }
+  } catch (err) {
+    console.warn("Direkte client-side GoogleGenAI SDK-kall feilet:", err);
+  }
+  return null;
+}
+
 // Hjelpefunksjon for å kalle via Google sin egen API direkte
 export async function callGoogleAIProxy(params: {
   model: string;
@@ -239,6 +276,12 @@ export async function callGoogleAIProxy(params: {
            throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
+           console.warn(`Endepunkt ${targetUrl} returnerte 404. Forsøker direkte klient-side Gemini API-kall...`);
+           const directRes = await tryDirectClientGeminiCall(modelForAttempt, validatedContents, cleanConfig);
+           if (directRes?.text) {
+             return { text: directRes.text };
+           }
+
            // Automatisk redningsforsøk mot Firebase Cloud Functions dersom API-proxy mangler
            try {
              const { getFunctions, httpsCallable } = await import('firebase/functions');
@@ -288,7 +331,12 @@ export async function callGoogleAIProxy(params: {
            throw new Error("Feil: Forespørselen ble blokkert av sikkerhetsinnstillingene til AI Studio fordi nettleseren din mangler en informasjonskapsel (cookie). Prøv et vanlig vindu i Chrome uten Inkognito.");
         }
         if (textResponse.substring(0, 300).toLowerCase().includes("<html") || textResponse.substring(0, 300).toLowerCase().includes("<!doctype")) {
-           // Forsøk Cloud Function fallback dersom hosting serverer HTML-fallback
+           console.warn(`Mottok HTML i stedet for JSON på ${targetUrl}. Forsøker direkte klient-side Gemini API-kall...`);
+           const directRes = await tryDirectClientGeminiCall(modelForAttempt, validatedContents, cleanConfig);
+           if (directRes?.text) {
+             return { text: directRes.text };
+           }
+
            try {
              const { getFunctions, httpsCallable } = await import('firebase/functions');
              const { app } = await import('../firebaseConfig');
