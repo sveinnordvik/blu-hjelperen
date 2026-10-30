@@ -67,6 +67,79 @@ const getDirname = () => {
 };
 const _dirname = getDirname();
 
+// Sanitiserer og slår sammen historikk slik at Gemini API får gyldige, vekslende user/model-turer
+function sanitizeContents(contents: any): any {
+  if (!contents) return " ";
+  if (typeof contents === "string") {
+    return contents.trim() || " ";
+  }
+  if (!Array.isArray(contents)) {
+    return contents;
+  }
+
+  // 1. Konverter elementer til standard form: { role: 'user'|'model', parts: [{ text: string }] }
+  const rawList: Array<{ role: 'user' | 'model'; text: string }> = [];
+  for (const item of contents) {
+    if (!item) continue;
+    if (typeof item === 'string') {
+      if (item.trim()) rawList.push({ role: 'user', text: item.trim() });
+      continue;
+    }
+    let role: 'user' | 'model' = (item.role === 'model' || item.role === 'assistant') ? 'model' : 'user';
+    let text = '';
+    if (Array.isArray(item.parts)) {
+      text = item.parts.map((p: any) => typeof p === 'string' ? p : (p?.text || '')).join('\n').trim();
+    } else if (item.text && typeof item.text === 'string') {
+      text = item.text.trim();
+    } else if (item.content && typeof item.content === 'string') {
+      text = item.content.trim();
+    }
+
+    if (!text) continue;
+
+    // Filtrer ut feilmeldinger fra klient/UI
+    const lowerText = text.toLowerCase();
+    if (
+      lowerText.includes("det oppstod et midlertidig avbrudd") ||
+      lowerText.includes("midlertidig feil under tilkobling") ||
+      lowerText.includes("klarte ikke å nå api-endepunktet") ||
+      lowerText.includes("feil (404)") ||
+      lowerText.includes("du må være logget inn") ||
+      lowerText.includes("serverfeil ved kontakt med gemini")
+    ) {
+      continue;
+    }
+
+    rawList.push({ role, text });
+  }
+
+  if (rawList.length === 0) {
+    return [{ role: 'user', parts: [{ text: "Hei" }] }];
+  }
+
+  // 2. Dropp ledende 'model'-tur dersom første turn er 'model'
+  const firstUserIdx = rawList.findIndex(t => t.role === 'user');
+  const validList = firstUserIdx !== -1 ? rawList.slice(firstUserIdx) : rawList;
+
+  // 3. Slå sammen påfølgende meldinger med SAMME rolle (f.eks. user, user -> én user med samlet tekst)
+  const normalized: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  for (const turn of validList) {
+    if (normalized.length > 0 && normalized[normalized.length - 1].role === turn.role) {
+      const prevText = normalized[normalized.length - 1].parts[0].text;
+      if (prevText !== turn.text) {
+        normalized[normalized.length - 1].parts[0].text = `${prevText}\n\n${turn.text}`;
+      }
+    } else {
+      normalized.push({
+        role: turn.role,
+        parts: [{ text: turn.text }]
+      });
+    }
+  }
+
+  return normalized.length > 0 ? normalized : [{ role: 'user', parts: [{ text: "Hei" }] }];
+}
+
 // Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
 async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
   let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
@@ -75,8 +148,10 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
     initial = "gemini-3.8-flash";
   }
 
+  // Sørg for at contents alltid er strengt vekslende og uten feilmeldinger
+  const sanitizedContents = sanitizeContents(contents);
+
   // Modellrekke for robusthet mot 404 (modell ikke tilgjengelig for nøkkel), 429 (kvote) og 503 (stor pågang)
-  // gemini-3.1-flash-lite har separat kvotepool og er lynrask som umiddelbar fallback
   const modelCandidates = [
     initial,
     "gemini-3.1-flash-lite"
@@ -89,7 +164,7 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
     try {
       const response = await ai.models.generateContent({
         model: currentModel,
-        contents,
+        contents: sanitizedContents,
         config,
       });
       return response;

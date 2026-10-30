@@ -184,42 +184,60 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
     const prompt = (textToSend || input).trim();
     if (!prompt || isLoading) return;
 
-    const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
-      role: 'user',
-      content: prompt,
-      timestamp: new Date().toISOString()
-    };
+    // Fjern tidligere feilmeldinger fra samtalen
+    const existingClean = messages.filter(m => {
+      if (!m || !m.content) return false;
+      if (m.id.startsWith('asst-err')) return false;
+      if (m.isError) return false;
+      if (m.content.includes('Det oppstod et midlertidig') || m.content.includes('midlertidig feil')) return false;
+      return true;
+    });
 
-    const updatedWithUser = [...messages, userMsg];
+    // Unngå dupliserte brukermeldinger ved "Prøv igjen"
+    let updatedWithUser = existingClean;
+    const lastMsg = existingClean[existingClean.length - 1];
+    if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== prompt) {
+      const userMsg: ChatMessage = {
+        id: `usr-${Date.now()}`,
+        role: 'user',
+        content: prompt,
+        timestamp: new Date().toISOString()
+      };
+      updatedWithUser = [...existingClean, userMsg];
+    }
+
     setMessages(updatedWithUser);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Filtrer ut feilmeldinger og velkomsttekst slik at samtaleloggen er ren for Gemini
-      const cleanMessages = updatedWithUser.filter(m => {
+      // Bygg ren historikk for Gemini
+      const cleanForAi = updatedWithUser.filter(m => {
         if (!m || !m.content) return false;
-        if (m.id.startsWith('asst-err')) return false;
+        if (m.id.startsWith('asst-err') || m.isError) return false;
         if (m.id === 'msg-welcome' && updatedWithUser.length > 2) return false;
-        if (m.content.includes('Det oppstod en midlertidig feil') || m.content.includes('Du må være logget inn')) return false;
         return true;
       });
 
-      // Sørg for at samtalen starter med en brukerspørring
-      const firstUserIdx = cleanMessages.findIndex(m => m.role === 'user');
-      const validHistory = firstUserIdx !== -1 ? cleanMessages.slice(firstUserIdx) : cleanMessages;
+      const firstUserIdx = cleanForAi.findIndex(m => m.role === 'user');
+      const validHistory = firstUserIdx !== -1 ? cleanForAi.slice(firstUserIdx) : cleanForAi;
 
-      const chatHistory = validHistory.slice(-8).map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
+      // Slå sammen påfølgende meldinger med samme rolle (turn-vekslingskontroll)
+      const formattedTurns: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+      for (const m of validHistory.slice(-10)) {
+        const role: 'user' | 'model' = m.role === 'assistant' ? 'model' : 'user';
+        if (formattedTurns.length > 0 && formattedTurns[formattedTurns.length - 1].role === role) {
+          formattedTurns[formattedTurns.length - 1].parts[0].text += `\n\n${m.content}`;
+        } else {
+          formattedTurns.push({ role, parts: [{ text: m.content }] });
+        }
+      }
 
       let responseString = '';
       try {
         const rawResponse = await callGoogleAIProxy({
           model: 'gemini-3.8-flash',
-          contents: chatHistory.length > 0 ? chatHistory : prompt,
+          contents: formattedTurns.length > 0 ? formattedTurns : prompt,
           config: {
             systemInstruction: FIELD_SYSTEM_INSTRUCTION,
             temperature: 0.7,
