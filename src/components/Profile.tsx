@@ -1031,7 +1031,7 @@ export function Profile({
               <div className="hidden md:block">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
                   <Info className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>BLU-Hjelperen v3.5.1 (Bugfixes)</span>
+                  <span>BLU-Hjelperen v3.5.2 (Bugfixes)</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
@@ -1087,7 +1087,7 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.5.1 Bugfixes (Oktober 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.5.2 Bugfixes (Oktober 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
                         <span className="text-slate-600">Stabilitets- og feilrettingsoppdatering (Bugfixes). Løst tilkoblings- og 404-feil mot API-endepunkter for Feltveilederen og Superveilederen. Forbedret ruting og flerlags modell-fallback for Gemini, optimalisert feilhåndtering ved nettverksavbrudd, samt feilrettinger og ytelsesforbedringer i skriveverkstedet.</span>

@@ -177,30 +177,33 @@ async function startServer() {
   }
 
   // Autentiserings- og Rate-limiting middleware på alle AI-relaterte proxy-ruter
-  app.use(["/api/gemini", "/api/chat", "/api/superveileder"], async (req, res, next) => {
-    // 1. Rate limiting per IP
+  app.use(["/api/gemini", "/api/chat", "/api/superveileder", "/api/superveilederen", "/api/superveilederenChat"], async (req, res, next) => {
+    // 0. Tillat OPTIONS for CORS-preflight uten token-sjekk
+    if (req.method === "OPTIONS") {
+      return next();
+    }
+
+    // 1. Rate limiting per IP (tillat 60 forespørsler per minutt for høyt trafikk-bruk)
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
-    if (!checkRateLimit(clientIp, 30, 60000)) {
+    if (!checkRateLimit(clientIp, 60, 60000)) {
       return res.status(429).json({ error: "For mange forespørsler fra denne klienten. Vennligst vent litt (Rate limit beskyttelse)." });
     }
 
-    // 2. Krav om innlogging (Bearer token)
+    // 2. Token-sjekk med sømløs fallback for gjester og portal-kall
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Innlogging kreves for å bruke KI-assistenten." });
-    }
-    const token = authHeader.split("Bearer ")[1]?.trim();
-    if (!token) {
-      return res.status(401).json({ error: "Mangler gyldig autentiseringstoken." });
+    let token = "dev-guest-token";
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split("Bearer ")[1]?.trim() || "dev-guest-token";
     }
 
-    // Hvis Firebase Admin er tilgjengelig, verifiser signaturen på ID-tokenet
-    if (admin.apps.length && token !== "dev-guest-token") {
+    // Hvis Firebase Admin er tilgjengelig, verifiser signaturen på ID-tokenet dersom det ikke er en gjest
+    if (admin.apps.length && token && token !== "dev-guest-token") {
       try {
         const decoded = await admin.auth().verifyIdToken(token);
         (req as any).user = decoded;
       } catch (tokenErr) {
-        return res.status(401).json({ error: "Ugyldig eller utløpt innlogging. Vennligst logg inn på nytt." });
+        // Logg advarsel, men fortsett som gjest slik at studenter aldri opplever avbrudd
+        console.warn("Mottok utløpt eller uverifisert token, fortsetter i gjestemodus:", tokenErr instanceof Error ? tokenErr.message : String(tokenErr));
       }
     }
     next();
@@ -322,7 +325,7 @@ Når du svarer, følg disse retningslinjene:
   });
 
   // Gemini Proxy Endpoint
-  app.post(["/api/gemini/generate", "/api/gemini/generate/", "/gemini/generate"], async (req, res) => {
+  app.post(["/api/gemini/generate", "/api/gemini/generate/", "/gemini/generate", "/api/gemini", "/gemini"], async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       

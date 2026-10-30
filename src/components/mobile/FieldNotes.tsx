@@ -189,7 +189,13 @@ export const FieldNotes: React.FC<FieldNotesProps> = ({
   };
 
   const handleAskAssistant = (note: FieldNote) => {
-    const prompt = `Jeg har gjort denne observasjonen/notatet i barnehagepraksis:\n"${note.title}: ${note.content}"\n\nHvordan kan jeg knytte dette til Rammeplanen og relevant pedagogisk teori? Har du forslag til didaktisk oppfølging?`;
+    const cleanContent = (note.content || '').trim();
+    const cleanTitle = (note.title || '').trim();
+    let noteText = cleanContent;
+    if (cleanTitle && !cleanContent.toLowerCase().startsWith(cleanTitle.toLowerCase().slice(0, 20))) {
+      noteText = `${cleanTitle}\n${cleanContent}`;
+    }
+    const prompt = `Jeg har gjort denne observasjonen/notatet i barnehagepraksis:\n"${noteText}"\n\nHvordan kan jeg knytte dette til Rammeplanen og relevant pedagogisk teori? Har du forslag til didaktisk oppfølging?`;
     if (onAskFieldAssistant) {
       onAskFieldAssistant(prompt);
     }

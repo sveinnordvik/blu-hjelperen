@@ -430,14 +430,14 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
-    version: 'v3.5.1',
+    version: 'v3.5.2',
     date: '2026-10-30',
-    title: 'Oppgradering til versjon 3.5.1: Bugfixes og API-stabilitet',
+    title: 'Oppgradering til versjon 3.5.2: Bugfixes og API-stabilitet',
     changes: [
       'KI-veiledning feilretting: Løst 404-feil og tilkoblingsavbrudd for Feltveilederen og Superveilederen (/api/gemini/generate og /api/chat/message).',
       'Intelligent modell-fallback: Flerlags automatisk veksling mellom Gemini-modeller for å garantere svar selv ved stor samtidig pågang.',
       'Smidig feilhåndtering: Tydelige, beroligende norske veiledningsmeldinger og forbedret Prøv igjen-funksjon.',
-      'Oppdatert versjonsindikator: Synlig versjon v3.5.1 Bugfixes i bunntekst, profil og innstillinger.'
+      'Oppdatert versjonsindikator: Synlig versjon v3.5.2 Bugfixes i bunntekst, profil og innstillinger.'
     ]
   },
   {

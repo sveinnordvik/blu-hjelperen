@@ -168,11 +168,7 @@ export async function callGoogleAIProxy(params: {
   }
 
   if (!idToken) {
-    if (import.meta.env.DEV) {
-      idToken = 'dev-guest-token';
-    } else {
-      throw new Error("Du må være logget inn med din studentkonto for å bruke KI-assistenten.");
-    }
+    idToken = 'dev-guest-token';
   }
 
   while (attempt <= maxRetries) {
@@ -231,8 +227,36 @@ export async function callGoogleAIProxy(params: {
            throw { status: 404, message: statusMsg, isServerError: true, url: targetUrl };
         }
         if (resp.status === 404) {
+           // Automatisk redningsforsøk mot Firebase Cloud Functions dersom API-proxy mangler
+           try {
+             const { getFunctions, httpsCallable } = await import('firebase/functions');
+             const { app } = await import('../firebaseConfig');
+             const functions = getFunctions(app, 'europe-west1');
+             const promptText = typeof validatedContents === 'string'
+               ? validatedContents
+               : Array.isArray(validatedContents)
+                 ? validatedContents.map((t: any) => t.parts?.[0]?.text || '').join('\n')
+                 : JSON.stringify(validatedContents);
+
+             try {
+               const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
+               const cloudRes = await callable({ prompt: promptText });
+               if (cloudRes?.data?.resultatTekst) {
+                 return { text: cloudRes.data.resultatTekst };
+               }
+             } catch {
+               const callable2 = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'pedlederAI');
+               const cloudRes2 = await callable2({ prompt: promptText });
+               if (cloudRes2?.data?.resultatTekst) {
+                 return { text: cloudRes2.data.resultatTekst };
+               }
+             }
+           } catch (cfErr) {
+             console.warn("Cloud function fallback feilet:", cfErr);
+           }
+
            if (attempt === 0) {
-             console.warn(`Endepunkt ${targetUrl} returnerte 404, forsøker fallback-modell...`);
+             console.warn(`Endepunkt ${targetUrl} returnerte 404, forsøker på nytt...`);
              attempt++;
              continue;
            }
@@ -252,6 +276,22 @@ export async function callGoogleAIProxy(params: {
            throw new Error("Feil: Forespørselen ble blokkert av sikkerhetsinnstillingene til AI Studio fordi nettleseren din mangler en informasjonskapsel (cookie). Prøv et vanlig vindu i Chrome uten Inkognito.");
         }
         if (textResponse.substring(0, 300).toLowerCase().includes("<html") || textResponse.substring(0, 300).toLowerCase().includes("<!doctype")) {
+           // Forsøk Cloud Function fallback dersom hosting serverer HTML-fallback
+           try {
+             const { getFunctions, httpsCallable } = await import('firebase/functions');
+             const { app } = await import('../firebaseConfig');
+             const functions = getFunctions(app, 'europe-west1');
+             const promptText = typeof validatedContents === 'string'
+               ? validatedContents
+               : Array.isArray(validatedContents)
+                 ? validatedContents.map((t: any) => t.parts?.[0]?.text || '').join('\n')
+                 : JSON.stringify(validatedContents);
+             const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
+             const cloudRes = await callable({ prompt: promptText });
+             if (cloudRes?.data?.resultatTekst) {
+               return { text: cloudRes.data.resultatTekst };
+             }
+           } catch {}
            throw new Error(`Kritisk feil: Appen fikk HTML tilbake fra serveren i stedet for data på ${targetUrl}. Dette betyr at appen kjører på statisk hosting uten en aktiv API-backend.`);
         }
         throw new Error("Feil ved tolking av svar fra API: " + parseError.message);

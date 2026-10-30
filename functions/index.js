@@ -31,9 +31,22 @@ try {
 // (Firebase henter som regel riktig database når prosjekt-ID er satt i miljøet, 
 // men vi kan eksplisitt hente ut fra prosjektet om nødvendig).
 
+// Sikker uthenting av eventuell arvete config-verdier uten at det krasjer v2/v1 runtime
+function getSafeConfig() {
+  try {
+    if (typeof functions.config === "function") {
+      return functions.config() || {};
+    }
+  } catch (e) {
+    // functions.config() er utfaset i nyere runtime
+  }
+  return {};
+}
+const legacyConfig = getSafeConfig();
+
 // Hent Stripe API-nøkler fra environment variables eller Firebase Functions config
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || functions.config().stripe?.secret_key;
-const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || functions.config().stripe?.webhook_secret;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || legacyConfig.stripe?.secret_key;
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET || legacyConfig.stripe?.webhook_secret;
 
 // Initialiser Stripe SDK lazily/sikkert
 const getStripe = () => {
@@ -299,13 +312,15 @@ function checkFuncRateLimit(ip, limit = 30, windowMs = 60000) {
   return true;
 }
 
-exports.api = onRequest(
-  {
-    region: "europe-west1",
-    cors: true,
-    maxInstances: 10,
-  },
-  async (req, res) => {
+exports.api = functions.region("europe-west1").https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
     const rawPath = req.path || req.url || "";
 
     // Helsesjekk
@@ -340,12 +355,7 @@ exports.api = onRequest(
       return res.status(401).json({ error: "Ugyldig eller utløpt innloggingstoken. Vennligst logg inn på nytt." });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      try {
-        apiKey = functions.config().gemini?.key;
-      } catch (e) {}
-    }
+    let apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
 
     if (!apiKey) {
       return res.status(500).json({
@@ -575,12 +585,7 @@ exports.superveilederenChat = functions.region('europe-west1').https.onCall(asyn
     { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
   ];
 
-  let apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    try {
-      apiKey = functions.config().gemini?.key;
-    } catch (e) {}
-  }
+  let apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
 
   if (!apiKey) {
     throw new functions.https.HttpsError(
@@ -765,7 +770,7 @@ exports.kallGeminiAPI = functions
       throw new functions.https.HttpsError("invalid-argument", "Mangler gyldig 'prompt' i data.");
     }
 
-    const apiKey = process.env.GEMINI_API_KEY || functions.config().gemini?.api_key;
+    const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key;
     if (!apiKey) {
       console.error("Mangler GEMINI_API_KEY i Cloud Functions miljø.");
       throw new functions.https.HttpsError("failed-precondition", "Mangler GEMINI_API_KEY på serveren.");
@@ -786,7 +791,7 @@ exports.kallGeminiAPI = functions
         // Fallback til Google Generative AI REST endpoint
         console.warn("Bruker REST fallback for Gemini:", sdkErr.message);
         const fetch = global.fetch || require("node-fetch");
-        const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
         const restRes = await fetch(restUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -820,14 +825,14 @@ exports.pedlederAI = functions.region('europe-west1').https.onCall(async (data, 
 
   // 2. Henter Gemini på samme måte som du gjør i de andre funksjonene dine
   const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const apiKey = process.env.GEMINI_API_KEY || functions.config().gemini?.key;
+  const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
   
   if (!apiKey) {
     throw new functions.https.HttpsError('internal', 'API-nøkkel mangler på serveren.');
   }
   
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" }); 
 
   try {
     // 3. Henter teksten vi sender fra React-appen

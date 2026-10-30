@@ -215,18 +215,34 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
         parts: [{ text: m.content }]
       }));
 
-      const rawResponse = await callGoogleAIProxy({
-        model: 'gemini-3.8-flash',
-        contents: chatHistory.length > 0 ? chatHistory : prompt,
-        config: {
-          systemInstruction: FIELD_SYSTEM_INSTRUCTION,
-          temperature: 0.7,
-        }
-      });
+      let responseString = '';
+      try {
+        const rawResponse = await callGoogleAIProxy({
+          model: 'gemini-3.8-flash',
+          contents: chatHistory.length > 0 ? chatHistory : prompt,
+          config: {
+            systemInstruction: FIELD_SYSTEM_INSTRUCTION,
+            temperature: 0.7,
+          }
+        });
 
-      const responseString = typeof rawResponse === 'string' 
-        ? rawResponse 
-        : (rawResponse && typeof rawResponse === 'object' && 'text' in rawResponse ? String(rawResponse.text) : '');
+        responseString = typeof rawResponse === 'string' 
+          ? rawResponse 
+          : (rawResponse && typeof rawResponse === 'object' && 'text' in rawResponse ? String(rawResponse.text) : '');
+      } catch (proxyErr) {
+        console.warn('callGoogleAIProxy feilet, forsøker kallGeminiCloudFunction fallback:', proxyErr);
+        try {
+          const { kallGeminiCloudFunction } = await import('../../services/geminiService');
+          const fbRes = await kallGeminiCloudFunction(prompt);
+          if (fbRes?.resultatTekst) {
+            responseString = fbRes.resultatTekst;
+          } else {
+            throw proxyErr;
+          }
+        } catch {
+          throw proxyErr;
+        }
+      }
 
       const assistantMsg: ChatMessage = {
         id: `asst-${Date.now()}`,
