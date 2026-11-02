@@ -22,16 +22,19 @@ interface PedPortalenForsideProps {
 
 export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }: PedPortalenForsideProps) {
   const navigate = useNavigate();
-  const { isSvein: contextIsSvein, isPortalBeta, hasBluAccess, setRole } = useRole();
+  const { isSvein: contextIsSvein, isPortalBeta, hasBluAccess, setRole, currentUserEmail } = useRole();
   const isSvein = propIsSvein ?? contextIsSvein;
 
-  // Har brukeren tilgang til Portalen-rollene (Betabruker Håvard, Svein, eller autorisert)
-  const canAccessPortal = isSvein || isPortalBeta;
+  // Har brukeren tilgang til Portalen-rollene
+  const canAccessPortal = true;
   const canAccessBlu = hasBluAccess;
 
   // Håndter navigasjon til BLU-hjelperen
   const handleOpenBlu = () => {
-    if (!canAccessBlu) return;
+    if (!currentUserEmail) {
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
+      return;
+    }
     if (onSelectApp) {
       onSelectApp('student');
       return;
@@ -42,6 +45,10 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
 
   // Håndter navigasjon til en portalrolle
   const handleOpenRole = (roleId: Role, path: string) => {
+    if (!currentUserEmail) {
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
+      return;
+    }
     setRole(roleId);
     if (onSelectApp) {
       onSelectApp(roleId.toLowerCase());

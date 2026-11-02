@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type Role = 'STUDENTN' | 'STYRERN' | 'PEDLEDERN' | 'FAGARBEIDERN' | 'ASSISTENTN' | 'VIKARN';
+export type Role = 'STUDENTN' | 'STYRERN' | 'PEDLEDERN' | 'FAGARBEIDERN' | 'ASSISTENTN' | 'VIKARN' | 'GUEST';
 
 interface RoleContextType {
-  role: Role;
+  role: Role | null;
   setRole: (role: Role) => void;
   canSwitch: boolean;
   isSvein: boolean;
@@ -13,7 +13,7 @@ interface RoleContextType {
 }
 
 const RoleContext = createContext<RoleContextType>({
-  role: 'STYRERN',
+  role: null,
   setRole: () => {},
   canSwitch: false,
   isSvein: false,
@@ -37,13 +37,13 @@ export const RoleProvider: React.FC<{
   hasBluAccess = true,
   currentUserEmail = null 
 }) => {
-  const [role, setRole] = useState<Role>(() => {
+  const [role, setRole] = useState<Role | null>(() => {
     try {
       const saved = sessionStorage.getItem('blu_active_role') as Role;
       if (saved === 'STUDENTN' && !hasBluAccess) return 'STYRERN';
-      return saved || 'STYRERN';
+      return saved || null;
     } catch {
-      return 'STYRERN';
+      return null;
     }
   });
 
@@ -52,7 +52,11 @@ export const RoleProvider: React.FC<{
       setRole('STYRERN');
       return;
     }
-    sessionStorage.setItem('blu_active_role', role);
+    if (role) {
+      sessionStorage.setItem('blu_active_role', role);
+    } else {
+      sessionStorage.removeItem('blu_active_role');
+    }
   }, [role, hasBluAccess]);
 
   return (

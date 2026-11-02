@@ -72,7 +72,12 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
     } catch (err) {
       console.error('Logout error:', err);
     }
-    window.location.reload();
+    // Slett ALLE lagrede data knyttet til økten
+    sessionStorage.clear();
+    localStorage.clear();
+    
+    // Tving full re-innlasting for å fjerne alle cachede brukerdata
+    window.location.href = '/'; 
   };
 
   const handleSaveNotes = () => {
@@ -106,9 +111,13 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
   };
 
   // Navn og profilinformasjon
-  const userName = isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug';
-  const userInitials = isSvein ? 'SN' : isHavard ? 'HH' : 'KH';
-  const userEmail = currentUserEmail || (isSvein ? 'svein.nordvik@gmail.com' : isHavard ? 'havard.hovin@melhus.kommune.no' : 'karoline.haug@eventyrskogen.no');
+  const userName = currentUserEmail 
+    ? (isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Ukjent bruker') 
+    : 'Ikke logget inn';
+  const userInitials = currentUserEmail
+    ? (isSvein ? 'SN' : isHavard ? 'HH' : 'UK')
+    : '??';
+  const userEmail = currentUserEmail || 'Ingen e-post tilknyttet';
 
   // Visningsnavn for aktiv rolle
   const roleDisplayNames: Record<Role, string> = {
