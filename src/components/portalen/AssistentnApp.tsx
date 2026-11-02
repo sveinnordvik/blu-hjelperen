@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { callGoogleAIProxy } from '../../services/geminiService';
+import UserProfileModal from '../common/UserProfileModal';
+import PortalFooter from '../common/PortalFooter';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 import { 
   HeartHandshake, 
@@ -16,6 +18,7 @@ import {
   Compass,
   Plus
 } from 'lucide-react';
+import { useRole } from '../../context/RoleContext';
 
 interface EmergencySituation {
   id: string;
@@ -24,35 +27,51 @@ interface EmergencySituation {
   reminder: string;
 }
 
+const DEFAULT_SITUATIONS: EmergencySituation[] = [
+  {
+    id: 's1',
+    situation: 'Barnet gråter og vil ikke slippe mamma/pappa ved levering',
+    solution: 'Møt barnet i øyenhøyde. Sett ord på følelsen: "Jeg ser du er lei deg og gjerne vil være med pappa. Det er helt greit å være lei seg. Kom, så vinker vi sammen ved vinduet." Hold barnet inntil deg hvis det tillater det. Vær en trygg base.',
+    reminder: 'Ikke avvis følelsene eller si "det går bra" med en gang. Anerkjenn savnet først.'
+  },
+  {
+    id: 's2',
+    situation: 'To barn krangler kraftig om den samme lekebilen',
+    solution: 'Gå rolig bort. Sitt ned mellom dem. Beskriv hva du ser: "Dere har begge lyst på den blå bilen akkurat nå!" Hør på begge. Hjelp dem å finne en løsning: "Kan vi sette en alarm på telefonen på 2 minutter for bytte, eller kan vi bygge en garasje sammen imens?"',
+    reminder: 'Du er mekler og hjelper, ikke dommer. Læringen ligger i å finne kompromiss.'
+  },
+  {
+    id: 's3',
+    situation: 'Et barn biter eller dytter et annet barn i leken',
+    solution: 'Prioriter først barnet som ble skadet – gi trøst, omsorg og kald klut. Deretter vender du deg til barnet som bet med rolig stemme: "Jeg kan ikke la deg bite, biting gjør vondt. Hvis du er sint eller vil ha leken, kan du si stopp eller hente meg."',
+    reminder: 'Små barn biter ofte pga manglende ord eller overstimulering, ikke ondskap.'
+  },
+  {
+    id: 's4',
+    situation: 'Barnet nekter å ta på seg støvler eller utedress i garderoben',
+    solution: 'Gjør det til en lek eller gi avgrensede valg: "Vil du ta på høyre eller venstre støvel først?" eller "Skal vi se om støvelen spiser foten din som en krokodille?". Anerkjenn hvis det er varmt eller trangt.',
+    reminder: 'Barn søker ofte kontroll når de føler seg overveldet. Små valg gir mestring.'
+  }
+];
+
 export default function AssistentnApp() {
+  const { setRole, canSwitch, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'handbok' | 'garderobe' | 'leker' | 'dagsplan' | 'ai-venn'>('handbok');
 
-  const [situations, setSituations] = useState<EmergencySituation[]>([
-    {
-      id: 's1',
-      situation: 'Barnet gråter og vil ikke slippe mamma/pappa ved levering',
-      solution: 'Møt barnet i øyenhøyde. Sett ord på følelsen: "Jeg ser du er lei deg og gjerne vil være med pappa. Det er helt greit å være lei seg. Kom, så vinker vi sammen ved vinduet." Hold barnet inntil deg hvis det tillater det. Vær en trygg base.',
-      reminder: 'Ikke avvis følelsene eller si "det går bra" med en gang. Anerkjenn savnet først.'
-    },
-    {
-      id: 's2',
-      situation: 'To barn krangler kraftig om den samme lekebilen',
-      solution: 'Gå rolig bort. Sitt ned mellom dem. Beskriv hva du ser: "Dere har begge lyst på den blå bilen akkurat nå!" Hør på begge. Hjelp dem å finne en løsning: "Kan vi sette en alarm på telefonen på 2 minutter for bytte, eller kan vi bygge en garasje sammen imens?"',
-      reminder: 'Du er mekler og hjelper, ikke dommer. Læringen ligger i å finne kompromiss.'
-    },
-    {
-      id: 's3',
-      situation: 'Et barn biter eller dytter et annet barn i leken',
-      solution: 'Prioriter først barnet som ble skadet – gi trøst, omsorg og kald klut. Deretter vender du deg til barnet som bet med rolig stemme: "Jeg kan ikke la deg bite, biting gjør vondt. Hvis du er sint eller vil ha leken, kan du si stopp eller hente meg."',
-      reminder: 'Små barn biter ofte pga manglende ord eller overstimulering, ikke ondskap.'
-    },
-    {
-      id: 's4',
-      situation: 'Barnet nekter å ta på seg støvler eller utedress i garderoben',
-      solution: 'Gjør det til en lek eller gi avgrensede valg: "Vil du ta på høyre eller venstre støvel først?" eller "Skal vi se om støvelen spiser foten din som en krokodille?". Anerkjenn hvis det er varmt eller trangt.',
-      reminder: 'Barn søker ofte kontroll når de føler seg overveldet. Små valg gir mestring.'
-    }
-  ]);
+  const [hasUserAddedSituations, setHasUserAddedSituations] = useState<boolean>(() => {
+    return localStorage.getItem('assistentn_has_user_added_situations') === 'true';
+  });
+
+  const [situations, setSituations] = useState<EmergencySituation[]>(() => {
+    const saved = localStorage.getItem('assistentn_situations');
+    return saved ? JSON.parse(saved) : DEFAULT_SITUATIONS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('assistentn_situations', JSON.stringify(situations));
+  }, [situations]);
 
   const [games, setGames] = useState([
     { title: 'Troll, troll kom frem!', desc: 'Ett barn (eller den voksne) er troll bak et tre/kasse. De andre barna roper: "Troll, troll kom frem!". Trollet svarer med morsom stemme før det hopper frem og kiler.' },
@@ -105,55 +124,66 @@ Svar enkelt, varmt og pedagogisk jordnært. Gi konkrete formuleringer assistente
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       {/* Header */}
       <header className="bg-sky-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-sky-500/30 shrink-0">
               <HeartHandshake className="w-6 h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight">Assistent'n</span>
-                <span className="text-[11px] font-bold bg-sky-500/20 text-sky-200 border border-sky-500/30 px-2 py-0.5 rounded-full">
+                <span className="font-extrabold text-lg tracking-tight truncate">Assistentn</span>
+                <span className="hidden sm:inline text-[11px] font-bold bg-sky-500/20 text-sky-200 border border-sky-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
                   Trygghet & Omsorg
                 </span>
               </div>
-              <p className="text-xs text-sky-200/80">Barnehageassistentens håndbok og støtte i hverdagen</p>
+              <p className="text-xs text-sky-200/80 truncate">Barnehageassistentens håndbok og støtte i hverdagen</p>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-1 bg-sky-950/60 p-1 rounded-xl border border-sky-800/60">
-            <button 
-              onClick={() => setActiveTab('handbok')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'handbok' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+          <div className="flex items-center gap-3 shrink-0">
+            <nav className="hidden md:flex items-center gap-1 bg-sky-950/60 p-1 rounded-xl border border-sky-800/60">
+              <button 
+                onClick={() => setActiveTab('handbok')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'handbok' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+              >
+                Hva gjør jeg hvis...?
+              </button>
+              <button 
+                onClick={() => setActiveTab('garderobe')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'garderobe' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+              >
+                Garderobe & Vær
+              </button>
+              <button 
+                onClick={() => setActiveTab('leker')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'leker' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+              >
+                Lekehvelvet
+              </button>
+              <button 
+                onClick={() => setActiveTab('dagsplan')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'dagsplan' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+              >
+                Dagens Sjekkliste
+              </button>
+              <button 
+                onClick={() => setActiveTab('ai-venn')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'ai-venn' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                Assistent-AI
+              </button>
+            </nav>
+
+            <div 
+              onClick={() => setIsProfileOpen(true)}
+              title="Profil"
+              className="w-9 h-9 shrink-0 rounded-full bg-sky-600 border-2 border-sky-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-sky-500 ring-2 ring-sky-300/50"
             >
-              Hva gjør jeg hvis...?
-            </button>
-            <button 
-              onClick={() => setActiveTab('garderobe')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'garderobe' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-            >
-              Garderobe & Vær
-            </button>
-            <button 
-              onClick={() => setActiveTab('leker')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'leker' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-            >
-              Lekehvelvet
-            </button>
-            <button 
-              onClick={() => setActiveTab('dagsplan')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'dagsplan' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-            >
-              Dagens Sjekkliste
-            </button>
-            <button 
-              onClick={() => setActiveTab('ai-venn')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'ai-venn' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Assistent-AI
-            </button>
-          </nav>
+              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+            </div>
+            <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+          </div>
         </div>
 
         <div className="flex md:hidden overflow-x-auto px-4 py-2 border-t border-sky-800 gap-2 bg-sky-950/95 scrollbar-none">
@@ -175,29 +205,112 @@ Svar enkelt, varmt og pedagogisk jordnært. Gi konkrete formuleringer assistente
         {activeTab === 'handbok' && (
           <div className="space-y-6">
             <StaffMonthlyFocusWidget />
-            <div>
-              <h2 className="text-xl font-black text-slate-900">"Hva gjør jeg hvis...?" Trygghetsguiden</h2>
-              <p className="text-xs text-slate-500">Konkrete råd og gode ord når utfordrende situasjoner oppstår på avdelingen.</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">"Hva gjør jeg hvis...?" Trygghetsguiden</h2>
+                <p className="text-xs text-slate-500">Konkrete råd og gode ord når utfordrende situasjoner oppstår på avdelingen.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {hasUserAddedSituations ? (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du gjenopprette standard eksempelsituasjoner?')) {
+                        setSituations(DEFAULT_SITUATIONS);
+                        setHasUserAddedSituations(false);
+                        localStorage.setItem('assistentn_has_user_added_situations', 'false');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-sky-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                  >
+                    Gjenopprett eksempler
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du tømme alle eksempelsituasjoner og starte med blanke ark?')) {
+                        setSituations([]);
+                        setHasUserAddedSituations(true);
+                        localStorage.setItem('assistentn_has_user_added_situations', 'true');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                  >
+                    Tøm eksempler
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    const sit = prompt('Hva oppstår? (f.eks: "Barnet vil ikke sove i vognen"):');
+                    const sol = prompt('Slik kan du handle (konkret løsning):');
+                    const rem = prompt('Viktig huskeregel:') || 'Vær rolig, nær og tålmodig.';
+                    if (sit && sol) {
+                      const newSit: EmergencySituation = {
+                        id: 's-' + Date.now(),
+                        situation: sit,
+                        solution: sol,
+                        reminder: rem
+                      };
+                      if (!hasUserAddedSituations) {
+                        setSituations([newSit]);
+                        setHasUserAddedSituations(true);
+                        localStorage.setItem('assistentn_has_user_added_situations', 'true');
+                      } else {
+                        setSituations(prev => [newSit, ...prev]);
+                      }
+                    }
+                  }}
+                  className="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Legg til situasjon
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {situations.map(s => (
-                <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-3">
-                  <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
-                    <AlertCircle className="w-4 h-4" />
-                    <h3 className="text-slate-900 font-black text-base">{s.situation}</h3>
+            {situations.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-3">
+                <p className="font-bold text-slate-800 text-sm">Ingen situasjoner registrert ennå</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Legg til en situasjon du opplever i hverdagen, eller hent standard råd ved å trykke på knappen under.
+                </p>
+                <button
+                  onClick={() => {
+                    setSituations(DEFAULT_SITUATIONS);
+                    setHasUserAddedSituations(false);
+                    localStorage.setItem('assistentn_has_user_added_situations', 'false');
+                  }}
+                  className="bg-sky-100 text-sky-900 text-xs font-bold px-4 py-2 rounded-xl hover:bg-sky-200 transition cursor-pointer"
+                >
+                  Hent eksempler
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {situations.map(s => (
+                  <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <h3 className="text-slate-900 font-black text-base">{s.situation}</h3>
+                      </div>
+                      <button
+                        onClick={() => setSituations(prev => prev.filter(it => it.id !== s.id))}
+                        className="text-xs text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        Slett
+                      </button>
+                    </div>
+                    <div className="p-4 bg-sky-50/60 rounded-xl border border-sky-100 text-xs text-slate-700 leading-relaxed">
+                      <strong className="text-sky-950 font-bold block mb-1">Slik kan du handle:</strong>
+                      {s.solution}
+                    </div>
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-900 font-medium">
+                      <strong className="block font-bold mb-0.5">Viktig huskeregel:</strong>
+                      {s.reminder}
+                    </div>
                   </div>
-                  <div className="p-4 bg-sky-50/60 rounded-xl border border-sky-100 text-xs text-slate-700 leading-relaxed">
-                    <strong className="text-sky-950 font-bold block mb-1">Slik kan du handle:</strong>
-                    {s.solution}
-                  </div>
-                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-900 font-medium">
-                    <strong className="block font-bold mb-0.5">Viktig huskeregel:</strong>
-                    {s.reminder}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -343,9 +456,7 @@ Svar enkelt, varmt og pedagogisk jordnært. Gi konkrete formuleringer assistente
         )}
       </main>
 
-      <footer className="bg-sky-950 text-sky-200/80 py-4 px-6 border-t border-sky-900 text-center text-xs">
-        <p>Portalen: Assistent'n • Støtte for hverdagsheltene i barnehagen</p>
-      </footer>
+      <PortalFooter theme="dark" className="bg-sky-950 border-sky-900 text-sky-200/80" />
     </div>
   );
 }

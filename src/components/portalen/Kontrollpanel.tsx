@@ -9,8 +9,15 @@ import {
   Save,
   Clock,
   CheckCircle2,
-  X
+  X,
+  UserCheck,
+  RotateCcw,
+  Sparkles,
+  AlertCircle,
+  Shield
 } from 'lucide-react';
+import { useRole, Role } from '../../context/RoleContext';
+import { LegalModal } from '../common/LegalModal';
 
 interface Ansatt {
   id: number;
@@ -28,10 +35,21 @@ interface BaseItem {
   norm: string;
 }
 
+const DEFAULT_DEMO_BASER: BaseItem[] = [
+  { id: 1, navn: 'Trollstua', alder: '0-3 år', kapasitet: 12, norm: '1:3' },
+  { id: 2, navn: 'Multemyra', alder: '0-3 år', kapasitet: 12, norm: '1:3' },
+  { id: 3, navn: 'Klatremus', alder: '3-6 år', kapasitet: 18, norm: '1:6' },
+  { id: 4, navn: 'Bjørnehiet', alder: '3-6 år', kapasitet: 18, norm: '1:6' },
+];
+
 const Kontrollpanel: React.FC = () => {
+  const { role, setRole, isSvein } = useRole();
   // Styrer hvilken underfane vi er på inne i maskinrommet
-  const [activeTab, setActiveTab] = useState<'baser' | 'innstillinger'>('baser');
+  const [activeTab, setActiveTab] = useState<'baser' | 'innstillinger' | 'modus'>('baser');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [demoNotice, setDemoNotice] = useState<string | null>(null);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
 
   // MOCK-DATA: Ansatte (med LocalStorage)
   const [ansatte, setAnsatte] = useState<Ansatt[]>(() => {
@@ -45,15 +63,23 @@ const Kontrollpanel: React.FC = () => {
     ];
   });
 
-  // MOCK-DATA: Baser (med LocalStorage)
+  // Sporing av om vi viser eksempeldata eller brukerens egne avdelinger
+  const [isDemoData, setIsDemoData] = useState<boolean>(() => {
+    const saved = localStorage.getItem('styrern_is_demo_baser');
+    return saved === null ? true : saved === 'true';
+  });
+
+  // Baser (med LocalStorage)
   const [baser, setBaser] = useState<BaseItem[]>(() => {
     const saved = localStorage.getItem('styrern_kontrollpanel_baser');
-    return saved ? JSON.parse(saved) : [
-      { id: 1, navn: 'Trollstua', alder: '0-3 år', kapasitet: 12, norm: '1:3' },
-      { id: 2, navn: 'Multemyra', alder: '0-3 år', kapasitet: 12, norm: '1:3' },
-      { id: 3, navn: 'Klatremus', alder: '3-6 år', kapasitet: 18, norm: '1:6' },
-      { id: 4, navn: 'Bjørnehiet', alder: '3-6 år', kapasitet: 18, norm: '1:6' },
-    ];
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return DEFAULT_DEMO_BASER;
+      }
+    }
+    return DEFAULT_DEMO_BASER;
   });
 
   // Innstillinger (med LocalStorage)
@@ -77,6 +103,10 @@ const Kontrollpanel: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('styrern_kontrollpanel_baser', JSON.stringify(baser));
   }, [baser]);
+
+  useEffect(() => {
+    localStorage.setItem('styrern_is_demo_baser', isDemoData ? 'true' : 'false');
+  }, [isDemoData]);
 
   useEffect(() => {
     localStorage.setItem('styrern_kontrollpanel_settings', JSON.stringify(settings));
@@ -111,18 +141,31 @@ const Kontrollpanel: React.FC = () => {
     setAnsatte(prev => prev.filter(a => a.id !== id));
   };
 
-  // Handlers for Baser
+  // Handlers for Baser & Eksempeldata
   const handleAddBase = () => {
     const navn = prompt('Navn på ny base / avdeling:');
-    if (!navn) return;
-    const alder = prompt('Aldersgruppe (f.eks. 0-3 år eller 3-6 år):') || '3-6 år';
-    const kapasitet = parseInt(prompt('Kapasitet (antall barn):') || '18', 10);
+    if (!navn || !navn.trim()) return;
+    const alder = prompt('Aldersgruppe (f.eks. 0-3 år eller 3-6 år):', '3-6 år') || '3-6 år';
+    const kapasitet = parseInt(prompt('Kapasitet (antall barn):', '18') || '18', 10);
     const norm = alder.includes('0-3') ? '1:3' : '1:6';
 
-    setBaser(prev => [
-      ...prev,
-      { id: Date.now(), navn, alder, kapasitet: isNaN(kapasitet) ? 18 : kapasitet, norm }
-    ]);
+    const newBase: BaseItem = {
+      id: Date.now(),
+      navn: navn.trim(),
+      alder,
+      kapasitet: isNaN(kapasitet) ? 18 : kapasitet,
+      norm
+    };
+
+    if (isDemoData) {
+      // Hvis brukeren fortsatt hadde eksempeldata: erstatt dem umiddelbart med den nyopprettede basen!
+      setBaser([newBase]);
+      setIsDemoData(false);
+      setDemoNotice(`Eksempeldataene ble automatisk erstattet med din nye avdeling "${newBase.navn}". Du kan når som helst gjenopprette eksempler.`);
+    } else {
+      setBaser(prev => [...prev, newBase]);
+      setDemoNotice(`Avdelingen "${newBase.navn}" ble opprettet.`);
+    }
   };
 
   const handleEditBase = (id: number) => {
@@ -134,6 +177,35 @@ const Kontrollpanel: React.FC = () => {
     const norm = alder.includes('0-3') ? '1:3' : '1:6';
 
     setBaser(prev => prev.map(b => b.id === id ? { ...b, navn, alder, kapasitet: isNaN(kapasitet) ? b.kapasitet : kapasitet, norm } : b));
+  };
+
+  const handleDeleteBase = (id: number) => {
+    const target = baser.find(b => b.id === id);
+    if (!target) return;
+    if (window.confirm(`Er du sikker på at du vil slette avdelingen "${target.navn}"?`)) {
+      setBaser(prev => {
+        const updated = prev.filter(b => b.id !== id);
+        return updated;
+      });
+      setIsDemoData(false);
+      setDemoNotice(`Avdelingen "${target.navn}" ble slettet.`);
+    }
+  };
+
+  const handleClearDemoData = () => {
+    if (window.confirm('Vil du tømme alle eksempelavdelinger og starte med blanke ark?')) {
+      setBaser([]);
+      setIsDemoData(false);
+      setDemoNotice('Eksempeldata er nå tømt. Du har blanke ark og kan opprette dine egne avdelinger.');
+    }
+  };
+
+  const handleRestoreDemoData = () => {
+    if (window.confirm('Vil du gjenopprette standard eksempelavdelinger? (Dette overskriver listen med 4 standardbaser)')) {
+      setBaser(DEFAULT_DEMO_BASER);
+      setIsDemoData(true);
+      setDemoNotice('Eksempelavdelinger er gjenopprettet.');
+    }
   };
 
   const handleSaveSettings = () => {
@@ -213,57 +285,201 @@ const Kontrollpanel: React.FC = () => {
   // RENDERING: Underfane for Baser
   const renderBaser = () => (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-800">Avdelinger / Baser</h3>
-          <p className="text-sm text-slate-500">Definer basene i barnehagen for korrekt utregning av bemanningsnorm.</p>
+      {demoNotice && (
+        <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-sm flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <Sparkles size={18} className="text-indigo-600 shrink-0" />
+            <span>{demoNotice}</span>
+          </div>
+          <button 
+            onClick={() => setDemoNotice(null)}
+            className="text-indigo-500 hover:text-indigo-800 p-1"
+          >
+            <X size={16} />
+          </button>
         </div>
-        <button 
-          onClick={handleAddBase}
-          className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium text-sm"
-        >
-          <Plus size={16} />
-          <span>Opprett ny base</span>
-        </button>
+      )}
+
+      {isDemoData && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs sm:text-sm flex items-start gap-3 shadow-xs">
+          <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <strong className="font-bold block mb-0.5">Eksempeldata er aktive</strong>
+            Dette er forhåndsutfylte eksempelbaser for å vise systemets funksjoner. Så snart du trykker <strong>«Opprett ny base»</strong>, erstattes eksemplene umiddelbart med din nye avdeling. Du kan også tømme eller hente dem tilbake nedenfor.
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-slate-800">Avdelinger / Baser</h3>
+            {isDemoData ? (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                Eksempeldata
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Aktive avdelinger ({baser.length})
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-slate-500">Definer basene i barnehagen for korrekt utregning av bemanningsnorm og rollefordeling.</p>
+        </div>
+        
+        <div className="flex items-center gap-2 flex-wrap">
+          {isDemoData ? (
+            <button 
+              onClick={handleClearDemoData}
+              className="flex items-center space-x-1.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors font-medium text-xs cursor-pointer"
+              title="Slett eksemplene og start med tom liste"
+            >
+              <Trash2 size={14} className="text-slate-500" />
+              <span>Tøm eksempeldata</span>
+            </button>
+          ) : (
+            <button 
+              onClick={handleRestoreDemoData}
+              className="flex items-center space-x-1.5 border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 px-3 py-2 rounded-lg transition-colors font-medium text-xs cursor-pointer"
+              title="Gjenopprett 4 standard eksempelavdelinger"
+            >
+              <RotateCcw size={14} className="text-slate-500" />
+              <span>Gjenopprett eksempler</span>
+            </button>
+          )}
+
+          <button 
+            onClick={handleAddBase}
+            className="flex items-center space-x-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium text-sm cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Opprett ny base</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {baser.map((base, bIdx) => (
-          <div key={`base-${base.id}-${bIdx}`} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
-                  <Building2 size={24} />
-                </div>
-                <h4 className="text-xl font-bold text-slate-800">{base.navn}</h4>
-              </div>
-              <button 
-                onClick={() => handleEditBase(base.id)}
-                className="text-slate-400 hover:text-indigo-600 p-1"
-                title="Rediger base"
-              >
-                <Edit2 size={16} />
-              </button>
-            </div>
-            <div className="space-y-2 mt-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Aldersgruppe:</span>
-                <span className="font-medium text-slate-800">{base.alder}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Kapasitet:</span>
-                <span className="font-medium text-slate-800">{base.kapasitet} barn</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Krav til norm:</span>
-                <span className="font-medium text-emerald-600">{base.norm}</span>
-              </div>
-            </div>
+      {baser.length === 0 ? (
+        <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center space-y-4">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto">
+            <Building2 size={24} />
           </div>
-        ))}
-      </div>
+          <div>
+            <h4 className="text-base font-bold text-slate-800">Ingen avdelinger registrert ennå</h4>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              Start med blanke ark ved å opprette din barnehages avdelinger, eller gjenopprett eksempeldata hvis du vil utforske hvordan det ser ut.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button 
+              onClick={handleAddBase}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium text-xs hover:bg-indigo-700 transition shadow-sm"
+            >
+              + Opprett første base
+            </button>
+            <button 
+              onClick={handleRestoreDemoData}
+              className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium text-xs hover:bg-slate-50 transition"
+            >
+              Gjenopprett eksempler
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {baser.map((base, bIdx) => (
+            <div key={`base-${base.id}-${bIdx}`} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
+                    <Building2 size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-slate-800">{base.navn}</h4>
+                    {isDemoData && (
+                      <span className="text-[10px] text-amber-700 font-semibold">Eksempel</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button 
+                    onClick={() => handleEditBase(base.id)}
+                    className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-50 transition"
+                    title="Rediger base"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteBase(base.id)}
+                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                    title="Slett base"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2 mt-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Aldersgruppe:</span>
+                  <span className="font-medium text-slate-800">{base.alder}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Kapasitet:</span>
+                  <span className="font-medium text-slate-800">{base.kapasitet} barn</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Krav til norm:</span>
+                  <span className="font-medium text-emerald-600">{base.norm}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+
+  // RENDERING: Underfane for Modus-bytte
+  const renderModus = () => {
+    // Studentn (BLU-hjelperen) skal KUN være synlig for Svein
+    const roles: { id: Role; label: string; desc: string }[] = [
+      { id: 'STYRERN', label: 'Styrer', desc: 'Overordnet ledelse, personal, HMS, bemanningsradar og innstillinger' },
+      { id: 'PEDLEDERN', label: 'Pedagogisk leder', desc: 'Daglig drift, ukeplan, dokumentasjon, observasjoner og PPT' },
+      { id: 'FAGARBEIDERN', label: 'Fagarbeider', desc: 'Praksisnær pedagogikk, idébank, hverdagsrutiner og fagbrev' },
+      { id: 'ASSISTENTN', label: 'Assistent', desc: 'Trygghet, relasjonsarbeid, garderobe og «hva gjør jeg hvis»-støtte' },
+      { id: 'VIKARN', label: 'Vikar', desc: '5-minutters hurtigonboarding, sikkerhet, avdelingsark og timeliste' },
+      ...(isSvein ? [{ id: 'STUDENTN' as Role, label: 'Student (BLU-hjelperen)', desc: 'Bacheloroppgave, didaktisk planlegger og kildebank (Kun synlig for Svein)' }] : [])
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-800">Valg av modus</h3>
+          <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+            Bytt mellom ulike roller for å se systemet fra deres perspektiv. Du kan når som helst gå tilbake til din egen styrer-rolle ved å trykke på din <strong>profil-badge</strong> (initial-sirkelen øverst til høyre), eller via <strong>returbanneret</strong> øverst på skjermen.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {roles.map(r => (
+            <button
+              key={r.id}
+              onClick={() => setRole(r.id)}
+              className={`p-6 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                role === r.id 
+                  ? 'bg-indigo-50 border-indigo-500 shadow-sm ring-1 ring-indigo-500' 
+                  : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between w-full mb-2">
+                <span className="font-bold text-base text-slate-900">{r.label}</span>
+                {role === r.id && <CheckCircle2 className="text-indigo-600" size={20} />}
+              </div>
+              <p className="text-xs text-slate-500 leading-normal">{r.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // RENDERING: Underfane for Systeminnstillinger
   const renderInnstillinger = () => (
@@ -359,6 +575,68 @@ const Kontrollpanel: React.FC = () => {
         </div>
       </div>
 
+      {/* OM PEDPORTALEN & SYSTEMSTATUS */}
+      <div>
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center space-x-2">
+          <Shield size={20} className="text-indigo-600" />
+          <span>Om PedPortalen & Systemstatus</span>
+        </h3>
+        <p className="text-sm text-slate-500 mb-6">Versjonskontroll, driftsstatus og juridiske rammer for barnehagen.</p>
+
+        <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
+              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Appversjon</span>
+              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.2</span>
+              <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
+                <CheckCircle2 size={12} /> Siste stabile utgave
+              </span>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
+              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Driftsmiljø</span>
+              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">Produksjon</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Google Cloud Platform</span>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
+              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Oppdatert</span>
+              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">November 2026</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">Automatisk synkronisert</span>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
+            <div>
+              <span className="font-semibold text-slate-800 block">Juridiske retningslinjer og personvern</span>
+              <span className="text-slate-500">I henhold til GDPR, opplæringsloven og barnehageloven.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLegalTab('privacy');
+                  setLegalModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
+              >
+                Personvernerklæring
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLegalTab('terms');
+                  setLegalModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
+              >
+                Brukervilkår
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex justify-end pt-4">
         <button 
           onClick={handleSaveSettings}
@@ -403,6 +681,15 @@ const Kontrollpanel: React.FC = () => {
               <span>Systeminnstillinger</span>
             </div>
           </button>
+          <button 
+            onClick={() => setActiveTab('modus')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'modus' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
+          >
+            <div className="flex items-center space-x-2">
+              <UserCheck size={18} />
+              <span>Valg av modus</span>
+            </div>
+          </button>
         </nav>
       </div>
 
@@ -410,7 +697,14 @@ const Kontrollpanel: React.FC = () => {
       <div className="pt-4 animate-in fade-in duration-300">
         {activeTab === 'baser' && renderBaser()}
         {activeTab === 'innstillinger' && renderInnstillinger()}
+        {activeTab === 'modus' && renderModus()}
       </div>
+
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        initialTab={legalTab}
+      />
     </div>
   );
 };

@@ -47,7 +47,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
               <Shield className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
-              Personvernerklæring for BLU-Hjelperen
+              Personvernerklæring for PedPortalen
             </h1>
             <p className="text-slate-400 font-medium tracking-wide">
               Sist oppdatert: {lastUpdated}
@@ -56,7 +56,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
 
           <div className="space-y-12">
             <p className="text-lg md:text-xl text-slate-600 leading-relaxed font-medium">
-              I BLU-Hjelperen tar vi ditt personvern på alvor. Denne personvernerklæringen forklarer hvordan vi samler inn, bruker og beskytter dine personopplysninger når du bruker appen vår.
+              I PedPortalen tar vi ditt personvern på alvor. Denne personvernerklæringen forklarer hvordan vi samler inn, bruker og beskytter dine personopplysninger når du bruker appen vår.
             </p>
 
             <section className="space-y-6">
@@ -69,7 +69,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
                 </h2>
               </div>
               <p className="leading-relaxed">
-                Når du bruker BLU-Hjelperen, samler vi inn følgende informasjon for å kunne levere tjenesten til deg:
+                Når du bruker PedPortalen, samler vi inn følgende informasjon for å kunne levere tjenesten til deg:
               </p>
               <ul className="space-y-3 list-none pl-0">
                 <li className="flex gap-4">
@@ -201,7 +201,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="max-w-4xl mx-auto px-6 py-12 border-t border-slate-100 text-center">
         <p className="text-xs text-slate-400 font-medium">
-          © {new Date().getFullYear()} BLU-Hjelperen. Alle rettigheter reservert.
+          © {new Date().getFullYear()} PedPortalen. Alle rettigheter reservert.
         </p>
       </footer>
     </div>

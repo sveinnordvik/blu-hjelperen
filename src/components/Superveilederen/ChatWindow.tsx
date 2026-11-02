@@ -116,7 +116,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
-    } font-sans finally {
+    } finally {
       setIsGenerating(false);
     }
   };

@@ -305,7 +305,7 @@ const Tilsynseksport: React.FC<TilsynseksportProps> = () => {
       doc.setFontSize(7.5);
       doc.setTextColor(148, 163, 184); // slate-400
       doc.text(
-        `Eventyrskogen Barnehage - Offisiell Tilsynsrapport  |  Generert via Styrer'n Barnehageportal`,
+        `Eventyrskogen Barnehage - Offisiell Tilsynsrapport  |  Generert via Styrern Barnehageportal`,
         15,
         290
       );

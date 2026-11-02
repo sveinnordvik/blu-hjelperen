@@ -20,6 +20,9 @@ import {
   Smartphone,
   MessageSquare
 } from 'lucide-react';
+import { useRole } from '../../context/RoleContext';
+import UserProfileModal from '../common/UserProfileModal';
+import PortalFooter from '../common/PortalFooter';
 
 interface WorkLog {
   id: string;
@@ -31,13 +34,22 @@ interface WorkLog {
 }
 
 export default function VikarnApp() {
+  const { setRole, canSwitch, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'onboarding' | 'avdelingsark' | 'redningsleker' | 'timeliste' | 'vikar-ai'>('onboarding');
+
+  const DEFAULT_WORKLOGS: WorkLog[] = [
+    { id: '1', date: '2026-10-05', dept: 'Moseplassen (1-3 år)', hours: '08:30 - 16:00 (7.5 t)', pedleder: 'Morten Hansen', note: 'God dag. Var med på sovevakt og tur i nærområdet.' }
+  ];
+
+  const [hasUserAddedWorklogs, setHasUserAddedWorklogs] = useState<boolean>(() => {
+    return localStorage.getItem('vikarn_has_user_added_worklogs') === 'true';
+  });
 
   const [workLogs, setWorkLogs] = useState<WorkLog[]>(() => {
     const saved = localStorage.getItem('vikarn_worklogs');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', date: '2026-10-05', dept: 'Moseplassen (1-3 år)', hours: '08:30 - 16:00 (7.5 t)', pedleder: 'Morten Hansen', note: 'God dag. Var med på sovevakt og tur i nærområdet.' }
-    ];
+    return saved ? JSON.parse(saved) : DEFAULT_WORKLOGS;
   });
 
   const [dagensBrief, setDagensBrief] = useState<any>(() => {
@@ -113,55 +125,66 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       {/* Header */}
       <header className="bg-emerald-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 shrink-0">
               <Zap className="w-6 h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight">Vikar'n</span>
-                <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                <span className="font-extrabold text-lg tracking-tight truncate">Vikarn</span>
+                <span className="hidden sm:inline text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
                   Hurtighåndbok & Vaktlogg
                 </span>
               </div>
-              <p className="text-xs text-emerald-200/80">Klar til innsats • Rask onboarding i barnehagen</p>
+              <p className="text-xs text-emerald-200/80 truncate">Klar til innsats • Rask onboarding i barnehagen</p>
             </div>
           </div>
 
-          <nav className="hidden md:flex items-center gap-1 bg-emerald-950/60 p-1 rounded-xl border border-emerald-800/60">
+          <div className="flex items-center gap-3 shrink-0">
+            <nav className="hidden md:flex items-center gap-1 bg-emerald-950/60 p-1 rounded-xl border border-emerald-800/60">
+              <button 
+                onClick={() => setActiveTab('onboarding')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'onboarding' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              >
+                5-minutters Onboarding
+              </button>
+              <button 
+                onClick={() => setActiveTab('avdelingsark')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'avdelingsark' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              >
+                Viktige Hensyn & Sikkerhet
+              </button>
+              <button 
+                onClick={() => setActiveTab('redningsleker')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'redningsleker' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              >
+                Redningsvester & Leker
+              </button>
+              <button 
+                onClick={() => setActiveTab('timeliste')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'timeliste' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              >
+                Min Timeliste
+              </button>
+              <button 
+                onClick={() => setActiveTab('vikar-ai')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'vikar-ai' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                Vikar-AI
+              </button>
+            </nav>
+
             <button 
-              onClick={() => setActiveTab('onboarding')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'onboarding' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              title="Min profil og rollebytte"
+              className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-emerald-500 ring-2 ring-emerald-300/50"
             >
-              5-minutters Onboarding
+              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
             </button>
-            <button 
-              onClick={() => setActiveTab('avdelingsark')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'avdelingsark' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-            >
-              Viktige Hensyn & Sikkerhet
-            </button>
-            <button 
-              onClick={() => setActiveTab('redningsleker')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'redningsleker' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-            >
-              Redningsvester & Leker
-            </button>
-            <button 
-              onClick={() => setActiveTab('timeliste')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'timeliste' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-            >
-              Min Timeliste
-            </button>
-            <button 
-              onClick={() => setActiveTab('vikar-ai')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'vikar-ai' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Vikar-AI
-            </button>
-          </nav>
+          </div>
         </div>
 
         <div className="flex md:hidden overflow-x-auto px-4 py-2 border-t border-emerald-800 gap-2 bg-emerald-950/95 scrollbar-none">
@@ -407,48 +430,103 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
                 <h2 className="text-xl font-black text-slate-900">Min Vikarlogg & Timeregistrering</h2>
                 <p className="text-xs text-slate-500">Hold orden på vaktene dine slik at du har full kontroll ved lønnskjøring.</p>
               </div>
-              <button 
-                onClick={() => {
-                  const dept = prompt('Avdeling (f.eks. Moseplassen):') || 'Avdeling';
-                  const hours = prompt('Arbeidstid (f.eks. 08:00 - 15:30):') || '08:00 - 15:30';
-                  const ped = prompt('Pedleder du jobbet med:') || 'Styrer';
-                  setWorkLogs(prev => [{
-                    id: Date.now().toString(),
-                    date: new Date().toISOString().split('T')[0],
-                    dept,
-                    hours,
-                    pedleder: ped,
-                    note: 'Vakt fullført'
-                  }, ...prev]);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow"
-              >
-                <Plus className="w-4 h-4" /> Registrer vakt
-              </button>
+              <div className="flex items-center gap-2">
+                {hasUserAddedWorklogs ? (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du gjenopprette standard eksempelvakt?')) {
+                        setWorkLogs(DEFAULT_WORKLOGS);
+                        setHasUserAddedWorklogs(false);
+                        localStorage.setItem('vikarn_has_user_added_worklogs', 'false');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition"
+                  >
+                    Gjenopprett eksempler
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du tømme eksempelvakten?')) {
+                        setWorkLogs([]);
+                        setHasUserAddedWorklogs(true);
+                        localStorage.setItem('vikarn_has_user_added_worklogs', 'true');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition"
+                  >
+                    Tøm eksempler
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    const dept = prompt('Avdeling (f.eks. Moseplassen):') || 'Avdeling';
+                    const hours = prompt('Arbeidstid (f.eks. 08:00 - 15:30):') || '08:00 - 15:30';
+                    const ped = prompt('Pedleder du jobbet med:') || 'Styrer';
+                    const newLog: WorkLog = {
+                      id: Date.now().toString(),
+                      date: new Date().toISOString().split('T')[0],
+                      dept,
+                      hours,
+                      pedleder: ped,
+                      note: 'Vakt fullført'
+                    };
+                    if (!hasUserAddedWorklogs) {
+                      setWorkLogs([newLog]);
+                      setHasUserAddedWorklogs(true);
+                      localStorage.setItem('vikarn_has_user_added_worklogs', 'true');
+                    } else {
+                      setWorkLogs(prev => [newLog, ...prev]);
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="w-4 h-4" /> Registrer vakt
+                </button>
+              </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-sm overflow-hidden">
-              {workLogs.map(log => (
-                <div key={log.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900">{log.dept}</span>
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        {log.hours}
-                      </span>
+            {workLogs.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-3">
+                <p className="font-bold text-slate-800 text-sm">Ingen registrerte vakter ennå</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Trykk «Registrer vakt» etter endt arbeidsdag for å lagre timene dine.
+                </p>
+                <button
+                  onClick={() => {
+                    setWorkLogs(DEFAULT_WORKLOGS);
+                    setHasUserAddedWorklogs(false);
+                    localStorage.setItem('vikarn_has_user_added_worklogs', 'false');
+                  }}
+                  className="bg-emerald-100 text-emerald-900 text-xs font-bold px-4 py-2 rounded-xl hover:bg-emerald-200 transition"
+                >
+                  Hent eksempelvakt
+                </button>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 shadow-sm overflow-hidden">
+                {workLogs.map(log => (
+                  <div key={log.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900">{log.dept}</span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {log.hours}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">Dato: {log.date} • Pedleder: {log.pedleder}</p>
+                      <p className="text-xs text-slate-600 mt-1 italic">"{log.note}"</p>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">Dato: {log.date} • Pedleder: {log.pedleder}</p>
-                    <p className="text-xs text-slate-600 mt-1 italic">"{log.note}"</p>
+                    <button 
+                      onClick={() => setWorkLogs(prev => prev.filter(w => w.id !== log.id))}
+                      className="text-xs text-rose-600 hover:underline self-end sm:self-center cursor-pointer"
+                    >
+                      Slett
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setWorkLogs(prev => prev.filter(w => w.id !== log.id))}
-                    className="text-xs text-rose-600 hover:underline self-end sm:self-center"
-                  >
-                    Slett
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -512,9 +590,12 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
         )}
       </main>
 
-      <footer className="bg-emerald-950 text-emerald-200/80 py-4 px-6 border-t border-emerald-900 text-center text-xs">
-        <p>Portalen: Vikar'n • Trygghet og mestring for tilkallingsvikarer i barnehagen</p>
-      </footer>
+      <PortalFooter theme="dark" className="bg-emerald-950 border-emerald-900 text-emerald-200/80" />
+
+      <UserProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+      />
     </div>
   );
 }

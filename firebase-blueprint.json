@@ -609,6 +609,20 @@
         "url": { "type": "string" }
       },
       "required": ["title", "authors", "year", "sourceType", "access"]
+    },
+    "SpecialEducationCase": {
+      "title": "SpecialEducationCase",
+      "description": "Special education case tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "caseCode": { "type": "string" },
+        "department": { "type": "string" },
+        "status": { "type": "string", "enum": ["Samtykke innhentet", "Henvisning sendt PPT", "Vedtak mottatt", "ITP opprettet", "Halvårsrapport levert"] },
+        "deadline": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["caseCode", "department", "status"]
     }
   },
   "firestore": {
@@ -623,6 +637,10 @@
     "/felles_litteratur/{documentId}": {
       "schema": "LiteratureDocument",
       "description": "Shared Open Access academic literature archive"
+    },
+    "/special_education_cases/{caseId}": {
+      "schema": "SpecialEducationCase",
+      "description": "Special education cases"
     },
     "/checklists_templates/{templateId}": {
       "schema": "ChecklistTemplate",

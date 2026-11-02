@@ -1,116 +1,117 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { auth, onAuthStateChanged } from './firebase';
-import { isAdminUser } from './config/accessConfig';
+import { isUnlimitedUser, isAdminUser, isPortalBetaUser, hasBluAccess } from './config/accessConfig';
+import { RoleProvider, useRole, Role } from './context/RoleContext';
 
 // -- 1. IMPORT AV DAGENS APP (Studentn / BLU-hjelperen) --
-// Dette er koden du allerede har bygget, som vi lar være i fred.
 import StudentnApp from './components/student/StudentnApp'; 
 import PedPortalenForside from './components/portalen/PedPortalenForside';
 
-// -- 2. IMPORT AV DE NYE "PORTALEN"-APPENE (Under utvikling) --
-// Her henter vi inn de nye grensesnittene du skal bygge.
+// -- 2. IMPORT AV DE NYE "PORTALEN"-APPENE --
 import StyrernApp from './components/portalen/StyrernApp';
 import PedledernApp from './components/portalen/PedledernApp';
 import FagarbeidernApp from './components/portalen/FagarbeidernApp';
 import AssistentnApp from './components/portalen/AssistentnApp';
 import VikarnApp from './components/portalen/VikarnApp';
 import TiltaksplanBygger from './components/portalen/TiltaksplanBygger';
-import ITPMalbygger from './components/portalen/ITPMalbygger';
+import UserProfileModal from './components/common/UserProfileModal';
 
-// =====================================================================
-// 🛑 TILGANGSKONTROLL FOR UTVIKLERMENY (KUN FOR SVEIN) 🛑
-// =====================================================================
-// På blu-hjelperen.no og for alle vanlige brukere skal INGEN se denne boksen.
-// Alle andre lander direkte i Studentn (BLU-hjelperen).
-const isSveinUser = (email?: string | null): boolean => {
-  if (!email) return false;
-  const normalized = email.trim().toLowerCase();
-  return normalized === 'svein.nordvik@gmail.com' || isAdminUser(normalized);
-};
+const ModeBanner = () => {
+  const { role, setRole, canSwitch } = useRole();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  if (role === 'STYRERN' || !canSwitch) return null;
 
-const checkSveinAccess = (userEmail?: string | null): boolean => {
-  if (typeof window === 'undefined') return false;
-
-  // 1. Er brukeren logget inn som Svein (eller admin)?
-  if (isSveinUser(userEmail)) return true;
-
-  // 2. Har Svein aktivert utviklermodus via URL-parameter i denne sesjonen? (f.eks. ?svein=true eller ?dev=svein)
-  try {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('svein') === 'true' || params.get('dev') === 'svein') {
-      sessionStorage.setItem('blu_svein_dev_session', 'true');
-      return true;
-    }
-    if (sessionStorage.getItem('blu_svein_dev_session') === 'true') {
-      return true;
-    }
-  } catch {}
-
-  // 3. For ALLE andre: Boksen nede til høyre skal ALDRI vises!
-  return false;
-};
-
-// Standard-modus er alltid "LIVE" slik at ekte brukere alltid rutes til StudentnApp
-const PREVIEW_MODE = "LIVE";
-
-// Liten interaktiv utvikler-meny for enkel testing mellom portalene i AI Studio (KUN FOR SVEIN)
-const DevRoleBar: React.FC<{ current: string; onSelect: (role: string) => void }> = ({ current, onSelect }) => {
-  const [collapsed, setCollapsed] = useState(false);
-
-  const roles = [
-    { id: 'LIVE', label: "Forside", bg: 'bg-blue-600' },
-    { id: 'STUDENTN', label: "BLU-hjelperen", bg: 'bg-indigo-600' },
-    { id: 'STYRERN', label: "Styrern", bg: 'bg-indigo-600' },
-    { id: 'PEDLEDERN', label: "Pedledern", bg: 'bg-teal-600' },
-    { id: 'FAGARBEIDERN', label: "Fagarbeidern", bg: 'bg-amber-700' },
-    { id: 'ASSISTENTN', label: "Assistentn", bg: 'bg-sky-600' },
-    { id: 'VIKARN', label: "Vikarn", bg: 'bg-emerald-600' }
-  ];
+  const roleNames: Record<Role, string> = {
+    STYRERN: 'Styrer',
+    PEDLEDERN: 'Pedagogisk leder',
+    FAGARBEIDERN: 'Fagarbeider',
+    ASSISTENTN: 'Assistent',
+    VIKARN: 'Vikar',
+    STUDENTN: 'Student (BLU-hjelperen)'
+  };
 
   return (
-    <aside 
-      aria-label="Utviklermodus forhåndsvisning"
-      className="fixed bottom-3 right-3 z-50 flex flex-col items-end gap-1.5 font-sans pointer-events-auto"
-    >
-      {collapsed ? (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="bg-slate-900/95 hover:bg-slate-900 text-white text-[11px] font-bold px-3 py-2 rounded-full shadow-2xl border border-slate-700 flex items-center gap-1.5 transition"
-        >
-          <span>🛠️ Bytt rolle ({current})</span>
-        </button>
-      ) : (
-        <div className="bg-slate-900/95 backdrop-blur-md text-white p-2.5 rounded-2xl shadow-2xl border border-slate-700 flex flex-col gap-2 max-w-xs">
-          <div className="flex items-center justify-between gap-3 px-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-              🛠️ Sveins Test-meny
-            </span>
-            <button
-              onClick={() => setCollapsed(true)}
-              className="text-[10px] text-slate-400 hover:text-white px-1"
-            >
-              Skjul
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {roles.map(r => (
-              <button
-                key={r.id}
-                onClick={() => onSelect(r.id)}
-                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition ${
-                  current === r.id 
-                    ? `${r.bg} text-white shadow-md ring-2 ring-white/30` 
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+    <>
+      <div className="fixed top-0 left-0 right-0 bg-slate-900 text-white px-4 py-2.5 text-xs sm:text-sm font-medium z-[9999] shadow-lg border-b border-indigo-500/40 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="text-slate-200">
+            Aktiv visning: <strong className="text-white font-bold">{roleNames[role]}</strong>
+          </span>
+          <span className="hidden md:inline text-slate-400 text-xs">
+            (Trykk profil-badge øverst til høyre eller velg under for å bytte modus)
+          </span>
         </div>
-      )}
-    </aside>
+        <div className="flex items-center gap-2">
+          <button 
+            type="button"
+            onClick={() => setIsProfileOpen(true)}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-slate-700 cursor-pointer"
+            title="Åpne profil og bytt modus"
+          >
+            <span>Bytt rolle</span>
+          </button>
+          <button 
+            type="button"
+            onClick={() => setRole('STYRERN')} 
+            className="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            title="Gå direkte tilbake til Styrern"
+          >
+            <span>Gå tilbake til Styrern</span>
+            <span>➜</span>
+          </button>
+        </div>
+      </div>
+      <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+    </>
+  );
+};
+
+const MainApp = () => {
+  const { role, canSwitch, hasBluAccess } = useRole();
+
+  const renderActiveApp = () => {
+    switch (role) {
+      case 'STUDENTN': return hasBluAccess ? <StudentnApp /> : <StyrernApp />;
+      case 'PEDLEDERN': return <PedledernApp />;
+      case 'FAGARBEIDERN': return <FagarbeidernApp />;
+      case 'ASSISTENTN': return <AssistentnApp />;
+      case 'VIKARN': return <VikarnApp />;
+      case 'STYRERN': return <StyrernApp />;
+      default: return <StyrernApp />;
+    }
+  };
+
+  // Når brukeren har svitsjet til en annen rolle enn STYRERN
+  if (canSwitch && role !== 'STYRERN') {
+    return (
+      <div className="min-h-screen pt-11">
+        <ModeBanner />
+        {renderActiveApp()}
+      </div>
+    );
+  }
+
+  // Standard Styrer-visning og ruting
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={<StyrernApp />} />
+        <Route path="/styrer" element={<StyrernApp />} />
+        <Route path="/pedleder" element={<PedledernApp />} />
+        <Route path="/fagarbeider" element={<FagarbeidernApp />} />
+        <Route path="/assistent" element={<AssistentnApp />} />
+        <Route path="/vikar" element={<VikarnApp />} />
+        <Route path="/blu-hjelperen" element={hasBluAccess ? <StudentnApp /> : <Navigate to="/styrer" replace />} />
+        <Route path="/student" element={hasBluAccess ? <StudentnApp /> : <Navigate to="/styrer" replace />} />
+        <Route path="/dashbord" element={hasBluAccess ? <StudentnApp /> : <Navigate to="/styrer" replace />} />
+        <Route path="/tiltaksplan" element={<div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><TiltaksplanBygger /></div>} />
+        <Route path="/portal" element={<PedPortalenForside isSvein={canSwitch} />} />
+        <Route path="/portalen" element={<PedPortalenForside isSvein={canSwitch} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 };
 
@@ -126,126 +127,26 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  const canViewDevRoleBar = checkSveinAccess(currentUserEmail);
+  const isSvein = currentUserEmail?.toLowerCase() === 'svein.nordvik@gmail.com' || 
+                  currentUserEmail?.toLowerCase() === 'sunniva.nordvik2@gmail.com' || 
+                  isAdminUser(currentUserEmail);
 
-  // Tillater raskt bytte direkte i preview for Svein
-  const [activePreview, setActivePreview] = useState<string>(() => {
-    try {
-      return sessionStorage.getItem('blu_active_preview_role') || PREVIEW_MODE;
-    } catch {
-      return PREVIEW_MODE;
-    }
-  });
+  const isPortalBeta = isPortalBetaUser(currentUserEmail);
+  const bluAccess = hasBluAccess(currentUserEmail);
 
-  const handleSelectRole = (role: string) => {
-    setActivePreview(role);
-    try {
-      sessionStorage.setItem('blu_active_preview_role', role);
-    } catch {}
-  };
+  // Alle ledere / testbrukere i Portalen har tilgang til å bytte modus
+  const canSwitchMode = true;
 
-  // Hvis brukeren IKKE er Svein, overstyr ALLTID til "LIVE" (som ruter direkte til StudentnApp)
-  const effectivePreview = canViewDevRoleBar ? activePreview : "LIVE";
-
-  // -- SVEINS OVERSTYRINGER UNDER UTVIKLING (KUN 7 STRØMLINJEFORMEDE VERKTØY) --
-  if (canViewDevRoleBar && effectivePreview === "STUDENTN") {
-    return (
-      <>
-        <StudentnApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "STYRERN") {
-    return (
-      <>
-        <StyrernApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "PEDLEDERN") {
-    return (
-      <>
-        <PedledernApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "FAGARBEIDERN") {
-    return (
-      <>
-        <FagarbeidernApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "ASSISTENTN") {
-    return (
-      <>
-        <AssistentnApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-  if (canViewDevRoleBar && effectivePreview === "VIKARN") {
-    return (
-      <>
-        <VikarnApp />
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      </>
-    );
-  }
-
-  // -- HOVEDRUTING --
   return (
-    <>
-      <Routes>
-        {/* Hovedadressen ( / ) møter nå brukerne med den nye forside-teaseren (både på blu-hjelperen.no og ellers) */}
-        <Route 
-          path="/" 
-          element={<PedPortalenForside isSvein={canViewDevRoleBar} />} 
-        />
-
-        {/* Selve BLU-hjelperen (Studentn) */}
-        <Route path="/blu-hjelperen" element={<StudentnApp />} />
-        <Route path="/student" element={<StudentnApp />} />
-        <Route path="/dashbord" element={<StudentnApp />} />
-
-        {/* Fellessiden på PedPortalen */}
-        <Route path="/portal" element={<PedPortalenForside isSvein={canViewDevRoleBar} />} />
-        <Route path="/portalen" element={<PedPortalenForside isSvein={canViewDevRoleBar} />} />
-
-        {/* Andre apper i økosystemet (STRENGT LÅST KUN FOR SVEIN) */}
-        <Route path="/pedleder" element={canViewDevRoleBar ? <PedledernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/pedledern" element={canViewDevRoleBar ? <PedledernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/tiltaksplan" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><TiltaksplanBygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/itp" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><TiltaksplanBygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/styrer" element={canViewDevRoleBar ? <StyrernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/styrern" element={canViewDevRoleBar ? <StyrernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/styrer/itp-mal" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><ITPMalbygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/itp-mal" element={canViewDevRoleBar ? <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-10"><ITPMalbygger /></div> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/fagarbeider" element={canViewDevRoleBar ? <FagarbeidernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/fagarbeidern" element={canViewDevRoleBar ? <FagarbeidernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/assistent" element={canViewDevRoleBar ? <AssistentnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/assistentn" element={canViewDevRoleBar ? <AssistentnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/vikar" element={canViewDevRoleBar ? <VikarnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/vikarn" element={canViewDevRoleBar ? <VikarnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-
-        {/* Lab-stiene (STRENGT LÅST KUN FOR SVEIN) */}
-        <Route path="/portalen-lab/styrer" element={canViewDevRoleBar ? <StyrernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/portalen-lab/pedleder" element={canViewDevRoleBar ? <PedledernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/portalen-lab/fagarbeider" element={canViewDevRoleBar ? <FagarbeidernApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/portalen-lab/assistent" element={canViewDevRoleBar ? <AssistentnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-        <Route path="/portalen-lab/vikar" element={canViewDevRoleBar ? <VikarnApp /> : <Navigate to="/blu-hjelperen" replace />} />
-
-        {/* Sikkerhetsnett */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      {canViewDevRoleBar && (
-        <DevRoleBar current={activePreview} onSelect={handleSelectRole} />
-      )}
-    </>
+    <RoleProvider 
+      canSwitch={canSwitchMode} 
+      isSvein={isSvein} 
+      isPortalBeta={isPortalBeta}
+      hasBluAccess={bluAccess}
+      currentUserEmail={currentUserEmail}
+    >
+      <MainApp />
+    </RoleProvider>
   );
 };
 

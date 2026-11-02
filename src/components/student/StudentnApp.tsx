@@ -97,7 +97,9 @@ import {
   Brain,
   CheckCircle,
   Image as ImageIcon,
+  Building2,
 } from 'lucide-react';
+import { useRole } from '../../context/RoleContext';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import { cn, formatBytes } from '../../lib/utils';
@@ -365,6 +367,7 @@ if (typeof window !== 'undefined' && window.location?.search) {
 }
 
 export default function StudentnApp() {
+  const { setRole, canSwitch } = useRole();
   // Sjekk om dette vinduet er åpnet som storskjerm / projektor-visning (Fase 4)
   const isProjectorMode = typeof window !== 'undefined' && (() => {
     try {
@@ -4174,6 +4177,16 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           <Maximize2 className="w-4 h-4 lg:w-5 h-5" />
           <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">Fokus</span>
         </button>
+        {canSwitch && (
+          <button 
+            onClick={() => setRole('STYRERN')}
+            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+            title="Gå tilbake til Styrern / Portalen"
+          >
+            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden sm:inline">Til Styrern</span>
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2 lg:gap-3 shrink-0">

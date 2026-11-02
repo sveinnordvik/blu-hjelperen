@@ -645,7 +645,7 @@ Ha en strålende vakt!`
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Oversendelse til Vikar'n-appen
+  // Oversendelse til Vikarn-appen
   const handleSendToVikarApp = () => {
     const payload = {
       ...formData,

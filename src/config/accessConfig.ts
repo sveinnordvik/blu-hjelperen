@@ -17,6 +17,36 @@ export const ADMIN_EMAILS = [
 ];
 
 /**
+ * Betabrukere for Portalen (Styrern, Pedledern, Fagarbeidern, Assistentn, Vikarn).
+ * Disse brukerne har full tilgang til Portalen, men selve BLU-hjelperen (Studentn) er låst.
+ */
+export const PORTAL_BETA_EMAILS = [
+  'havard.hovin@melhus.kommune.no'
+];
+
+/**
+ * Sjekker om en bruker er betabruker for Portalen
+ */
+export const isPortalBetaUser = (email?: string | null): boolean => {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return PORTAL_BETA_EMAILS.some(e => e.toLowerCase() === normalized);
+};
+
+/**
+ * Sjekker om en bruker har tilgang til BLU-hjelperen (Studentn).
+ * Håvard Hovin og andre rene portalbetabrukere har IKKE tilgang til BLU-hjelperen.
+ */
+export const hasBluAccess = (email?: string | null): boolean => {
+  if (!email) return true;
+  const normalized = email.trim().toLowerCase();
+  if (PORTAL_BETA_EMAILS.some(e => e.toLowerCase() === normalized)) {
+    return false;
+  }
+  return true;
+};
+
+/**
  * Check if an email has unlimited access to all tools and features (including Humanizer-boten)
  */
 export const isUnlimitedUser = (email?: string | null): boolean => {

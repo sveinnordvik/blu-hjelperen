@@ -42,6 +42,10 @@ import SamtaleMentor from './SamtaleMentor';
 import Lederstotte from './Lederstotte';
 import DagensDagsrytmeAvdeling from './DagensDagsrytmeAvdeling';
 import Observasjoner from './Observasjoner';
+import SpesialpedagogiskVeiviser from './SpesialpedagogiskVeiviser';
+import { useRole } from '../../context/RoleContext';
+import UserProfileModal from '../common/UserProfileModal';
+import PortalFooter from '../common/PortalFooter';
 
 interface WeeklyPlanItem {
   id: string;
@@ -58,7 +62,32 @@ export interface PedledernAppProps {
   avdelingNavn?: string;
 }
 
-export function PedlederenLayout({ avdelingNavn = 'Blåbærtua' }: PedledernAppProps) {
+export function PedlederenLayout({ avdelingNavn: defaultAvdelingNavn = 'Blåbærtua' }: PedledernAppProps) {
+  const { setRole, canSwitch, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  // Les inn de faktiske avdelingene styreren har definert
+  const [baserList] = useState<{ id: number; navn: string }[]>(() => {
+    try {
+      const saved = localStorage.getItem('styrern_kontrollpanel_baser');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [aktivAvdelingNavn, setAktivAvdelingNavn] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('styrern_kontrollpanel_baser');
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (parsed.length > 0) return parsed[0].navn;
+    } catch {}
+    return defaultAvdelingNavn;
+  });
+
+  const avdelingNavn = baserList.length > 0 ? aktivAvdelingNavn : 'Ingen avdeling';
+
   // Hovednavigasjon: 'drift', 'dokumentasjon', 'planlegging', 'lederstotte'
   const [aktivHovedfane, setAktivHovedfane] = useState<Hovedfane>('drift');
 
@@ -66,7 +95,7 @@ export function PedlederenLayout({ avdelingNavn = 'Blåbærtua' }: PedledernAppP
   const [dokumentasjonSubTab, setDokumentasjonSubTab] = useState<'bilde' | 'manedsbrev'>('bilde');
   const [planleggingSubTab, setPlanleggingSubTab] = useState<'ukeplan' | 'sokratisk' | 'ai'>('ukeplan');
   const [driftSubTab, setDriftSubTab] = useState<'avdeling' | 'morgenpuls' | 'brief' | 'fagmoter'>('avdeling');
-  const [lederstotteSubTab, setLederstotteSubTab] = useState<'observasjoner' | 'ppt' | 'tiltaksplan' | 'sparring'>('observasjoner');
+  const [lederstotteSubTab, setLederstotteSubTab] = useState<'observasjoner' | 'ppt' | 'tiltaksplan' | 'sparring' | 'spesped'>('observasjoner');
 
   // Visning inni Ukeplan (rutenett vs liste)
   const [ukeplanVisning, setUkeplanVisning] = useState<'didaktisk' | 'oversikt'>('didaktisk');
@@ -90,16 +119,22 @@ export function PedlederenLayout({ avdelingNavn = 'Blåbærtua' }: PedledernAppP
     });
   }, []);
 
+  const DEFAULT_WEEKLY_PLAN: WeeklyPlanItem[] = [
+    { id: '1', day: 'Mandag', activity: 'Eventyrsamling: Bukkene Bruse med konkreter', fagomrade: 'Kommunikasjon, språk og tekst', responsible: 'Ingrid (ped.leder)', notes: 'Fokus på preposisjoner (over, under, på)' },
+    { id: '2', day: 'Tirsdag', activity: 'Turdag til Blåbærskogen: Insektjakt & lupe', fagomrade: 'Natur, miljø og teknologi', responsible: 'Fatima (fagarbeider)', notes: 'Ta med oppslagsbøker og samleglass' },
+    { id: '3', day: 'Onsdag', activity: 'Matteverksted: Sortering etter farge og form', fagomrade: 'Antall, rom og form', responsible: 'Ingrid & Camilla', notes: 'Smågrupper på 5 barn' },
+    { id: '4', day: 'Torsdag', activity: 'Bevegelsesløype i gymrommet / hinderløype ute', fagomrade: 'Kropp, bevegelse, mat og helse', responsible: 'Camilla (assistent)', notes: 'Grovmotoriske utfordringer og balanse' },
+    { id: '5', day: 'Fredag', activity: 'Fellesdans & ukens refleksjonssamling', fagomrade: 'Kunst, kultur og kreativitet', responsible: 'Hele teamet', notes: 'Barna velger favorittsanger' }
+  ];
+
+  const [hasUserAddedPlan, setHasUserAddedPlan] = useState<boolean>(() => {
+    return localStorage.getItem('pedledern_has_user_added_plan') === 'true';
+  });
+
   // Standard ukeplan-liste
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanItem[]>(() => {
     const saved = localStorage.getItem('pedledern_weekly_plan');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', day: 'Mandag', activity: 'Eventyrsamling: Bukkene Bruse med konkreter', fagomrade: 'Kommunikasjon, språk og tekst', responsible: 'Ingrid (ped.leder)', notes: 'Fokus på preposisjoner (over, under, på)' },
-      { id: '2', day: 'Tirsdag', activity: 'Turdag til Blåbærskogen: Insektjakt & lupe', fagomrade: 'Natur, miljø og teknologi', responsible: 'Fatima (fagarbeider)', notes: 'Ta med oppslagsbøker og samleglass' },
-      { id: '3', day: 'Onsdag', activity: 'Matteverksted: Sortering etter farge og form', fagomrade: 'Antall, rom og form', responsible: 'Ingrid & Camilla', notes: 'Smågrupper på 5 barn' },
-      { id: '4', day: 'Torsdag', activity: 'Bevegelsesløype i gymrommet / hinderløype ute', fagomrade: 'Kropp, bevegelse, mat og helse', responsible: 'Camilla (assistent)', notes: 'Grovmotoriske utfordringer og balanse' },
-      { id: '5', day: 'Fredag', activity: 'Fellesdans & ukens refleksjonssamling', fagomrade: 'Kunst, kultur og kreativitet', responsible: 'Hele teamet', notes: 'Barna velger favorittsanger' }
-    ];
+    return saved ? JSON.parse(saved) : DEFAULT_WEEKLY_PLAN;
   });
 
   useEffect(() => {
@@ -321,25 +356,61 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                   </div>
 
                   {ukeplanVisning === 'oversikt' && (
-                    <button 
-                      onClick={() => {
-                        const day = prompt('Dag (f.eks. Mandag):') || 'Ny dag';
-                        const activity = prompt('Aktivitet:');
-                        if (activity) {
-                          setWeeklyPlan(prev => [...prev, {
-                            id: Date.now().toString(),
-                            day,
-                            activity,
-                            fagomrade: 'Kommunikasjon, språk og tekst',
-                            responsible: 'Pedleder',
-                            notes: 'Lagt til av pedleder'
-                          }]);
-                        }
-                      }}
-                      className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Plus className="w-4 h-4" /> Legg til økt
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {hasUserAddedPlan ? (
+                        <button 
+                          onClick={() => {
+                            if (window.confirm('Vil du gjenopprette standard ukeplan-eksempler?')) {
+                              setWeeklyPlan(DEFAULT_WEEKLY_PLAN);
+                              setHasUserAddedPlan(false);
+                              localStorage.setItem('pedledern_has_user_added_plan', 'false');
+                            }
+                          }}
+                          className="text-xs text-slate-600 hover:text-teal-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                        >
+                          Gjenopprett eksempler
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            if (window.confirm('Vil du tømme eksempel-øktene og starte med blank ukeplan?')) {
+                              setWeeklyPlan([]);
+                              setHasUserAddedPlan(true);
+                              localStorage.setItem('pedledern_has_user_added_plan', 'true');
+                            }
+                          }}
+                          className="text-xs text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                        >
+                          Tøm eksempler
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => {
+                          const day = prompt('Dag (f.eks. Mandag):') || 'Ny dag';
+                          const activity = prompt('Aktivitet:');
+                          if (activity) {
+                            const newPlanItem: WeeklyPlanItem = {
+                              id: Date.now().toString(),
+                              day,
+                              activity,
+                              fagomrade: 'Kommunikasjon, språk og tekst',
+                              responsible: 'Pedleder',
+                              notes: 'Lagt til av pedleder'
+                            };
+                            if (!hasUserAddedPlan) {
+                              setWeeklyPlan([newPlanItem]);
+                              setHasUserAddedPlan(true);
+                              localStorage.setItem('pedledern_has_user_added_plan', 'true');
+                            } else {
+                              setWeeklyPlan(prev => [...prev, newPlanItem]);
+                            }
+                          }
+                        }}
+                        className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" /> Legg til økt
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -363,30 +434,49 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                       }}
                     />
 
-                    <div className="space-y-3">
-                      {weeklyPlan.map((item, idx) => (
-                        <div key={`weekly-item-${item.id}-${idx}`} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-xs transition">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-black text-sm text-teal-900">{item.day}</span>
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                                  {item.fagomrade}
-                                </span>
+                    {weeklyPlan.length === 0 ? (
+                      <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-3">
+                        <p className="font-bold text-slate-800 text-sm">Ingen planlagte økter i ukeplanen ennå</p>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          Trykk «Legg til økt» for å legge inn din første didaktiske samling, eller «Gjenopprett eksempler» for å se et forslag.
+                        </p>
+                        <button
+                          onClick={() => {
+                            setWeeklyPlan(DEFAULT_WEEKLY_PLAN);
+                            setHasUserAddedPlan(false);
+                            localStorage.setItem('pedledern_has_user_added_plan', 'false');
+                          }}
+                          className="bg-teal-100 text-teal-900 text-xs font-bold px-4 py-2 rounded-xl hover:bg-teal-200 transition cursor-pointer"
+                        >
+                          Hent eksempler
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {weeklyPlan.map((item, idx) => (
+                          <div key={`weekly-item-${item.id}-${idx}`} className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-xs transition">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-sm text-teal-900">{item.day}</span>
+                                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                                    {item.fagomrade}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-slate-900 text-base mt-1">{item.activity}</h4>
+                                <p className="text-xs text-slate-500 mt-1">Ansvarlig: <strong>{item.responsible}</strong> • Notat: {item.notes}</p>
                               </div>
-                              <h4 className="font-bold text-slate-900 text-base mt-1">{item.activity}</h4>
-                              <p className="text-xs text-slate-500 mt-1">Ansvarlig: <strong>{item.responsible}</strong> • Notat: {item.notes}</p>
+                              <button 
+                                onClick={() => setWeeklyPlan(prev => prev.filter(w => w.id !== item.id))}
+                                className="text-xs text-rose-600 hover:underline self-end sm:self-center cursor-pointer"
+                              >
+                                Fjern
+                              </button>
                             </div>
-                            <button 
-                              onClick={() => setWeeklyPlan(prev => prev.filter(w => w.id !== item.id))}
-                              className="text-xs text-rose-600 hover:underline self-end sm:self-center"
-                            >
-                              Fjern
-                            </button>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -750,6 +840,17 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                   <MessageCircle className="w-3.5 h-3.5 text-sky-600" />
                   <span>Sokratisk Sparring 🗣️</span>
                 </button>
+                <button
+                  onClick={() => setLederstotteSubTab('spesped')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                    lederstotteSubTab === 'spesped'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                  <span>Spesped-Veiviser 🛡️</span>
+                </button>
               </div>
             </div>
 
@@ -807,6 +908,10 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
             {lederstotteSubTab === 'sparring' && (
               <Lederstotte initialFane="sparring" avdelingNavn={avdelingNavn} />
             )}
+            
+            {lederstotteSubTab === 'spesped' && (
+              <SpesialpedagogiskVeiviser />
+            )}
           </div>
         );
 
@@ -825,12 +930,31 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
           
           {/* Logo & Rolle */}
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-700 p-2 rounded-lg text-white shadow-sm flex items-center justify-center">
+            <div className="bg-emerald-700 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
               <Camera className="w-5 h-5 text-white" />
             </div>
             <div className="hidden md:block">
-              <h1 className="font-bold text-lg leading-tight">Pedleder&apos;n</h1>
-              <p className="text-[10px] text-emerald-200 uppercase tracking-wider">Avdeling {avdelingNavn}</p>
+              <h1 className="font-bold text-lg leading-tight">Pedledern</h1>
+              {baserList.length > 1 ? (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] text-emerald-200 uppercase tracking-wider font-semibold">Avdeling:</span>
+                  <select 
+                    value={aktivAvdelingNavn} 
+                    onChange={(e) => setAktivAvdelingNavn(e.target.value)}
+                    className="text-[11px] bg-emerald-800 text-emerald-100 border border-emerald-700 rounded px-1.5 py-0.5 font-bold focus:outline-none cursor-pointer"
+                  >
+                    {baserList.map(b => (
+                      <option key={b.id} value={b.navn} className="bg-emerald-900 text-white">
+                        {b.navn}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-[10px] text-emerald-200 uppercase tracking-wider font-semibold">
+                  {baserList.length === 1 ? `Avdeling ${baserList[0].navn}` : 'Ingen avdelinger registrert'}
+                </p>
+              )}
             </div>
           </div>
 
@@ -863,23 +987,26 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
           </nav>
 
           {/* Profil / Ekstravalg høyre side */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center text-xs font-bold text-white shadow-sm">
-              SN
-            </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <button 
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              title="Min profil og rollebytte"
+              className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-emerald-500 ring-2 ring-emerald-300/50"
+            >
+              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+            </button>
           </div>
           
         </div>
       </header>
 
       {/* HOVEDINNHOLD (Lyst, luftig "Kreativt Verksted", full bredde opp til 1600px) */}
-      <main className="w-full max-w-[1600px] mx-auto p-4 md:p-8 pt-8">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-8 pt-8">
         {renderInnhold()}
       </main>
 
-      <footer className="w-full bg-emerald-950 text-emerald-300/80 py-4 px-6 border-t border-emerald-900 text-center text-xs mt-auto">
-        <p>Portalen: Pedleder&apos;n • Pedagogisk ledelse forankret i Rammeplan for barnehagen</p>
-      </footer>
+      <PortalFooter theme="dark" className="bg-emerald-950 border-emerald-900 text-emerald-300/80" />
 
       {/* MODAL: Morgen-pulsen innsending ved hurtigknapp */}
       {visMorgenPulsModal && (
@@ -902,6 +1029,12 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
           </div>
         </div>
       )}
+
+      {/* Brukerprofil og Modusvelger */}
+      <UserProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+      />
 
     </div>
   );

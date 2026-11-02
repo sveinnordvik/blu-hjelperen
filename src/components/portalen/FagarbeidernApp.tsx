@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { callGoogleAIProxy } from '../../services/geminiService';
+import UserProfileModal from '../common/UserProfileModal';
+import PortalFooter from '../common/PortalFooter';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 import { 
   Smile, 
@@ -20,6 +22,7 @@ import {
   Compass,
   FileText
 } from 'lucide-react';
+import { useRole } from '../../context/RoleContext';
 
 interface ActivityIdea {
   id: string;
@@ -37,49 +40,58 @@ interface RoutineTip {
   tip: string;
 }
 
+const DEFAULT_ACTIVITIES: ActivityIdea[] = [
+  {
+    id: 'act-1',
+    title: 'Trolldeig med høstkrydder (kanel & kardemomme)',
+    category: 'forming',
+    ageGroup: 'Alle',
+    materials: 'Mel, salt, vann, matolje, kanel/kardemomme, kongler og pinner',
+    description: 'Barna elter og former deig som lukter høst. Kongler brukes som stempler.',
+    pedagogicalTip: 'Sansemotorisk stimulering og begreper som seig, myk, hard, varm og duftende.'
+  },
+  {
+    id: 'act-2',
+    title: 'Sanseløype med naturmaterialer i barnehagen',
+    category: 'natur',
+    ageGroup: '1-2 år',
+    materials: 'Kasser med mose, kongler, glatte steiner, høstløv, bark',
+    description: 'Barna kan ta av seg skoene eller kjenne med hendene i ulike kasser.',
+    pedagogicalTip: 'Stimulerer taktil sans og gir trygge sanseopplevelser for de minste barna.'
+  },
+  {
+    id: 'act-3',
+    title: 'Kims lek med ekte gjenstander fra skogen',
+    category: 'lek',
+    ageGroup: '3-4 år',
+    materials: 'Klut, kongle, pinne, stein, blad, soppmodell',
+    description: 'Legg 4-5 ting under et tørkle. Fjern én ting mens barna lukker øynene.',
+    pedagogicalTip: 'Hukommelse, konsentrasjon og turtaking i liten gruppe.'
+  },
+  {
+    id: 'act-4',
+    title: 'Fruktsalat med fargeinndeling',
+    category: 'mat',
+    ageGroup: '5-6 år',
+    materials: 'Bananer, epler, druer, trygge barnekniver, skjærebrett',
+    description: 'Barna kutter opp frukt selv og sorterer etter farger før de blander.',
+    pedagogicalTip: 'Mestring i kjøkkenaktivitet, finmotorikk og begreper om mengde og form.'
+  }
+];
+
 export default function FagarbeidernApp() {
+  const { setRole, canSwitch, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'aktiviteter' | 'rutiner' | 'observasjon' | 'fagbrev' | 'ai-assistent'>('aktiviteter');
+
+  const [hasUserAddedActivities, setHasUserAddedActivities] = useState<boolean>(() => {
+    return localStorage.getItem('fagarbeidern_has_user_added_activities') === 'true';
+  });
 
   const [activities, setActivities] = useState<ActivityIdea[]>(() => {
     const saved = localStorage.getItem('fagarbeidern_activities');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'act-1',
-        title: 'Trolldeig med høstkrydder (kanel & kardemomme)',
-        category: 'forming',
-        ageGroup: 'Alle',
-        materials: 'Mel, salt, vann, matolje, kanel/kardemomme, kongler og pinner',
-        description: 'Barna elter og former deig som lukter høst. Kongler brukes som stempler.',
-        pedagogicalTip: 'Sansemotorisk stimulering og begreper som seig, myk, hard, varm og duftende.'
-      },
-      {
-        id: 'act-2',
-        title: 'Sanseløype med naturmaterialer i barnehagen',
-        category: 'natur',
-        ageGroup: '1-2 år',
-        materials: 'Kasser med mose, kongler, glatte steiner, høstløv, bark',
-        description: 'Barna kan ta av seg skoene eller kjenne med hendene i ulike kasser.',
-        pedagogicalTip: 'Stimulerer taktil sans og gir trygge sanseopplevelser for de minste barna.'
-      },
-      {
-        id: 'act-3',
-        title: 'Kims lek med ekte gjenstander fra skogen',
-        category: 'lek',
-        ageGroup: '3-4 år',
-        materials: 'Klut, kongle, pinne, stein, blad, soppmodell',
-        description: 'Legg 4-5 ting under et tørkle. Fjern én ting mens barna lukker øynene.',
-        pedagogicalTip: 'Hukommelse, konsentrasjon og turtaking i liten gruppe.'
-      },
-      {
-        id: 'act-4',
-        title: 'Fruktsalat med fargeinndeling',
-        category: 'mat',
-        ageGroup: '5-6 år',
-        materials: 'Bananer, epler, druer, trygge barnekniver, skjærebrett',
-        description: 'Barna kutter opp frukt selv og sorterer etter farger før de blander.',
-        pedagogicalTip: 'Mestring i kjøkkenaktivitet, finmotorikk og begreper om mengde og form.'
-      }
-    ];
+    return saved ? JSON.parse(saved) : DEFAULT_ACTIVITIES;
   });
 
   const [quickNotes, setQuickNotes] = useState<{ id: string; text: string; date: string }[]>(() => {
@@ -143,58 +155,37 @@ Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktivit
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       {/* Header */}
       <header className="bg-amber-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/30 shrink-0">
               <Palette className="w-6 h-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight">Fagarbeider'n</span>
-                <span className="text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                <span className="font-extrabold text-lg tracking-tight truncate">Fagarbeidern</span>
+                <span className="hidden sm:inline text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
                   Barne- og ungdomsarbeider
                 </span>
               </div>
-              <p className="text-xs text-amber-200/80">Praksisnær pedagogikk • Fagbrev & Yrkesstolthet</p>
+              <p className="text-xs text-amber-200/80 truncate">Praksisnær pedagogikk • Fagbrev & Yrkesstolthet</p>
             </div>
           </div>
-
-          <nav className="hidden md:flex items-center gap-1 bg-amber-950/60 p-1 rounded-xl border border-amber-800/60">
-            <button 
-              onClick={() => setActiveTab('aktiviteter')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'aktiviteter' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white hover:bg-amber-800/40'}`}
+          
+          <div className="flex items-center gap-3 shrink-0">
+            <div 
+              onClick={() => setIsProfileOpen(true)}
+              title="Profil"
+              className="w-9 h-9 shrink-0 rounded-full bg-amber-600 border-2 border-amber-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-amber-500 ring-2 ring-amber-300/50"
             >
-              Idébank & Aktiviteter
-            </button>
-            <button 
-              onClick={() => setActiveTab('rutiner')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'rutiner' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white hover:bg-amber-800/40'}`}
-            >
-              Gylne Rutinestunder
-            </button>
-            <button 
-              onClick={() => setActiveTab('observasjon')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'observasjon' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white hover:bg-amber-800/40'}`}
-            >
-              Mine Observasjoner
-            </button>
-            <button 
-              onClick={() => setActiveTab('fagbrev')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'fagbrev' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white hover:bg-amber-800/40'}`}
-            >
-              Fagbrev i Praksis
-            </button>
-            <button 
-              onClick={() => setActiveTab('ai-assistent')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'ai-assistent' ? 'bg-amber-600 text-white shadow' : 'text-amber-200 hover:text-white hover:bg-amber-800/40'}`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              Fagarbeider-AI
-            </button>
-          </nav>
+              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+            </div>
+            <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+          </div>
         </div>
+      </header>
 
-        <div className="flex md:hidden overflow-x-auto px-4 py-2 border-t border-amber-800 gap-2 bg-amber-950/95 scrollbar-none">
+
+      <div className="flex overflow-x-auto px-4 py-2 border-t border-amber-800 gap-2 bg-amber-950/95 scrollbar-none">
           {['aktiviteter', 'rutiner', 'observasjon', 'fagbrev', 'ai-assistent'].map(t => (
             <button
               key={t}
@@ -204,8 +195,7 @@ Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktivit
               {t === 'ai-assistent' ? 'Fagarbeider-AI' : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
-        </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -218,57 +208,112 @@ Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktivit
                 <h2 className="text-xl font-black text-slate-900">Praktisk Idébank for Barnegruppa</h2>
                 <p className="text-xs text-slate-500">Prøvde og testede opplegg som engasjerer barna uten behov for dyrt utstyr.</p>
               </div>
-              <button 
-                onClick={() => {
-                  const title = prompt('Navn på aktivitet:');
-                  const desc = prompt('Kort beskrivelse:');
-                  if (title && desc) {
-                    setActivities(prev => [{
-                      id: 'act-' + Date.now(),
-                      title,
-                      category: 'lek',
-                      ageGroup: 'Alle',
-                      materials: 'Enkle ting fra avdelingen',
-                      description: desc,
-                      pedagogicalTip: 'Støtt barnas medvirkning og nysgjerrighet.'
-                    }, ...prev]);
-                  }
-                }}
-                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow"
-              >
-                <Plus className="w-4 h-4" /> Legg til idé
-              </button>
+              <div className="flex items-center gap-2">
+                {hasUserAddedActivities ? (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du gjenopprette standard eksempelaktiviteter?')) {
+                        setActivities(DEFAULT_ACTIVITIES);
+                        setHasUserAddedActivities(false);
+                        localStorage.setItem('fagarbeidern_has_user_added_activities', 'false');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-amber-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition"
+                  >
+                    Gjenopprett eksempler
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      if (window.confirm('Vil du tømme alle eksempelaktiviteter og starte med blanke ark?')) {
+                        setActivities([]);
+                        setHasUserAddedActivities(true);
+                        localStorage.setItem('fagarbeidern_has_user_added_activities', 'true');
+                      }
+                    }}
+                    className="text-xs text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition"
+                  >
+                    Tøm eksempler
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    const title = prompt('Navn på aktivitet:');
+                    const desc = prompt('Kort beskrivelse:');
+                    if (title && desc) {
+                      const newAct: ActivityIdea = {
+                        id: 'act-' + Date.now(),
+                        title,
+                        category: 'lek',
+                        ageGroup: 'Alle',
+                        materials: 'Enkle ting fra avdelingen',
+                        description: desc,
+                        pedagogicalTip: 'Støtt barnas medvirkning og nysgjerrighet.'
+                      };
+                      if (!hasUserAddedActivities) {
+                        setActivities([newAct]);
+                        setHasUserAddedActivities(true);
+                        localStorage.setItem('fagarbeidern_has_user_added_activities', 'true');
+                      } else {
+                        setActivities(prev => [newAct, ...prev]);
+                      }
+                    }
+                  }}
+                  className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="w-4 h-4" /> Legg til idé
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {activities.map(act => (
-                <div key={act.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
-                      {act.category} • {act.ageGroup}
-                    </span>
-                    <button 
-                      onClick={() => setActivities(prev => prev.filter(a => a.id !== act.id))}
-                      className="text-xs text-slate-400 hover:text-rose-600"
-                    >
-                      Slett
-                    </button>
-                  </div>
-                  <h3 className="font-black text-slate-900 text-base">{act.title}</h3>
-                  <p className="text-xs text-slate-600 leading-relaxed">{act.description}</p>
-                  
-                  <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
-                    <strong className="text-slate-900 font-bold block mb-0.5">Materialer som trengs:</strong>
-                    {act.materials}
-                  </div>
+            {activities.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-10 text-center space-y-3">
+                <p className="font-bold text-slate-800 text-sm">Ingen aktiviteter i idébanken ennå</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Legg til din første aktivitet, eller trykk «Gjenopprett eksempler» for å hente inspirasjon.
+                </p>
+                <button
+                  onClick={() => {
+                    setActivities(DEFAULT_ACTIVITIES);
+                    setHasUserAddedActivities(false);
+                    localStorage.setItem('fagarbeidern_has_user_added_activities', 'false');
+                  }}
+                  className="bg-amber-100 text-amber-900 text-xs font-bold px-4 py-2 rounded-xl hover:bg-amber-200 transition"
+                >
+                  Hent standard eksempler
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {activities.map(act => (
+                  <div key={act.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                        {act.category} • {act.ageGroup}
+                      </span>
+                      <button 
+                        onClick={() => setActivities(prev => prev.filter(a => a.id !== act.id))}
+                        className="text-xs text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        Slett
+                      </button>
+                    </div>
+                    <h3 className="font-black text-slate-900 text-base">{act.title}</h3>
+                    <p className="text-xs text-slate-600 leading-relaxed">{act.description}</p>
+                    
+                    <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600">
+                      <strong className="text-slate-900 font-bold block mb-0.5">Materialer som trengs:</strong>
+                      {act.materials}
+                    </div>
 
-                  <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl text-xs text-amber-950">
-                    <strong className="text-amber-900 font-bold block mb-0.5">Pedagogisk tips / Hva lærer barna?</strong>
-                    {act.pedagogicalTip}
+                    <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl text-xs text-amber-950">
+                      <strong className="text-amber-900 font-bold block mb-0.5">Pedagogisk tips / Hva lærer barna?</strong>
+                      {act.pedagogicalTip}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -470,9 +515,7 @@ Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktivit
         )}
       </main>
 
-      <footer className="bg-amber-950 text-amber-200/80 py-4 px-6 border-t border-amber-900 text-center text-xs">
-        <p>Portalen: Fagarbeider'n • Bygger på fagbrevkompetanse i barne- og ungdomsarbeiderfaget</p>
-      </footer>
+      <PortalFooter theme="dark" className="bg-amber-950 border-amber-900 text-amber-200/80" />
     </div>
   );
 }

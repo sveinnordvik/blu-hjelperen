@@ -24,8 +24,12 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       contents: cleanText
     });
 
-    if (result && result.embedding && Array.isArray(result.embedding.values)) {
-      return result.embedding.values;
+    const resAny = result as any;
+    if (resAny?.embedding?.values && Array.isArray(resAny.embedding.values)) {
+      return resAny.embedding.values;
+    }
+    if (resAny?.embeddings?.[0]?.values && Array.isArray(resAny.embeddings[0].values)) {
+      return resAny.embeddings[0].values;
     }
   } catch (genaiErr) {
     console.warn('Feil ved generering av embedding via @google/genai, prøver @google/generative-ai fallback:', genaiErr);

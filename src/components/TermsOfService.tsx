@@ -47,7 +47,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
               <Scale className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
-              Brukervilkår for BLU-Hjelperen
+              Brukervilkår for PedPortalen
             </h1>
             <p className="text-slate-400 font-medium tracking-wide">
               Sist oppdatert: {lastUpdated}
@@ -56,7 +56,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
 
           <div className="space-y-12">
             <p className="text-lg md:text-xl text-slate-600 leading-relaxed font-medium">
-              Ved å opprette en konto og bruke BLU-Hjelperen, godtar du følgende brukervilkår. Vennligst les disse nøye.
+              Ved å opprette en konto og bruke PedPortalen, godtar du følgende brukervilkår. Vennligst les disse nøye.
             </p>
 
             <section className="space-y-6">
@@ -69,7 +69,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
                 </h2>
               </div>
               <p className="leading-relaxed">
-                BLU-Hjelperen er et digitalt støtteverktøy for barnehagelærerstudenter og pedagoger. Tjenesten leverer KI-generert tekst, referansehåndtering og veiledning basert på nasjonale retningslinjer og pedagogiske metoder.
+                PedPortalen er et digitalt støtte- og profesjonsverktøy for barnehagelærere, styrere, pedagogiske ledere, fagarbeidere og barnehageansatte. Tjenesten leverer KI-generert tekst, veiledning, HMS- og planleggingsstøtte samt verktøy forankret i Rammeplan for barnehagen.
               </p>
             </section>
 
@@ -139,7 +139,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
               <ul className="space-y-3 list-none pl-0">
                 <li className="flex gap-4">
                   <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2.5" />
-                  <p className="m-0">BLU-Hjelperen bruker avanserte KI-modeller (Google Gemini) for å generere svar.</p>
+                  <p className="m-0">PedPortalen bruker avanserte KI-modeller (Google Gemini) for å generere svar.</p>
                 </li>
                 <li className="flex gap-4">
                   <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2.5" />
@@ -164,11 +164,11 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
               <ul className="space-y-3 list-none pl-0">
                 <li className="flex gap-4">
                   <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2.5" />
-                  <p className="m-0">Alt innhold, design, kode og merkevare tilhører BLU-Hjelperen.</p>
+                  <p className="m-0">Alt innhold, design, kode og merkevare tilhører PedPortalen.</p>
                 </li>
                 <li className="flex gap-4">
                   <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary mt-2.5" />
-                  <p className="m-0">Du beholder eierskapet til tekstene du selv skriver inn i verktøyene, men gir BLU-Hjelperen rett til å prosessere disse for å levere tjenesten.</p>
+                  <p className="m-0">Du beholder eierskapet til tekstene du selv skriver inn i verktøyene, men gir PedPortalen rett til å prosessere disse for å levere tjenesten.</p>
                 </li>
               </ul>
             </section>
@@ -241,7 +241,7 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
       {/* Footer */}
       <footer className="max-w-4xl mx-auto px-6 py-12 border-t border-slate-100 text-center">
         <p className="text-xs text-slate-400 font-medium">
-          © {new Date().getFullYear()} BLU-Hjelperen. Alle rettigheter reservert.
+          © {new Date().getFullYear()} PedPortalen. Alle rettigheter reservert.
         </p>
       </footer>
     </div>

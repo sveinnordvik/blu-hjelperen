@@ -46,6 +46,7 @@ import DagensOversikt from './DagensOversikt';
 import Bemanningsradar from './Bemanningsradar';
 import VaktlisteTurnus from './VaktlisteTurnus';
 import HMSAvvik from './HMSAvvik';
+import Saksradar from './Saksradar';
 import AarshjulOgLovverk from './AarshjulOgLovverk';
 import StyrerAI from './StyrerAI';
 import Tilsynseksport from './Tilsynseksport';
@@ -54,6 +55,9 @@ import Personalhandbok from './Personalhandbok';
 import DelegertHMS from './DelegertHMS';
 import PersonalHR from './PersonalHR';
 import ITPMalbygger from './ITPMalbygger';
+import UserProfileModal from '../common/UserProfileModal';
+import PortalFooter from '../common/PortalFooter';
+import { useRole } from '../../context/RoleContext';
 
 interface Department {
   id: string;
@@ -103,11 +107,14 @@ interface YearEvent {
 }
 
 const StyrernApp: React.FC = () => {
+  const { role, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
   const [activeTab, setActiveTab] = useState('oversikt');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   // Sub-fane styring for sammenslåtte hovedkategorier
   const [personalSubTab, setPersonalSubTab] = useState<'ansatte' | 'vaktliste' | 'bemanning' | 'kompetanse' | 'handbok'>('ansatte');
-  const [kvalitetSubTab, setKvalitetSubTab] = useState<'avvik' | 'delegerthms' | 'tilsyn'>('avvik');
+  const [kvalitetSubTab, setKvalitetSubTab] = useState<'avvik' | 'delegerthms' | 'tilsyn' | 'spesped'>('avvik');
   const [ressurserSubTab, setRessurserSubTab] = useState<'profil' | 'aarshjul' | 'progresjon' | 'lovverk' | 'itpmal'>('profil');
   const [exportTriggerCount, setExportTriggerCount] = useState(0);
 
@@ -467,12 +474,24 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
                 <FileCheck size={16} />
                 <span>Tilsynseksport & Dokumentasjon</span>
               </button>
+              <button
+                onClick={() => setKvalitetSubTab('spesped')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  kvalitetSubTab === 'spesped'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <ShieldAlert size={16} />
+                <span>Spesialpedagogikk</span>
+              </button>
             </div>
 
             {/* Innhold basert på valgt under-fane */}
             {kvalitetSubTab === 'avvik' && <HMSAvvik onNavigate={handleNavigate} />}
             {kvalitetSubTab === 'delegerthms' && <DelegertHMS onNavigate={handleNavigate} />}
             {kvalitetSubTab === 'tilsyn' && <Tilsynseksport onNavigate={handleNavigate} />}
+            {kvalitetSubTab === 'spesped' && <Saksradar />}
           </div>
         );
 
@@ -561,7 +580,7 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
       {/* DEN MARINEBLÅ KOMMANDOSENTRALEN */}
       <header className="bg-[#1e1b4b] text-white shadow-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -612,15 +631,24 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
               
               <div className="h-8 w-px bg-indigo-800"></div>
               
-              <div className="flex items-center space-x-3 cursor-pointer hover:bg-[#2e2a5f] p-1.5 rounded-lg transition-colors">
-                <div className="bg-emerald-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1e1b4b]">
-                  KH
+              <button 
+                type="button"
+                onClick={() => setIsProfileOpen(true)}
+                className="flex items-center space-x-3 cursor-pointer hover:bg-[#2e2a5f] p-1.5 rounded-lg transition-colors text-left"
+                title="Klikk for å åpne Min profil og modusvelger"
+              >
+                <div className="bg-emerald-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1e1b4b] shrink-0">
+                  {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
                 </div>
                 <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-sm font-medium leading-none text-slate-100">Karoline Haug</span>
-                  <span className="text-xs text-indigo-300 mt-1">Styrer</span>
+                  <span className="text-sm font-medium leading-none text-slate-100">
+                    {isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug'}
+                  </span>
+                  <span className="text-xs text-indigo-300 mt-1">
+                    {isHavard ? 'Betabruker • Melhus' : 'Styrer'}
+                  </span>
                 </div>
-              </div>
+              </button>
             </div>
 
           </div>
@@ -656,9 +684,16 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
       </header>
 
       {/* HOVEDINNHOLD (Arbeidsflaten som byttes ut) */}
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300">
+      <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300">
         {renderContent()}
       </main>
+
+      <PortalFooter />
+
+      <UserProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+      />
     </div>
   );
 };

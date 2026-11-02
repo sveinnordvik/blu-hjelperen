@@ -55,6 +55,24 @@ const Bemanningsradar: React.FC<BemanningsradarProps> = ({ onNavigate }) => {
 
   // MOCK-DATA: Avdelinger med sanntidstall (synket med localStorage hvis endret)
   const [baser, setBaser] = useState<BaseData[]>(() => {
+    try {
+      const kpBaser = localStorage.getItem('styrern_kontrollpanel_baser');
+      if (kpBaser) {
+        const parsed = JSON.parse(kpBaser);
+        if (Array.isArray(parsed)) {
+          return parsed.map((b: any) => ({
+            id: b.id,
+            navn: b.navn,
+            alder: b.alder,
+            barnTilStede: Math.round((b.kapasitet || 18) * 0.8),
+            voksneTilStede: b.alder?.includes('0-3') 
+              ? Math.max(1, Math.ceil(Math.round((b.kapasitet || 12) * 0.8) / 3))
+              : Math.max(1, Math.ceil(Math.round((b.kapasitet || 18) * 0.8) / 6))
+          }));
+        }
+      }
+    } catch {}
+
     const saved = localStorage.getItem('styrern_radar_baser');
     return saved ? JSON.parse(saved) : [
       { id: 1, navn: 'Trollstua', alder: '0-3 år', barnTilStede: 9, voksneTilStede: 3 },
@@ -208,10 +226,16 @@ const Bemanningsradar: React.FC<BemanningsradarProps> = ({ onNavigate }) => {
       </div>
 
       {/* 2. RADAREN: Statuskort pr avdeling */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {baser.map((base) => {
-          const status = beregnStatus(base);
-          const StatusIkon = status.ikon;
+      {baser.length === 0 ? (
+        <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center space-y-2">
+          <p className="text-sm font-bold text-slate-800">Ingen avdelinger registrert ennå</p>
+          <p className="text-xs text-slate-500">Opprett avdelinger i Kontrollpanelet for å se sanntids bemanningsberegning og normstatus.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {baser.map((base) => {
+            const status = beregnStatus(base);
+            const StatusIkon = status.ikon;
 
           return (
             <div key={base.id} className={`relative bg-white rounded-2xl border-2 overflow-hidden shadow-sm transition-all duration-300 ${status.advarsel && isKjernetid ? 'border-rose-300 shadow-rose-100' : 'border-slate-200 hover:border-indigo-300'}`}>
@@ -254,6 +278,7 @@ const Bemanningsradar: React.FC<BemanningsradarProps> = ({ onNavigate }) => {
           );
         })}
       </div>
+      )}
 
       {/* 3. VARSEL VED DOBBELTOPPFØRING (LARS PETTERSEN FLERE GANGER) */}
       {harDuplikater && (

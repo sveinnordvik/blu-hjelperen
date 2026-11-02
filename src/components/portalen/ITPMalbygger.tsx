@@ -208,7 +208,7 @@ export default function ITPMalbygger({ onNavigate }: { onNavigate?: (target: str
       <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-start gap-3 shadow-sm">
         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-900 leading-relaxed">
-          <strong>Slik fungerer det:</strong> Endringene du publiserer her oppdaterer umiddelbart skjemaet og PDF-eksporten inne på <strong>Pedleder&apos;n</strong>. 
+          <strong>Slik fungerer det:</strong> Endringene du publiserer her oppdaterer umiddelbart skjemaet og PDF-eksporten inne på <strong>Pedledern</strong>. 
           Du kan skru på <em>KI-Veileder</em> for felter der personalet har nytte av didaktisk og spesialpedagogisk støtte (f.eks. ved utforming av SMARTe mål etter Trondheims-modellen).
         </div>
       </div>
@@ -326,7 +326,7 @@ export default function ITPMalbygger({ onNavigate }: { onNavigate?: (target: str
             className="text-xs font-semibold text-slate-500 hover:text-indigo-600 flex items-center gap-1.5"
           >
             <ShieldCheck className="w-4 h-4" />
-            Se hvordan malen ser ut for Pedleder&apos;n →
+            Se hvordan malen ser ut for Pedledern →
           </button>
         </div>
       )}
