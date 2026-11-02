@@ -430,7 +430,7 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-1.5 font-medium">
               <Shield className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{role === 'STUDENTN' ? 'BLU-hjelperen' : 'PedPortalen'} · v3.6.1</span>
+              <span>{(!isSvein && !isPortalBeta) || role === 'STUDENTN' ? 'BLU-hjelperen' : 'PedPortalen'} · v3.6.1</span>
             </div>
             <div className="flex items-center gap-3">
               <button

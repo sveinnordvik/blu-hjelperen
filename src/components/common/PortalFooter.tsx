@@ -12,13 +12,13 @@ export const PortalFooter: React.FC<PortalFooterProps> = ({
   className = '',
   theme = 'light'
 }) => {
-  const { role } = useRole();
+  const { role, isSvein, isPortalBeta } = useRole();
   const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
 
-  // Brukerkommentar: "Her vil jeg at det kun skal stå PedPortalen for alle som IKKE er logget inn som Studentn"
-  const isStudent = role === 'STUDENTN';
-  const brandName = isStudent ? 'BLU-hjelperen' : 'PedPortalen';
+  const canAccessPortal = isSvein || isPortalBeta;
+  const brandName = canAccessPortal ? 'PedPortalen' : 'BLU-hjelperen';
+  const tagLine = canAccessPortal ? 'Profesjonsverktøy for barnehagen' : 'Digital partner for barnehagelærerstudiet';
   const appVersion = '3.6.2';
 
   const openLegal = (tab: 'privacy' | 'terms') => {
@@ -46,7 +46,7 @@ export const PortalFooter: React.FC<PortalFooterProps> = ({
             <span aria-hidden="true" className="opacity-40">·</span>
             <span>Versjon {appVersion}</span>
             <span aria-hidden="true" className="opacity-40">·</span>
-            <span className="opacity-80">Profesjonsverktøy for barnehagen</span>
+            <span className="opacity-80">{tagLine}</span>
           </div>
 
           {/* Juridiske lenker */}

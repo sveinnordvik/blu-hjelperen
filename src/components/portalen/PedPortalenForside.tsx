@@ -25,8 +25,8 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
   const { isSvein: contextIsSvein, isPortalBeta, hasBluAccess, setRole, currentUserEmail } = useRole();
   const isSvein = propIsSvein ?? contextIsSvein;
 
-  // Har brukeren tilgang til Portalen-rollene
-  const canAccessPortal = true;
+  // Har brukeren tilgang til Portalen-rollene (Betabrukere som Håvard, Svein/admin)
+  const canAccessPortal = isSvein || isPortalBeta;
   const canAccessBlu = hasBluAccess;
 
   // Håndter navigasjon til BLU-hjelperen
@@ -118,11 +118,11 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
 
   // Dummy teaser-moduler for ukjente/uinnloggede gjester
   const kommendeModuler = [
-    { id: 'modul-1', farge: 'bg-indigo-600', sti: '/styrer' },
-    { id: 'modul-2', farge: 'bg-emerald-600', sti: '/pedleder' },
-    { id: 'modul-3', farge: 'bg-orange-500', sti: '/fagarbeider' },
-    { id: 'modul-4', farge: 'bg-pink-500', sti: '/assistent' },
-    { id: 'modul-5', farge: 'bg-teal-500', sti: '/vikar' },
+    { id: 'modul-1', title: 'Styrern', kicker: 'Overordnet ledelse', farge: 'bg-indigo-600', icon: LayoutDashboard, sti: '/styrer' },
+    { id: 'modul-2', title: 'Pedledern', kicker: 'Pedagogisk ledelse', farge: 'bg-emerald-600', icon: Compass, sti: '/pedleder' },
+    { id: 'modul-3', title: 'Fagarbeidern', kicker: 'Praksisnær pedagogikk', farge: 'bg-amber-600', icon: Palette, sti: '/fagarbeider' },
+    { id: 'modul-4', title: 'Assistentn', kicker: 'Trygghet og omsorg', farge: 'bg-teal-600', icon: HeartHandshake, sti: '/assistent' },
+    { id: 'modul-5', title: 'Vikarn', kicker: 'Hurtigonboarding', farge: 'bg-cyan-700', icon: Zap, sti: '/vikar' },
   ];
 
   return (
@@ -301,40 +301,47 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
           ) : (
             /* LÅSTE / SLØREDE TEASER-KORT FOR IKKE-AUTORISERTE */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {kommendeModuler.map((modul, idx) => (
-                <div
-                  key={modul.id}
-                  className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 p-6 shadow-xs flex flex-col min-h-[170px]"
-                >
-                  <div className="filter blur-[6px] select-none pointer-events-none opacity-40">
-                    <div className={`${modul.farge} w-12 h-12 rounded-xl mb-4 opacity-50`}></div>
-                    <div className="h-5 w-32 bg-slate-400 rounded mb-2"></div>
-                    <div className="h-3 w-44 bg-slate-300 rounded mb-1.5"></div>
-                    <div className="h-3 w-28 bg-slate-200 rounded"></div>
-                  </div>
-
-                  <div className="absolute inset-0 bg-slate-50/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center mb-2 shadow-xs">
-                      <Lock className="w-4 h-4" />
+              {kommendeModuler.map((modul, idx) => {
+                const IconComponent = modul.icon;
+                return (
+                  <div
+                    key={modul.id}
+                    className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between min-h-[180px]"
+                  >
+                    <div className="filter blur-[3px] select-none pointer-events-none opacity-40">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`${modul.farge} w-10 h-10 rounded-xl flex items-center justify-center text-white`}>
+                          <IconComponent className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-400">{modul.kicker}</span>
+                      </div>
+                      <h4 className="text-lg font-black text-slate-900 mb-1">{modul.title}</h4>
+                      <p className="text-xs text-slate-500">Lanseres snart...</p>
                     </div>
-                    <span className="text-xs font-bold text-slate-700 tracking-wide uppercase">
-                      Noe nytt kommer
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-medium mt-0.5">
-                      Lanseres snart
-                    </span>
 
-                    {isSvein && (
-                      <button
-                        onClick={() => navigate(modul.sti)}
-                        className="mt-2 text-[10px] bg-slate-900 text-white font-bold px-2 py-1 rounded hover:bg-slate-800 transition cursor-pointer"
-                      >
-                        Dev test #{idx + 1}
-                      </button>
-                    )}
+                    <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center mb-1.5 shadow-2xs">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 tracking-wide uppercase">
+                        {modul.title}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Lanseres snart
+                      </span>
+
+                      {isSvein && (
+                        <button
+                          onClick={() => navigate(modul.sti)}
+                          className="mt-2 text-[10px] bg-slate-900 text-white font-bold px-2.5 py-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                        >
+                          Dev test #{idx + 1}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
