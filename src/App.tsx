@@ -168,9 +168,9 @@ const MainApp = () => {
   return (
     <>
       <Routes>
-        <Route path="/" element={<PedPortalenForside isSvein={canSwitch} />} />
-        <Route path="/portal" element={<PedPortalenForside isSvein={canSwitch} />} />
-        <Route path="/portalen" element={<PedPortalenForside isSvein={canSwitch} />} />
+        <Route path="/" element={<PedPortalenForside />} />
+        <Route path="/portal" element={<PedPortalenForside />} />
+        <Route path="/portalen" element={<PedPortalenForside />} />
         <Route path="/styrer" element={<StyrernApp />} />
         <Route path="/pedleder" element={<PedledernApp />} />
         <Route path="/fagarbeider" element={<FagarbeidernApp />} />

@@ -25,8 +25,8 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
   const { isSvein: contextIsSvein, isPortalBeta, hasBluAccess, setRole, currentUserEmail } = useRole();
   const isSvein = propIsSvein ?? contextIsSvein;
 
-  // Har brukeren tilgang til Portalen-rollene (Betabrukere som Håvard, Svein/admin)
-  const canAccessPortal = isSvein || isPortalBeta;
+  // Har brukeren tilgang til Portalen-rollene (KUN når innlogget som Betabruker Håvard eller Svein/admin)
+  const canAccessPortal = Boolean(currentUserEmail && (isSvein || isPortalBeta));
   const canAccessBlu = hasBluAccess;
 
   // Håndter navigasjon til BLU-hjelperen
