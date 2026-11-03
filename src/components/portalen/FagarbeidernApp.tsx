@@ -153,49 +153,99 @@ Gi konkrete ideer med materialer man som regel har i barnehagen, hvordan aktivit
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Header */}
-      <header className="bg-amber-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-400 flex items-center justify-center text-white shadow-lg shadow-amber-500/30 shrink-0">
-              <Palette className="w-6 h-6" />
+      {/* Header (Styrern-design: Mørk Amber bg-[#451a03]) */}
+      <header className="w-full bg-[#451a03] text-white sticky top-0 z-50 shadow-md">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+          
+          {/* Logo & Rolle (Klikk for å gå til hovedside) */}
+          <div 
+            onClick={() => setActiveTab('aktiviteter')}
+            className="flex items-center gap-3 shrink-0 mr-4 cursor-pointer hover:opacity-90 transition-opacity"
+            title="Gå til hovedsiden (Idébank & Aktiviteter)"
+          >
+            <div className="bg-amber-600 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
+              <Palette className="w-5 h-5 text-white" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight truncate">Fagarbeidern</span>
-                <span className="hidden sm:inline text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
-                  Barne- og ungdomsarbeider
+            <div className="flex flex-col">
+              <span className="font-bold text-lg leading-tight tracking-wide">Fagarbeidern</span>
+              <span className="text-[11px] text-amber-300 uppercase tracking-wider font-semibold">Eventyrskogen Barnehage</span>
+            </div>
+          </div>
+
+          {/* Hovednavigasjon (Sentrert på stor skjerm) */}
+          <nav className="hidden xl:flex space-x-2 flex-1 justify-center">
+            {[
+              { id: 'aktiviteter', label: 'Idébank & Aktiviteter' },
+              { id: 'rutiner', label: 'Hverdagsrutiner' },
+              { id: 'observasjon', label: 'Observasjoner' },
+              { id: 'fagbrev', label: 'Fagbrev i praksis' },
+              { id: 'ai-assistent', label: 'Fagarbeider-AI' }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer ${
+                    isActive 
+                      ? 'bg-amber-600 text-white shadow-md transform scale-105' 
+                      : 'text-amber-100 hover:bg-[#78350f] hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Profil / Modusvelger høyre side */}
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            <div className="h-8 w-px bg-amber-800/80 hidden sm:block"></div>
+
+            <button 
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center space-x-3 cursor-pointer hover:bg-amber-900/80 p-1.5 rounded-lg transition-colors text-left"
+              title="Klikk for å åpne Min profil og modusvelger"
+            >
+              <div className="bg-amber-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-amber-400 ring-offset-2 ring-offset-[#451a03] shrink-0">
+                {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-sm font-medium leading-none text-slate-100">
+                  {isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug'}
+                </span>
+                <span className="text-xs text-amber-300 mt-1">
+                  {isHavard ? 'Betabruker • Melhus' : 'Fagarbeider'}
                 </span>
               </div>
-              <p className="text-xs text-amber-200/80 truncate">Praksisnær pedagogikk • Fagbrev & Yrkesstolthet</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 shrink-0">
-            <div 
-              onClick={() => setIsProfileOpen(true)}
-              title="Profil"
-              className="w-9 h-9 shrink-0 rounded-full bg-amber-600 border-2 border-amber-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-amber-500 ring-2 ring-amber-300/50"
-            >
-              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
-            </div>
+            </button>
             <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
           </div>
+
         </div>
-      </header>
 
-
-      <div className="flex overflow-x-auto px-4 py-2 border-t border-amber-800 gap-2 bg-amber-950/95 scrollbar-none">
-          {['aktiviteter', 'rutiner', 'observasjon', 'fagbrev', 'ai-assistent'].map(t => (
+        {/* Mobil/nettbrett navigasjonsstripe */}
+        <div className="xl:hidden flex overflow-x-auto px-4 py-2 border-t border-amber-900/60 gap-2 bg-[#2d1202] scrollbar-none">
+          {[
+            { id: 'aktiviteter', label: 'Idébank & Aktiviteter' },
+            { id: 'rutiner', label: 'Hverdagsrutiner' },
+            { id: 'observasjon', label: 'Observasjoner' },
+            { id: 'fagbrev', label: 'Fagbrev i praksis' },
+            { id: 'ai-assistent', label: 'Fagarbeider-AI' }
+          ].map(t => (
             <button
-              key={t}
-              onClick={() => setActiveTab(t as any)}
-              className={`px-3 py-1 rounded-md text-xs whitespace-nowrap font-medium ${activeTab === t ? 'bg-amber-600 text-white' : 'text-amber-200 bg-amber-900/60'}`}
+              key={t.id}
+              onClick={() => setActiveTab(t.id as any)}
+              className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap font-medium transition cursor-pointer ${
+                activeTab === t.id ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-amber-100 hover:bg-[#78350f] hover:text-white'
+              }`}
             >
-              {t === 'ai-assistent' ? 'Fagarbeider-AI' : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t.label}
             </button>
           ))}
-      </div>
+        </div>
+      </header>
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">

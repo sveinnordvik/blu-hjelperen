@@ -586,8 +586,12 @@ Svar strukturert med overskrifter, konkrete råd og eventuelle forslag til formu
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 border-b border-indigo-900/50">
             
-            {/* LOGO & BARNEHAGENAVN (Fått mer plass, overlapper ikke lenger) */}
-            <div className="flex items-center space-x-3 shrink-0 mr-8">
+            {/* LOGO & BARNEHAGENAVN (Klikk for å gå til hovedside) */}
+            <div 
+              onClick={() => setActiveTab('oversikt')}
+              className="flex items-center space-x-3 shrink-0 mr-8 cursor-pointer hover:opacity-90 transition-opacity"
+              title="Gå til hovedsiden (Oversikt)"
+            >
               <div className="bg-indigo-600 p-2 rounded-lg shadow-inner">
                 <LayoutDashboard size={20} className="text-white" />
               </div>

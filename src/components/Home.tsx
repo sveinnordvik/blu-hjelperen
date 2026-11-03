@@ -134,14 +134,16 @@ export const Home: React.FC<HomeProps> = ({
             <button 
               onClick={() => setActiveTab('assistant')} 
               className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all w-full sm:w-auto cursor-pointer"
+              style={{ height: '46.575px' }}
             >
-              <Sparkles className="w-5 h-5 text-indigo-400" /> Superveilederen Chat
+              <Sparkles className="w-5 h-5 text-indigo-400" /> <span>Superveilederen Chat</span>
             </button>
             <button 
               onClick={() => createNewDocument()} 
               className="bg-slate-50 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-100 border border-slate-200 transition-all w-full sm:w-auto"
+              style={{ width: '206.625px', height: '46px' }}
             >
-              <Plus className="w-5 h-5" /> Nytt dokument
+              <Plus className="w-5 h-5" /> <span>Nytt dokument</span>
             </button>
           </div>
         </div>

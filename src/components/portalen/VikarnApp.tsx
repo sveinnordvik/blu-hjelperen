@@ -123,78 +123,95 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Header */}
-      <header className="bg-emerald-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/30 shrink-0">
-              <Zap className="w-6 h-6" />
+      {/* Header (Styrern-design: Mørk Cyan bg-[#164e63]) */}
+      <header className="w-full bg-[#164e63] text-white sticky top-0 z-50 shadow-md">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+          
+          {/* Logo & Rolle (Klikk for å gå til hovedside) */}
+          <div 
+            onClick={() => setActiveTab('onboarding')}
+            className="flex items-center gap-3 shrink-0 mr-4 cursor-pointer hover:opacity-90 transition-opacity"
+            title="Gå til hovedsiden (5-minutters Onboarding)"
+          >
+            <div className="bg-cyan-600 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight truncate">Vikarn</span>
-                <span className="hidden sm:inline text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
-                  Hurtighåndbok & Vaktlogg
-                </span>
-              </div>
-              <p className="text-xs text-emerald-200/80 truncate">Klar til innsats • Rask onboarding i barnehagen</p>
+            <div className="flex flex-col">
+              <span className="font-bold text-lg leading-tight tracking-wide">Vikarn</span>
+              <span className="text-[11px] text-cyan-200 uppercase tracking-wider font-semibold">Eventyrskogen Barnehage</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <nav className="hidden md:flex items-center gap-1 bg-emerald-950/60 p-1 rounded-xl border border-emerald-800/60">
-              <button 
-                onClick={() => setActiveTab('onboarding')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'onboarding' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-              >
-                5-minutters Onboarding
-              </button>
-              <button 
-                onClick={() => setActiveTab('avdelingsark')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'avdelingsark' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-              >
-                Viktige Hensyn & Sikkerhet
-              </button>
-              <button 
-                onClick={() => setActiveTab('redningsleker')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'redningsleker' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-              >
-                Redningsvester & Leker
-              </button>
-              <button 
-                onClick={() => setActiveTab('timeliste')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'timeliste' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-              >
-                Min Timeliste
-              </button>
-              <button 
-                onClick={() => setActiveTab('vikar-ai')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'vikar-ai' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-200 hover:text-white hover:bg-emerald-800/40'}`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                Vikar-AI
-              </button>
-            </nav>
+          {/* Hovednavigasjon (Sentrert på stor skjerm) */}
+          <nav className="hidden xl:flex space-x-2 flex-1 justify-center">
+            {[
+              { id: 'onboarding', label: '5-minutters Onboarding' },
+              { id: 'avdelingsark', label: 'Viktige Hensyn & Sikkerhet' },
+              { id: 'redningsleker', label: 'Redningsvester & Leker' },
+              { id: 'timeliste', label: 'Min Timeliste' },
+              { id: 'vikar-ai', label: 'Vikar-AI' }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer ${
+                    isActive 
+                      ? 'bg-cyan-600 text-white shadow-md transform scale-105' 
+                      : 'text-cyan-100 hover:bg-[#155e75] hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Profil / Modusvelger høyre side */}
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            <div className="h-8 w-px bg-cyan-800/80 hidden sm:block"></div>
 
             <button 
               type="button"
               onClick={() => setIsProfileOpen(true)}
-              title="Min profil og rollebytte"
-              className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-emerald-500 ring-2 ring-emerald-300/50"
+              className="flex items-center space-x-3 cursor-pointer hover:bg-cyan-900/80 p-1.5 rounded-lg transition-colors text-left"
+              title="Klikk for å åpne Min profil og modusvelger"
             >
-              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              <div className="bg-cyan-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-cyan-400 ring-offset-2 ring-offset-[#164e63] shrink-0">
+                {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-sm font-medium leading-none text-slate-100">
+                  {isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug'}
+                </span>
+                <span className="text-xs text-cyan-300 mt-1">
+                  {isHavard ? 'Betabruker • Melhus' : 'Vikar'}
+                </span>
+              </div>
             </button>
+            <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
           </div>
+
         </div>
 
-        <div className="flex md:hidden overflow-x-auto px-4 py-2 border-t border-emerald-800 gap-2 bg-emerald-950/95 scrollbar-none">
-          {['onboarding', 'avdelingsark', 'redningsleker', 'timeliste', 'vikar-ai'].map(t => (
+        {/* Mobil/nettbrett navigasjonsstripe */}
+        <div className="xl:hidden flex overflow-x-auto px-4 py-2 border-t border-cyan-800/60 gap-2 bg-[#083344] scrollbar-none">
+          {[
+            { id: 'onboarding', label: '5-minutters Onboarding' },
+            { id: 'avdelingsark', label: 'Viktige Hensyn & Sikkerhet' },
+            { id: 'redningsleker', label: 'Redningsvester & Leker' },
+            { id: 'timeliste', label: 'Min Timeliste' },
+            { id: 'vikar-ai', label: 'Vikar-AI' }
+          ].map(t => (
             <button
-              key={t}
-              onClick={() => setActiveTab(t as any)}
-              className={`px-3 py-1 rounded-md text-xs whitespace-nowrap font-medium ${activeTab === t ? 'bg-emerald-600 text-white' : 'text-emerald-200 bg-emerald-900/60'}`}
+              key={t.id}
+              onClick={() => setActiveTab(t.id as any)}
+              className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap font-medium transition cursor-pointer ${
+                activeTab === t.id ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-cyan-100 hover:bg-[#155e75] hover:text-white'
+              }`}
             >
-              {t === 'vikar-ai' ? 'Vikar-AI' : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t.label}
             </button>
           ))}
         </div>

@@ -8,5 +8,7 @@ build/
 backups/
 .aistudio/
 *.local
+public/assets/aistudio/
+*.mp4
 
 

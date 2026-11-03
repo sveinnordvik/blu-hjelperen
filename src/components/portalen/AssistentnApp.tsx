@@ -122,78 +122,95 @@ Svar enkelt, varmt og pedagogisk jordnært. Gi konkrete formuleringer assistente
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Header */}
-      <header className="bg-sky-900 text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-sky-500/30 shrink-0">
-              <HeartHandshake className="w-6 h-6" />
+      {/* Header (Styrern-design: Mørk Blå bg-[#0c4a6e]) */}
+      <header className="w-full bg-[#0c4a6e] text-white sticky top-0 z-50 shadow-md">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+          
+          {/* Logo & Rolle (Klikk for å gå til hovedside) */}
+          <div 
+            onClick={() => setActiveTab('handbok')}
+            className="flex items-center gap-3 shrink-0 mr-4 cursor-pointer hover:opacity-90 transition-opacity"
+            title="Gå til hovedsiden (Trygghetsguiden: Hva gjør jeg hvis...)"
+          >
+            <div className="bg-sky-600 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
+              <HeartHandshake className="w-5 h-5 text-white" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg tracking-tight truncate">Assistentn</span>
-                <span className="hidden sm:inline text-[11px] font-bold bg-sky-500/20 text-sky-200 border border-sky-500/30 px-2 py-0.5 rounded-full whitespace-nowrap">
-                  Trygghet & Omsorg
+            <div className="flex flex-col">
+              <span className="font-bold text-lg leading-tight tracking-wide">Assistentn</span>
+              <span className="text-[11px] text-sky-200 uppercase tracking-wider font-semibold">Eventyrskogen Barnehage</span>
+            </div>
+          </div>
+
+          {/* Hovednavigasjon (Sentrert på stor skjerm) */}
+          <nav className="hidden xl:flex space-x-2 flex-1 justify-center">
+            {[
+              { id: 'handbok', label: 'Hva gjør jeg hvis...?' },
+              { id: 'garderobe', label: 'Garderobe & Vær' },
+              { id: 'leker', label: 'Lekehvelvet' },
+              { id: 'dagsplan', label: 'Dagens Sjekkliste' },
+              { id: 'ai-venn', label: 'Assistent-AI' }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer ${
+                    isActive 
+                      ? 'bg-sky-600 text-white shadow-md transform scale-105' 
+                      : 'text-sky-100 hover:bg-[#075985] hover:text-white'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Profil / Modusvelger høyre side */}
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            <div className="h-8 w-px bg-sky-800/80 hidden sm:block"></div>
+
+            <button 
+              type="button"
+              onClick={() => setIsProfileOpen(true)}
+              className="flex items-center space-x-3 cursor-pointer hover:bg-sky-900/80 p-1.5 rounded-lg transition-colors text-left"
+              title="Klikk for å åpne Min profil og modusvelger"
+            >
+              <div className="bg-sky-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-sky-400 ring-offset-2 ring-offset-[#0c4a6e] shrink-0">
+                {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-sm font-medium leading-none text-slate-100">
+                  {isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug'}
+                </span>
+                <span className="text-xs text-sky-300 mt-1">
+                  {isHavard ? 'Betabruker • Melhus' : 'Assistent'}
                 </span>
               </div>
-              <p className="text-xs text-sky-200/80 truncate">Barnehageassistentens håndbok og støtte i hverdagen</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <nav className="hidden md:flex items-center gap-1 bg-sky-950/60 p-1 rounded-xl border border-sky-800/60">
-              <button 
-                onClick={() => setActiveTab('handbok')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'handbok' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-              >
-                Hva gjør jeg hvis...?
-              </button>
-              <button 
-                onClick={() => setActiveTab('garderobe')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'garderobe' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-              >
-                Garderobe & Vær
-              </button>
-              <button 
-                onClick={() => setActiveTab('leker')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'leker' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-              >
-                Lekehvelvet
-              </button>
-              <button 
-                onClick={() => setActiveTab('dagsplan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${activeTab === 'dagsplan' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-              >
-                Dagens Sjekkliste
-              </button>
-              <button 
-                onClick={() => setActiveTab('ai-venn')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${activeTab === 'ai-venn' ? 'bg-sky-600 text-white shadow' : 'text-sky-200 hover:text-white hover:bg-sky-800/40'}`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                Assistent-AI
-              </button>
-            </nav>
-
-            <div 
-              onClick={() => setIsProfileOpen(true)}
-              title="Profil"
-              className="w-9 h-9 shrink-0 rounded-full bg-sky-600 border-2 border-sky-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-sky-500 ring-2 ring-sky-300/50"
-            >
-              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
-            </div>
+            </button>
             <UserProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
           </div>
+
         </div>
 
-        <div className="flex md:hidden overflow-x-auto px-4 py-2 border-t border-sky-800 gap-2 bg-sky-950/95 scrollbar-none">
-          {['handbok', 'garderobe', 'leker', 'dagsplan', 'ai-venn'].map(t => (
+        {/* Mobil/nettbrett navigasjonsstripe */}
+        <div className="xl:hidden flex overflow-x-auto px-4 py-2 border-t border-sky-800/60 gap-2 bg-[#082f49] scrollbar-none">
+          {[
+            { id: 'handbok', label: 'Hva gjør jeg hvis...?' },
+            { id: 'garderobe', label: 'Garderobe & Vær' },
+            { id: 'leker', label: 'Lekehvelvet' },
+            { id: 'dagsplan', label: 'Dagens Sjekkliste' },
+            { id: 'ai-venn', label: 'Assistent-AI' }
+          ].map(t => (
             <button
-              key={t}
-              onClick={() => setActiveTab(t as any)}
-              className={`px-3 py-1 rounded-md text-xs whitespace-nowrap font-medium ${activeTab === t ? 'bg-sky-600 text-white' : 'text-sky-200 bg-sky-900/60'}`}
+              key={t.id}
+              onClick={() => setActiveTab(t.id as any)}
+              className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap font-medium transition cursor-pointer ${
+                activeTab === t.id ? 'bg-sky-600 text-white shadow-sm font-semibold' : 'text-sky-100 hover:bg-[#075985] hover:text-white'
+              }`}
             >
-              {t === 'ai-venn' ? 'Assistent-AI' : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t.label}
             </button>
           ))}
         </div>

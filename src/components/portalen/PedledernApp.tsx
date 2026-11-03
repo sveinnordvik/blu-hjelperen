@@ -217,43 +217,30 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
       case 'dokumentasjon':
         return (
           <div className="w-full space-y-6">
-            {/* Header / Intro for modulen */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <Camera className="w-6 h-6 text-emerald-600" />
-                  Dokumentasjon & Innhold
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  To-trinnsraketten: Trinn 1 (Dagens Bilde & hurtigdokumentasjon) ➔ Trinn 2 (Didaktisk Månedsbrev forankret i Rammeplanen).
-                </p>
-              </div>
-
-              {/* Sub-navigasjon */}
-              <div className="flex bg-slate-200/80 p-1 rounded-xl">
-                <button
-                  onClick={() => setDokumentasjonSubTab('bilde')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    dokumentasjonSubTab === 'bilde'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Camera className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Dagens Bilde 📸</span>
-                </button>
-                <button
-                  onClick={() => setDokumentasjonSubTab('manedsbrev')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    dokumentasjonSubTab === 'manedsbrev'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Månedsbrev 📖</span>
-                </button>
-              </div>
+            {/* Sub-navigasjon (Styrern-modell) */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setDokumentasjonSubTab('bilde')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  dokumentasjonSubTab === 'bilde'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Camera size={16} />
+                <span>Dagens Bilde & Hurtigdokumentasjon</span>
+              </button>
+              <button
+                onClick={() => setDokumentasjonSubTab('manedsbrev')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  dokumentasjonSubTab === 'manedsbrev'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <BookOpen size={16} />
+                <span>Didaktisk Månedsbrev</span>
+              </button>
             </div>
 
             {/* Innhold i Dokumentasjon */}
@@ -275,83 +262,70 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
       case 'planlegging':
         return (
           <div className="w-full space-y-6">
-            {/* Header / Intro for modulen */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <Calendar className="w-6 h-6 text-emerald-600" />
-                  Didaktisk Planlegger
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Sokratisk didaktisk planlegger, kildebanken og helhetlig ukeplan-rutenett forankret i Rammeplanens 7 fagområder.
-                </p>
-              </div>
-
-              {/* Sub-navigasjon */}
-              <div className="flex bg-slate-200/80 p-1 rounded-xl">
-                <button
-                  onClick={() => setPlanleggingSubTab('ukeplan')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    planleggingSubTab === 'ukeplan'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Ukeplan & Rammeplan</span>
-                </button>
-                <button
-                  onClick={() => setPlanleggingSubTab('sokratisk')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    planleggingSubTab === 'sokratisk'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Compass className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Sokratisk Planlegger ✨</span>
-                </button>
-                <button
-                  onClick={() => setPlanleggingSubTab('ai')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    planleggingSubTab === 'ai'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Pedleder-AI Assistent</span>
-                </button>
-              </div>
+            {/* Sub-navigasjon (Styrern-modell) */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setPlanleggingSubTab('ukeplan')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  planleggingSubTab === 'ukeplan'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Calendar size={16} />
+                <span>Didaktisk Ukeplan & Rammeplan</span>
+              </button>
+              <button
+                onClick={() => setPlanleggingSubTab('sokratisk')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  planleggingSubTab === 'sokratisk'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Compass size={16} />
+                <span>Den Sokratiske Planleggeren</span>
+              </button>
+              <button
+                onClick={() => setPlanleggingSubTab('ai')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  planleggingSubTab === 'ai'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles size={16} />
+                <span>Pedleder-AI Assistent</span>
+              </button>
             </div>
 
             {/* Innhold i Planlegging */}
             {planleggingSubTab === 'ukeplan' && (
               <div className="space-y-6">
-                {/* Switcher mellom Didaktisk Rutenett og Fagområde-liste */}
-                <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-                  <div className="flex items-center gap-2">
+                {/* Switcher mellom Didaktisk Rutenett og Fagområde-liste (Smidig Segmented Control) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                  <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200/80 shrink-0">
                     <button
                       onClick={() => setUkeplanVisning('didaktisk')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                         ukeplanVisning === 'didaktisk'
-                          ? 'bg-emerald-600 text-white shadow-sm'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <Layers className="w-4 h-4" />
-                      <span>Didaktisk Ukeplan (Rutenett & Kilder)</span>
+                      <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Didaktisk Ukeplan & Rutenett</span>
                     </button>
                     <button
                       onClick={() => setUkeplanVisning('oversikt')}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                         ukeplanVisning === 'oversikt'
-                          ? 'bg-teal-700 text-white shadow-sm'
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                          ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <Calendar className="w-4 h-4" />
-                      <span>Fagområde-liste ({weeklyPlan.length} økter)</span>
+                      <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Fagområde-liste ({weeklyPlan.length})</span>
                     </button>
                   </div>
 
@@ -366,7 +340,7 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                               localStorage.setItem('pedledern_has_user_added_plan', 'false');
                             }
                           }}
-                          className="text-xs text-slate-600 hover:text-teal-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                          className="text-xs text-slate-600 hover:text-emerald-800 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-semibold transition cursor-pointer"
                         >
                           Gjenopprett eksempler
                         </button>
@@ -379,7 +353,7 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                               localStorage.setItem('pedledern_has_user_added_plan', 'true');
                             }
                           }}
-                          className="text-xs text-slate-600 hover:text-rose-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl font-semibold transition cursor-pointer"
+                          className="text-xs text-slate-600 hover:text-rose-700 bg-white hover:bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 font-semibold transition cursor-pointer"
                         >
                           Tøm eksempler
                         </button>
@@ -406,9 +380,9 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                             }
                           }
                         }}
-                        className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                       >
-                        <Plus className="w-4 h-4" /> Legg til økt
+                        <Plus className="w-3.5 h-3.5" /> Legg til økt
                       </button>
                     </div>
                   )}
@@ -578,65 +552,52 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
       case 'drift':
         return (
           <div className="w-full space-y-6">
-            {/* Header / Intro for modulen */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <Sunrise className="w-6 h-6 text-emerald-600" />
-                  Daglig Drift (På gulvet)
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Morgen-pulsen, dagsrytme tilpasset ukeplanen, velkomst-brief for vikarer og veiledningsstruktur.
-                </p>
-              </div>
-
-              {/* Sub-navigasjon */}
-              <div className="flex bg-slate-200/80 p-1 rounded-xl">
-                <button
-                  onClick={() => setDriftSubTab('avdeling')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    driftSubTab === 'avdeling'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Avdelingen i dag & Dagsrytme</span>
-                </button>
-                <button
-                  onClick={() => setDriftSubTab('morgenpuls')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    driftSubTab === 'morgenpuls'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sunrise className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Morgen-pulsen ☀️</span>
-                </button>
-                <button
-                  onClick={() => setDriftSubTab('brief')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    driftSubTab === 'brief'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ClipboardList className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Vikar-brief 📱</span>
-                </button>
-                <button
-                  onClick={() => setDriftSubTab('fagmoter')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    driftSubTab === 'fagmoter'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Fagmøter & Veiledning 🤝</span>
-                </button>
-              </div>
+            {/* Sub-navigasjon (Styrern-modell) */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setDriftSubTab('avdeling')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  driftSubTab === 'avdeling'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Clock size={16} />
+                <span>Avdelingen i dag & Dagsrytme</span>
+              </button>
+              <button
+                onClick={() => setDriftSubTab('morgenpuls')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  driftSubTab === 'morgenpuls'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Sunrise size={16} />
+                <span>Morgen-pulsen</span>
+              </button>
+              <button
+                onClick={() => setDriftSubTab('brief')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  driftSubTab === 'brief'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <ClipboardList size={16} />
+                <span>Vikar-brief</span>
+              </button>
+              <button
+                onClick={() => setDriftSubTab('fagmoter')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  driftSubTab === 'fagmoter'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Users size={16} />
+                <span>Fagmøter & Veiledning</span>
+              </button>
             </div>
 
             {/* Innhold i Daglig Drift */}
@@ -678,7 +639,6 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                         className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition flex items-center gap-1"
                       >
                         <span>Send Base-Brief</span>
-                        <span>📱</span>
                       </button>
                     </div>
                   </div>
@@ -782,76 +742,63 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
       case 'lederstotte':
         return (
           <div className="w-full space-y-6">
-            {/* Header / Intro for modulen */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  <ShieldCheck className="w-6 h-6 text-emerald-600" />
-                  Lederstøtte & Observasjoner
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Observasjonsarkivet (Aktive & Arkiv), PPT-skjoldet (Bekymringsruten) og Sokratisk sparring for utfordrende samtaler.
-                </p>
-              </div>
-
-              {/* Sub-navigasjon */}
-              <div className="flex bg-slate-200/80 p-1 rounded-xl">
-                <button
-                  onClick={() => setLederstotteSubTab('observasjoner')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    lederstotteSubTab === 'observasjoner'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Observasjoner 📝</span>
-                </button>
-                <button
-                  onClick={() => setLederstotteSubTab('ppt')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    lederstotteSubTab === 'ppt'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                  <span>PPT-Skjold (Bekymringsruten) 🛡️</span>
-                </button>
-                <button
-                  onClick={() => setLederstotteSubTab('tiltaksplan')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    lederstotteSubTab === 'tiltaksplan'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <FileSignature className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Tiltaksplan (ITP) 📋</span>
-                </button>
-                <button
-                  onClick={() => setLederstotteSubTab('sparring')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    lederstotteSubTab === 'sparring'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <MessageCircle className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Sokratisk Sparring 🗣️</span>
-                </button>
-                <button
-                  onClick={() => setLederstotteSubTab('spesped')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                    lederstotteSubTab === 'spesped'
-                      ? 'bg-white text-slate-900 shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Spesped-Veiviser 🛡️</span>
-                </button>
-              </div>
+            {/* Sub-navigasjon (Styrern-modell) */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setLederstotteSubTab('observasjoner')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  lederstotteSubTab === 'observasjoner'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <FileText size={16} />
+                <span>Observasjoner & Refleksjon</span>
+              </button>
+              <button
+                onClick={() => setLederstotteSubTab('ppt')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  lederstotteSubTab === 'ppt'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <ShieldAlert size={16} />
+                <span>PPT-Skjold (Bekymringsruten)</span>
+              </button>
+              <button
+                onClick={() => setLederstotteSubTab('tiltaksplan')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  lederstotteSubTab === 'tiltaksplan'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <FileSignature size={16} />
+                <span>Tiltaksplan (ITP)</span>
+              </button>
+              <button
+                onClick={() => setLederstotteSubTab('sparring')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  lederstotteSubTab === 'sparring'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <MessageCircle size={16} />
+                <span>Sokratisk Sparring</span>
+              </button>
+              <button
+                onClick={() => setLederstotteSubTab('spesped')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer ${
+                  lederstotteSubTab === 'spesped'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles size={16} />
+                <span>Spesped-Veiviser</span>
+              </button>
             </div>
 
             {/* Innhold i Lederstøtte */}
@@ -924,19 +871,23 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
     // Pass på at vi bruker justify-start for å unngå "hopping" midt på skjermen
     <div className="min-h-screen bg-slate-50 flex flex-col justify-start items-center font-sans text-slate-800">
       
-      {/* TOPPBAR (Styrern-design: Mørkegrønn bg-emerald-900, full bredde, sentrert innhold) */}
-      <header className="w-full bg-emerald-900 text-white shadow-md sticky top-0 z-50">
+      {/* TOPPBAR (Styrern-design: Mørkegrønn bg-[#064e3b], full bredde) */}
+      <header className="w-full bg-[#064e3b] text-white shadow-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           
-          {/* Logo & Rolle */}
-          <div className="flex items-center gap-3">
-            <div className="bg-emerald-700 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
+          {/* Logo & Rolle (Klikk for å gå til hovedside) */}
+          <div 
+            onClick={() => setAktivHovedfane('drift')}
+            className="flex items-center gap-3 shrink-0 mr-4 cursor-pointer hover:opacity-90 transition-opacity"
+            title="Gå til hovedsiden (Daglig Drift)"
+          >
+            <div className="bg-emerald-600 p-2 rounded-lg text-white shadow-sm flex items-center justify-center shrink-0">
               <Camera className="w-5 h-5 text-white" />
             </div>
-            <div className="hidden md:block">
-              <h1 className="font-bold text-lg leading-tight">Pedledern</h1>
+            <div className="flex flex-col">
+              <h1 className="font-bold text-lg leading-tight tracking-wide">Pedledern</h1>
               {baserList.length > 1 ? (
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5" onClick={(e) => e.stopPropagation()}>
                   <span className="text-[10px] text-emerald-200 uppercase tracking-wider font-semibold">Avdeling:</span>
                   <select 
                     value={aktivAvdelingNavn} 
@@ -951,15 +902,15 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                   </select>
                 </div>
               ) : (
-                <p className="text-[10px] text-emerald-200 uppercase tracking-wider font-semibold">
-                  {baserList.length === 1 ? `Avdeling ${baserList[0].navn}` : 'Ingen avdelinger registrert'}
+                <p className="text-[11px] text-emerald-300 uppercase tracking-wider font-semibold">
+                  {baserList.length === 1 ? `Avdeling ${baserList[0].navn}` : 'Eventyrskogen Barnehage'}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Hovednavigasjon (Sentrert) - Daglig Drift først til venstre */}
-          <nav className="flex items-center gap-1 md:gap-2 bg-black/10 p-1 rounded-xl">
+          {/* Hovednavigasjon (Sentrert) */}
+          <nav className="hidden xl:flex space-x-2 flex-1 justify-center">
             <NavKnapp 
               tittel="Daglig Drift" 
               ikon={<Sunrise className="w-4 h-4" />} 
@@ -986,18 +937,58 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
             />
           </nav>
 
-          {/* Profil / Ekstravalg høyre side */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Profil / Modusvelger høyre side */}
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            <div className="h-8 w-px bg-emerald-700/60 hidden sm:block"></div>
+
             <button 
               type="button"
               onClick={() => setIsProfileOpen(true)}
-              title="Min profil og rollebytte"
-              className="w-9 h-9 shrink-0 rounded-full bg-emerald-600 border-2 border-emerald-400 flex items-center justify-center text-xs font-bold text-white shadow-sm transition transform hover:scale-105 cursor-pointer hover:bg-emerald-500 ring-2 ring-emerald-300/50"
+              className="flex items-center space-x-3 cursor-pointer hover:bg-emerald-800/80 p-1.5 rounded-lg transition-colors text-left"
+              title="Klikk for å åpne Min profil og modusvelger"
             >
-              {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              <div className="bg-emerald-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#064e3b] shrink-0">
+                {isSvein ? 'SN' : isHavard ? 'HH' : 'KH'}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-sm font-medium leading-none text-slate-100">
+                  {isSvein ? 'Svein Nordvik' : isHavard ? 'Håvard Hovin' : 'Karoline Haug'}
+                </span>
+                <span className="text-xs text-emerald-300 mt-1">
+                  {isHavard ? 'Betabruker • Melhus' : 'Pedagogisk leder'}
+                </span>
+              </div>
             </button>
           </div>
           
+        </div>
+
+        {/* Mobil/nettbrett navigasjonsstripe under xl-skjermer */}
+        <div className="xl:hidden overflow-x-auto px-4 py-2 border-t border-emerald-900/60 flex items-center space-x-2 bg-[#043327] scrollbar-none">
+          <NavKnapp 
+            tittel="Daglig Drift" 
+            ikon={<Sunrise className="w-4 h-4" />} 
+            aktiv={aktivHovedfane === 'drift'} 
+            onClick={() => setAktivHovedfane('drift')} 
+          />
+          <NavKnapp 
+            tittel="Dokumentasjon" 
+            ikon={<Camera className="w-4 h-4" />} 
+            aktiv={aktivHovedfane === 'dokumentasjon'} 
+            onClick={() => setAktivHovedfane('dokumentasjon')} 
+          />
+          <NavKnapp 
+            tittel="Planlegging" 
+            ikon={<Calendar className="w-4 h-4" />} 
+            aktiv={aktivHovedfane === 'planlegging'} 
+            onClick={() => setAktivHovedfane('planlegging')} 
+          />
+          <NavKnapp 
+            tittel="Lederstøtte" 
+            ikon={<ShieldCheck className="w-4 h-4" />} 
+            aktiv={aktivHovedfane === 'lederstotte'} 
+            onClick={() => setAktivHovedfane('lederstotte')} 
+          />
         </div>
       </header>
 
@@ -1055,14 +1046,14 @@ function NavKnapp({
   return (
     <button 
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+      className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 cursor-pointer shrink-0 whitespace-nowrap ${
         aktiv 
-          ? 'bg-emerald-500 text-white shadow-sm' 
-          : 'text-slate-300 hover:text-white hover:bg-white/10'
+          ? 'bg-emerald-600 text-white shadow-md transform scale-105' 
+          : 'text-emerald-100 hover:bg-[#044e3b] hover:text-white'
       }`}
     >
       {ikon}
-      <span className="hidden lg:inline">{tittel}</span>
+      <span>{tittel}</span>
     </button>
   );
 }

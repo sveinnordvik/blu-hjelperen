@@ -160,38 +160,38 @@ export default function ITPMalbygger({ onNavigate }: { onNavigate?: (target: str
     <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 font-sans text-slate-800 p-4 sm:p-6 pb-16">
       
       {/* HEADER for Styrern (Mørkeblå / Indigo) */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-        <div className="flex items-center gap-4">
-          <div className="bg-indigo-100 p-3 rounded-2xl text-indigo-600 shadow-sm">
-            <Settings className="w-8 h-8" />
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-[2rem] shadow-sm border border-slate-100">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="bg-indigo-100 p-3 rounded-2xl text-indigo-600 shadow-sm shrink-0">
+            <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Malbygger: Tiltaksplan (ITP)</h1>
-            <p className="text-sm text-slate-500">Definer standarden for spesialpedagogisk dokumentasjon i barnehagen</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">Malbygger: Tiltaksplan (ITP)</h1>
+            <p className="text-xs sm:text-sm text-slate-500 truncate sm:whitespace-normal">Definer standarden for spesialpedagogisk dokumentasjon i barnehagen</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
           <button
             onClick={tilbakestillTilStandard}
-            className="px-3.5 py-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 transition"
+            className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5 transition shrink-0 whitespace-nowrap"
             title="Tilbakestill til Udir/Trondheim standard"
           >
-            <RotateCcw className="w-4 h-4 text-slate-400" />
-            <span className="hidden sm:inline">Udir-standard</span>
+            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+            <span>Udir-standard</span>
           </button>
 
           <button 
             onClick={handlePubliser}
             disabled={!harUlagredeEndringer || publiserer}
-            className={`flex-1 sm:flex-none px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm shrink-0 whitespace-nowrap ${
               harUlagredeEndringer 
                 ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:scale-[1.01]' 
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
             }`}
           >
-            {publiserer ? <Sparkles className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            {publiserer ? 'Publiserer mal...' : 'Lagre & Publiser til Pedledere'}
+            {publiserer ? <Sparkles className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{publiserer ? 'Publiserer...' : 'Lagre & Publiser til Pedledere'}</span>
           </button>
         </div>
       </div>

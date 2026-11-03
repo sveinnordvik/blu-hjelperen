@@ -430,7 +430,7 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
-    version: 'v3.6.3',
+    version: 'v3.6.4',
     date: '2026-11-03',
     title: 'Dynamisk Pedagogisk Grunnsyn & Veilederintegrasjon',
     changes: [
