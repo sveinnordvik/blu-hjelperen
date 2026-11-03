@@ -18,6 +18,7 @@ import { FieldNotes } from '../mobile/FieldNotes';
 import { FieldAssistant } from '../mobile/FieldAssistant';
 import { ProjectorDisplayScreen } from '../presentation/ProjectorDisplayScreen';
 import { VersionBanner } from '../VersionBanner';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * @license
@@ -116,7 +117,7 @@ import {
   googleProvider,
   messaging
 } from '../../firebase';
-import { signInWithRedirect } from 'firebase/auth';
+import { signInWithRedirect, signInWithEmailAndPassword } from 'firebase/auth';
 import { getToken } from 'firebase/messaging';
 import { 
   doc, 
@@ -368,6 +369,7 @@ if (typeof window !== 'undefined' && window.location?.search) {
 
 export default function StudentnApp() {
   const { setRole, canSwitch } = useRole();
+  const navigate = useNavigate();
   // Sjekk om dette vinduet er åpnet som storskjerm / projektor-visning (Fase 4)
   const isProjectorMode = typeof window !== 'undefined' && (() => {
     try {
@@ -4197,7 +4199,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         </button>
         {canSwitch && (
           <button 
-            onClick={() => setRole('STYRERN')}
+            onClick={() => {
+              setRole('STYRERN');
+              navigate('/styrer');
+            }}
             className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
             title="Gå tilbake til Styrern / Portalen"
           >

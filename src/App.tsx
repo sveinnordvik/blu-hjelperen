@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { auth, onAuthStateChanged, signInWithPopup, googleProvider, signInWithEmailAndPassword } from './firebase';
 import { isUnlimitedUser, isAdminUser, isPortalBetaUser, hasBluAccess } from './config/accessConfig';
 import { RoleProvider, useRole, Role } from './context/RoleContext';
@@ -113,6 +113,7 @@ import UserProfileModal from './components/common/UserProfileModal';
 
 const ModeBanner = () => {
   const { role, setRole, canSwitch } = useRole();
+  const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   if (role === 'STYRERN' || !canSwitch) return null;
 
@@ -122,7 +123,8 @@ const ModeBanner = () => {
     FAGARBEIDERN: 'Fagarbeider',
     ASSISTENTN: 'Assistent',
     VIKARN: 'Vikar',
-    STUDENTN: 'Student (BLU-hjelperen)'
+    STUDENTN: 'Student (BLU-hjelperen)',
+    GUEST: 'Gjest'
   };
 
   return (
@@ -148,7 +150,10 @@ const ModeBanner = () => {
           </button>
           <button 
             type="button"
-            onClick={() => setRole('STYRERN')} 
+            onClick={() => {
+              setRole('STYRERN');
+              navigate('/styrer');
+            }} 
             className="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
             title="Gå direkte tilbake til Styrern"
           >
@@ -163,7 +168,29 @@ const ModeBanner = () => {
 };
 
 const MainApp = () => {
-  const { canSwitch, hasBluAccess } = useRole();
+  const { role, canSwitch, hasBluAccess } = useRole();
+
+  const renderActiveApp = () => {
+    switch (role) {
+      case 'STUDENTN': return hasBluAccess ? <StudentnApp /> : <StyrernApp />;
+      case 'PEDLEDERN': return <PedledernApp />;
+      case 'FAGARBEIDERN': return <FagarbeidernApp />;
+      case 'ASSISTENTN': return <AssistentnApp />;
+      case 'VIKARN': return <VikarnApp />;
+      case 'STYRERN': return <StyrernApp />;
+      default: return <StyrernApp />;
+    }
+  };
+
+  // Når brukeren har byttet til en annen rolle enn STYRERN
+  if (canSwitch && role && role !== 'STYRERN') {
+    return (
+      <div className="min-h-screen pt-11">
+        <ModeBanner />
+        {renderActiveApp()}
+      </div>
+    );
+  }
 
   return (
     <>

@@ -19,6 +19,7 @@ import {
 import { useRole, Role } from '../../context/RoleContext';
 import { auth, signOut } from '../../firebase';
 import { LegalModal } from './LegalModal';
+import { useNavigate } from 'react-router-dom';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -27,6 +28,17 @@ interface UserProfileModalProps {
 
 export default function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
   const { role, setRole, canSwitch, isSvein, isPortalBeta, currentUserEmail } = useRole();
+  const navigate = useNavigate();
+
+  const roleRoutes: Record<Role, string> = {
+    STYRERN: '/styrer',
+    PEDLEDERN: '/pedleder',
+    FAGARBEIDERN: '/fagarbeider',
+    ASSISTENTN: '/assistent',
+    VIKARN: '/vikar',
+    STUDENTN: '/blu-hjelperen',
+    GUEST: '/'
+  };
 
   const isHavard = currentUserEmail?.toLowerCase() === 'havard.hovin@melhus.kommune.no' || isPortalBeta;
 
@@ -126,7 +138,8 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
     FAGARBEIDERN: 'Fagarbeider',
     ASSISTENTN: 'Assistent',
     VIKARN: 'Vikar',
-    STUDENTN: 'Student (BLU-hjelperen)'
+    STUDENTN: 'Student (BLU-hjelperen)',
+    GUEST: 'Gjest'
   };
 
   // Liste over roller brukeren kan bytte til
@@ -314,6 +327,9 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
                       onClick={() => {
                         setRole(r.id);
                         onClose();
+                        if (roleRoutes[r.id]) {
+                          navigate(roleRoutes[r.id]);
+                        }
                       }}
                       className={`p-3 rounded-xl border text-left flex items-center justify-between transition cursor-pointer ${
                         isCurrent 

@@ -308,23 +308,23 @@ export default function PedPortalenForside({ onSelectApp, isSvein: propIsSvein }
                     key={modul.id}
                     className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-6 shadow-xs flex flex-col justify-between min-h-[180px]"
                   >
-                    <div className="filter blur-[3px] select-none pointer-events-none opacity-40">
+                    <div className="filter blur-[5px] select-none pointer-events-none opacity-30">
                       <div className="flex items-center justify-between mb-3">
-                        <div className={`${modul.farge} w-10 h-10 rounded-xl flex items-center justify-center text-white`}>
+                        <div className={`${modul.farge} w-10 h-10 rounded-xl flex items-center justify-center text-white opacity-60`}>
                           <IconComponent className="w-5 h-5" />
                         </div>
-                        <span className="text-[10px] font-semibold text-slate-400">{modul.kicker}</span>
+                        <span className="text-[10px] font-semibold text-slate-400">Barnehageverktøy</span>
                       </div>
-                      <h4 className="text-lg font-black text-slate-900 mb-1">{modul.title}</h4>
-                      <p className="text-xs text-slate-500">Lanseres snart...</p>
+                      <h4 className="text-lg font-black text-slate-900 mb-1">Ny modul</h4>
+                      <p className="text-xs text-slate-500">Under utvikling...</p>
                     </div>
 
-                    <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center">
+                    <div className="absolute inset-0 bg-slate-50/85 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center">
                       <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center mb-1.5 shadow-2xs">
                         <Lock className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-bold text-slate-800 tracking-wide uppercase">
-                        {modul.title}
+                        NOE NYTT KOMMER
                       </span>
                       <span className="text-[11px] text-slate-500 font-medium mt-0.5">
                         Lanseres snart

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useRole, Role } from '../../context/RoleContext';
 import { LegalModal } from '../common/LegalModal';
+import { useNavigate } from 'react-router-dom';
 
 interface Ansatt {
   id: number;
@@ -44,6 +45,17 @@ const DEFAULT_DEMO_BASER: BaseItem[] = [
 
 const Kontrollpanel: React.FC = () => {
   const { role, setRole, isSvein } = useRole();
+  const navigate = useNavigate();
+
+  const roleRoutes: Record<Role, string> = {
+    STYRERN: '/styrer',
+    PEDLEDERN: '/pedleder',
+    FAGARBEIDERN: '/fagarbeider',
+    ASSISTENTN: '/assistent',
+    VIKARN: '/vikar',
+    STUDENTN: '/blu-hjelperen',
+    GUEST: '/'
+  };
   // Styrer hvilken underfane vi er på inne i maskinrommet
   const [activeTab, setActiveTab] = useState<'baser' | 'innstillinger' | 'modus'>('baser');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -462,7 +474,12 @@ const Kontrollpanel: React.FC = () => {
           {roles.map(r => (
             <button
               key={r.id}
-              onClick={() => setRole(r.id)}
+              onClick={() => {
+                setRole(r.id);
+                if (roleRoutes[r.id]) {
+                  navigate(roleRoutes[r.id]);
+                }
+              }}
               className={`p-6 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
                 role === r.id 
                   ? 'bg-indigo-50 border-indigo-500 shadow-sm ring-1 ring-indigo-500' 
