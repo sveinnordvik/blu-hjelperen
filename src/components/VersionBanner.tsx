@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, X } from 'lucide-react';
 
-const CURRENT_VERSION = 'v3.6.1';
+const CURRENT_VERSION = 'v3.6.3';
 const VERSION_KEY = 'blu_app_version';
 
 export const VersionBanner: React.FC = () => {

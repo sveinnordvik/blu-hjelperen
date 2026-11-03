@@ -604,7 +604,7 @@ const Kontrollpanel: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
               <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Appversjon</span>
-              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.2</span>
+              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.3</span>
               <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
                 <CheckCircle2 size={12} /> Siste stabile utgave
               </span>

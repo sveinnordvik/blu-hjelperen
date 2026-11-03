@@ -430,6 +430,18 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.3',
+    date: '2026-11-03',
+    title: 'Dynamisk Pedagogisk Grunnsyn & Veilederintegrasjon',
+    changes: [
+      'Pedagogisk Grunnsyn Builder: Interaktivt verktøy for å utforme og videreutvikle eget pedagogisk grunnsyn forankret i Rammeplanen og barnehageloven.',
+      'Sokratiske veilederspørsmål: Hjelpespørsmål direkte ved hvert kapittel for refleksjon og skrivebistand.',
+      'Sømløs Superveileder-kobling: Superveilederen tilpasser sine råd automatisk etter ditt lagrede grunnsyn.',
+      'Oppstarts-optimalisering: Fjernet forstyrrende onboarding-modaler og samlet profilsider under Min Profil.',
+      'Fleksibel eksport: Eksport av komplett pedagogisk grunnsyn til Word (.docx) og PDF.'
+    ]
+  },
+  {
     version: 'v3.6.0',
     date: '2026-10-30',
     title: 'Utvidet kildeveiledning & akademisk litteratursøk',

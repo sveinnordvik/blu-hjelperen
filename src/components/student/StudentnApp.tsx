@@ -2378,148 +2378,14 @@ export default function StudentnApp() {
   }, [activeTips.length]);
 
 
-  // Preferences and Onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    const saved = localStorage.getItem('dmmh_onboarding_complete');
-    return saved !== 'true';
-  });
+  // Preferences and Onboarding state - disabled pop-up modal per user request
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const OnboardingWizard = () => {
-    if (!showOnboarding) return null;
+  useEffect(() => {
+    localStorage.setItem('dmmh_onboarding_complete', 'true');
+  }, []);
 
-    const [onboardingStep, setOnboardingStep] = useState(1);
-    const [didacticProfile, setDidacticProfile] = useState<{
-      frameworkFocus: string;
-      coreValues: string[];
-    }>({
-      frameworkFocus: '',
-      coreValues: []
-    });
-
-    const handleSaveAndComplete = async () => {
-      // Oppdater lokal profil-state med de nye didaktiske valgene
-      const updatedProfile = { ...profile, ...didacticProfile };
-      setProfile(updatedProfile);
-
-      // Lagre til Firebase hvis brukeren er logget inn
-      if (user) {
-        try {
-          await setDoc(doc(db, 'users', user.uid), { 
-            uid: user.uid,
-            email: user.email || updatedProfile.email || 'unknown@example.com',
-            profile: updatedProfile,
-            onboardingComplete: true
-          }, { merge: true });
-        } catch (error) {
-          console.error("Feil ved lagring av didaktisk profil:", error);
-        }
-      }
-
-      setShowOnboarding(false);
-      setOnboardingComplete(true);
-      localStorage.setItem('dmmh_onboarding_complete', 'true');
-    };
-
-    const toggleCoreValue = (value: string) => {
-      setDidacticProfile(prev => ({
-        ...prev,
-        coreValues: prev.coreValues.includes(value)
-          ? prev.coreValues.filter(v => v !== value)
-          : [...prev.coreValues, value]
-      }));
-    };
-
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100"
-        >
-          {onboardingStep === 1 && (
-            <div className="p-10 text-center space-y-6">
-              <div className="flex justify-center">
-                <div className="bg-primary-light/30 p-6 rounded-[2.5rem] animate-bounce-slow">
-                  <Sparkles className="w-12 h-12 text-primary" />
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h2 className="text-3xl font-black text-slate-900 leading-tight">Velkommen til BLU-Hjelperen! 👋</h2>
-                <p className="text-slate-500 leading-relaxed">
-                  Før Super-Veilederen kan hjelpe deg med oppgavene dine, må vi stille inn din faglige profil. 
-                  Dette sikrer at tilbakemeldingene treffer ditt pedagogiske grunnsyn.
-                </p>
-              </div>
-              <div className="pt-4">
-                <button 
-                  onClick={() => setOnboardingStep(2)}
-                  className="w-full py-4 bg-primary text-white rounded-2xl font-black hover:bg-primary-hover shadow-xl shadow-primary-light transition-all flex items-center justify-center gap-2"
-                >
-                  Start prinsipp-sjekken <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {onboardingStep === 2 && (
-            <div className="p-10 space-y-6 text-left">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="bg-primary-light/30 p-3 rounded-2xl">
-                  <Brain className="w-8 h-8 text-primary" />
-                </div>
-                <h2 className="text-2xl font-black text-slate-900">Ditt didaktiske fokus</h2>
-              </div>
-              
-              <div className="space-y-4">
-                <label className="block text-sm font-bold text-slate-700">1. Rammeplan-forankring</label>
-                <select 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-primary outline-none transition-all"
-                  value={didacticProfile.frameworkFocus}
-                  onChange={(e) => setDidacticProfile({...didacticProfile, frameworkFocus: e.target.value})}
-                >
-                  <option value="">Velg ditt kjerneområde...</option>
-                  <option value="Lek og barns medvirkning">Lek og barns medvirkning</option>
-                  <option value="Danning og omsorg">Danning og omsorg</option>
-                  <option value="Uterom og nærmiljø">Uterom og nærmiljø</option>
-                  <option value="Inkludering og mangfold">Inkludering og mangfold</option>
-                </select>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <label className="block text-sm font-bold text-slate-700">2. Kjerneverdier (velg opptil 3)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {['Anerkjennelse', 'Sokratisk dialog', 'Progresjon', 'Livsmestring'].map(value => (
-                    <button
-                      key={value}
-                      onClick={() => toggleCoreValue(value)}
-                      className={cn(
-                        "p-3 rounded-xl border text-xs font-bold transition-all text-left",
-                        didacticProfile.coreValues.includes(value) 
-                          ? "bg-primary text-white border-primary shadow-md shadow-primary/20" 
-                          : "bg-white border-slate-200 text-slate-600 hover:border-primary/40"
-                      )}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-6">
-                <button 
-                  onClick={handleSaveAndComplete}
-                  disabled={!didacticProfile.frameworkFocus || didacticProfile.coreValues.length === 0}
-                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="w-5 h-5" /> Fullfør profil
-                </button>
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </div>
-    );
-  };
+  const OnboardingWizard = () => null;
 
   useEffect(() => {
     // Sync handled by Firestore
@@ -6510,10 +6376,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             <button 
               onClick={() => setActiveTab('profile')}
               className="hover:text-primary transition-colors py-1 font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1.5"
-              title="BLU-Hjelperen v3.6.1 (IP-beskyttelse & Sikkerhet) – Vis versjonshistorikk i profilen"
+              title="BLU-Hjelperen v3.6.3 – Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.6.1 IP-beskyttelse
+              v3.6.3
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

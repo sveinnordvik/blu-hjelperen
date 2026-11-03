@@ -2988,10 +2988,26 @@ export const chatWithSuperveileder = async (context: ChatContext): Promise<strin
     ? `[Utdrag av de siste 25 000 tegnene i utkastet]:\n...${context.docContent.slice(-25000)}` 
     : (context.docContent || 'Ingen tekst skrevet enda.');
 
-  const systemInstruction = `Du er 'Superveilederen', en erfaren og faglig støttende KI-veileder for barnehagelærerstudenter (BLU/DMMH).
+  let grunnsynContext = '';
+  try {
+    const savedGrunnsyn = typeof window !== 'undefined' ? localStorage.getItem('blu_pedagogisk_grunnsyn_chapters') : null;
+    if (savedGrunnsyn) {
+      const chapters = JSON.parse(savedGrunnsyn);
+      const written = chapters.filter((c: { content?: string }) => c.content && c.content.trim().length > 0);
+      if (written.length > 0) {
+        grunnsynContext = `\n\nStudentens Pedagogiske Grunnsyn (fra profilen):\n` + 
+          written.map((c: { title: string; content: string }) => `- **${c.title}**: ${c.content.trim()}`).join('\n');
+      }
+    }
+  } catch {
+    // Ignore JSON parse error
+  }
+
+  const systemInstruction = `Du er 'Superveilederen', en erfaren og faglig støttende KI-veileder for barnehagelærerstudenter (BLU).
 Modus valgt av studenten: ${context.mode} (Aktivt agentfokus: ${detectedAgent})
 Dokumenttittel: ${context.docTitle || 'Uten tittel'}
 Problemstilling: ${context.taskPrompt || 'Ikke oppgitt'}
+${grunnsynContext}
 
 Studentens nåværende utkast:
 """

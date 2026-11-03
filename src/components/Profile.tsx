@@ -43,15 +43,17 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
-  FolderArchive
+  FolderArchive,
+  GraduationCap
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import DeleteDataButton from './DeleteDataButton';
 import { AIWarning } from './AIWarning';
+import { PedagogiskGrunnsynBuilder } from './tools/PedagogiskGrunnsynBuilder';
 
 export interface ProfileProps {
-  initialMenu?: 'profile' | 'settings' | 'about' | string;
+  initialMenu?: 'profile' | 'settings' | 'about' | 'grunnsyn' | string;
   profile: any;
   setProfile: (profile: any) => void;
   handleSaveProfile?: () => Promise<void> | void;
@@ -83,6 +85,7 @@ export interface ProfileProps {
   handleExportData?: () => void;
   handleDeleteData?: () => void;
   onNavigate?: (tab: any) => void;
+  onNavigateToChat?: (initialPrompt: string) => void;
 }
 
 export function Profile({
@@ -117,7 +120,8 @@ export function Profile({
   permissionStatus = 'default',
   handleExportData,
   handleDeleteData,
-  onNavigate
+  onNavigate,
+  onNavigateToChat
 }: ProfileProps) {
   const [activeMenu, setActiveMenu] = useState<string>(initialMenu || 'profile');
   const [copiedReferral, setCopiedReferral] = useState(false);
@@ -126,7 +130,7 @@ export function Profile({
   const referralUrl = typeof window !== 'undefined' ? `${window.location.origin}?ref=${referralCode}` : `https://bluhjelperen.no?ref=${referralCode}`;
 
   useEffect(() => {
-    if (initialMenu && ['profile', 'settings', 'about'].includes(initialMenu)) {
+    if (initialMenu && ['profile', 'grunnsyn', 'settings', 'about'].includes(initialMenu)) {
       setActiveMenu(initialMenu);
     }
   }, [initialMenu]);
@@ -141,6 +145,17 @@ export function Profile({
       activeColor: 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500/30 font-black',
       iconColor: 'text-indigo-600',
       badgeColor: 'bg-indigo-50 border-indigo-200/60 text-indigo-700',
+      hideActions: true 
+    },
+    { 
+      id: 'grunnsyn', 
+      title: 'Pedagogisk Grunnsyn', 
+      shortTitle: 'Grunnsyn',
+      subtitle: 'Ditt levende fagdokument', 
+      icon: <GraduationCap className="w-4 h-4" />,
+      activeColor: 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500/30 font-black',
+      iconColor: 'text-blue-600',
+      badgeColor: 'bg-blue-50 border-blue-200/60 text-blue-700',
       hideActions: true 
     },
     { 
@@ -436,41 +451,65 @@ export function Profile({
                       <BookOpen className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">Pedagogisk profil & Rammeplan</h3>
-                      <p className="text-xs text-slate-400 font-medium">Ditt faglige fokus fra Velkomstguiden</p>
+                      <h3 className="text-lg font-bold text-slate-900">Ditt Didaktiske Fokus (Rammeplan & Verdier)</h3>
+                      <p className="text-xs text-slate-400 font-medium">Tilpass hvordan Superveilederen gir deg faglige råd og tilbakemeldinger</p>
                     </div>
                   </div>
-                  {setShowWelcomeGuide && (
-                    <button 
-                      onClick={() => setShowWelcomeGuide(true)}
-                      className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 hover:bg-primary-light/20 hover:text-primary hover:border-primary/30 rounded-xl text-xs font-bold transition-all flex items-center gap-2 self-start sm:self-auto cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-primary" />
-                      Åpne Prinsipp-sjekk / Guide
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveMenu('grunnsyn')}
+                    className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+                  >
+                    <GraduationCap className="w-4 h-4 text-indigo-600" />
+                    <span>Åpne levende Pedagogisk Grunnsyn</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Fokusområde i Rammeplanen</span>
-                    <p className="text-sm font-bold text-slate-900">
-                      {pedagogicalProfile?.frameworkFocus || "Ikke valgt ennå"}
-                    </p>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">1. Rammeplan-forankring</label>
+                    <select 
+                      className="w-full py-3.5 px-4 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base sm:text-sm font-medium outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                      value={profile?.frameworkFocus || ''}
+                      onChange={(e) => setProfile({ ...profile, frameworkFocus: e.target.value })}
+                    >
+                      <option value="">Velg kjerneområde...</option>
+                      <option value="Lek og barns medvirkning">Lek og barns medvirkning</option>
+                      <option value="Danning og omsorg">Danning og omsorg</option>
+                      <option value="Uterom og nærmiljø">Uterom og nærmiljø som læringsarena</option>
+                      <option value="Inkludering og mangfold">Inkludering og mangfold</option>
+                    </select>
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Dine kjernebegreper & verdier</span>
-                    {pedagogicalProfile?.coreValues && pedagogicalProfile.coreValues.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {pedagogicalProfile.coreValues.map((v: string, i: number) => (
-                          <span key={`core-val-${i}-${v}`} className="px-2.5 py-0.5 bg-white border border-slate-200 text-primary font-bold text-xs rounded-lg shadow-xs">
-                            {v}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 italic">Ingen verdier valgt ennå</p>
-                    )}
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">2. Kjerneverdier (velg 2-3)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {['Anerkjennelse', 'Sokratisk dialog', 'Progresjon', 'Livsmestring', 'Inkludering', 'Barns medvirkning'].map(val => {
+                        const isSelected = (profile?.coreValues || []).includes(val);
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => {
+                              const currentVals = profile?.coreValues || [];
+                              const newVals = isSelected
+                                ? currentVals.filter((v: string) => v !== val)
+                                : [...currentVals, val];
+                              setProfile({ ...profile, coreValues: newVals });
+                            }}
+                            className={cn(
+                              "p-3 rounded-xl border text-xs font-bold transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.98]",
+                              isSelected 
+                                ? "bg-primary text-white border-primary shadow-xs" 
+                                : "bg-slate-50 border-slate-200 text-slate-700 hover:border-primary/40 hover:bg-slate-100"
+                            )}
+                          >
+                            <span>{val}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 ml-1 text-white shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -664,6 +703,24 @@ export function Profile({
                   Informasjonen du oppgir brukes utelukkende til å gi en tilpasset veiledning for dine emner og din bacheloroppgave. Dataene dine lagres trygt i en kryptert skydatabase (Firebase), og brukes <strong>aldri</strong> til å trene opp eksterne KI-modeller.
                 </p>
               </div>
+            </motion.div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* VISNING: PEDAGOGISK GRUNNSYN                                             */}
+          {/* ========================================================================= */}
+          {activeMenu === 'grunnsyn' && (
+            <motion.div 
+              key="view-grunnsyn"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6 pb-16"
+            >
+              <PedagogiskGrunnsynBuilder 
+                studiested={profile?.studiested || profile?.college}
+                user={user}
+                onNavigateToChat={onNavigateToChat}
+              />
             </motion.div>
           )}
 
@@ -1031,7 +1088,7 @@ export function Profile({
               <div className="hidden md:block">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/60 text-emerald-700 text-xs font-bold mb-2">
                   <Info className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>BLU-Hjelperen v3.6.1 (IP-beskyttelse & Sikkerhet)</span>
+                  <span>BLU-Hjelperen v3.6.3 (Pedagogisk Grunnsyn & Stabilitet)</span>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om BLU-Hjelperen</h2>
                 <p className="text-slate-500 text-sm mt-1">Versjon, kildegrunnlag og vilkår.</p>
@@ -1087,10 +1144,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.6.1 IP-beskyttelse & Sikkerhetsstrategi (Oktober 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.6.3 Pedagogisk Grunnsyn & Profiloptimalisering (November 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Strategisk oppdatering og sanering av utadrettet endringslogg for beskyttelse av teknisk arkitektur, samt smidig versjonsoppgradering.</span>
+                        <span className="text-slate-600">Lansering av dynamisk Pedagogisk Grunnsyn-bygger med Sokratiske spørsmål, Word/PDF-eksport, fjerning av oppstartsmodaler og direkte integrasjon i Superveilederen.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1102,7 +1159,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.6.0, v3.5.9, v3.5.8, v3.5.7, v3.5.6)</span>
+                            <span>Tidligere versjoner (v3.6.1, v3.6.0, v3.5.9, v3.5.8)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1113,6 +1170,10 @@ export function Profile({
 
                         {showOlderVersions && (
                           <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.6.1 (Oktober 2026)</strong>
+                              <span className="text-slate-500">IP-beskyttelse og sikkerhetsstrategi på tvers av applikasjonen.</span>
+                            </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.6.0 (Oktober 2026)</strong>
                               <span className="text-slate-500">Utvidet kildeveiledning & akademisk litteratursøk med direkte innsyn i siterte tekstavsnitt og ferdig APA 7-siterering.</span>
