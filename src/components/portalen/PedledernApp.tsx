@@ -43,6 +43,7 @@ import Lederstotte from './Lederstotte';
 import DagensDagsrytmeAvdeling from './DagensDagsrytmeAvdeling';
 import Observasjoner from './Observasjoner';
 import SpesialpedagogiskVeiviser from './SpesialpedagogiskVeiviser';
+import Avdelingsmote from './Avdelingsmote';
 import { useRole } from '../../context/RoleContext';
 import UserProfileModal from '../common/UserProfileModal';
 import PortalFooter from '../common/PortalFooter';
@@ -694,44 +695,7 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
             )}
 
             {driftSubTab === 'fagmoter' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-                    <h3 className="font-black text-slate-900 text-base">Veiledningsstruktur for avdelingsmøter</h3>
-                    <ul className="space-y-3 text-xs text-slate-600">
-                      <li className="p-3 bg-slate-50 rounded-xl">
-                        <strong className="text-slate-900 block font-bold">1. Innsjekk & relasjon (10 min)</strong>
-                        Hvordan har uken vært for hver enkelt? Hva har fungert spesielt godt?
-                      </li>
-                      <li className="p-3 bg-slate-50 rounded-xl">
-                        <strong className="text-slate-900 block font-bold">2. Drøfting av praksisfortelling (25 min)</strong>
-                        En ansatt legger fram en lekesituasjon eller utfordring. Kollektiv refleksjon uten forhåndsdømming.
-                      </li>
-                      <li className="p-3 bg-slate-50 rounded-xl">
-                        <strong className="text-slate-900 block font-bold">3. Rammeplan & Didaktisk ukeplan (20 min)</strong>
-                        Fordeling av roller, fagområder og tilrettelegging for enkeltbarn.
-                      </li>
-                      <li className="p-3 bg-slate-50 rounded-xl">
-                        <strong className="text-slate-900 block font-bold">4. Oppsummering & avtaler (5 min)</strong>
-                        Hvem gjør hva før neste fagmøte?
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-                    <h3 className="font-black text-slate-900 text-base">Pedlederens veileder-rolle</h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Som pedagogisk leder har du ansvaret for å lede den pedagogiske virksomheten og veilede personalet. Dette innebærer å skape trygghet i teamet, gi konstruktiv anerkjennelse og utfordre til faglig undring.
-                    </p>
-                    <div className="p-4 bg-teal-50 border border-teal-100 rounded-xl text-xs text-teal-900 space-y-2">
-                      <strong className="font-bold block">Gode veiledningsspørsmål:</strong>
-                      <div>• &quot;Hva tror du barnet opplevde i akkurat det øyeblikket?&quot;</div>
-                      <div>• &quot;Hvilke andre handlingsalternativer hadde vi hatt i situasjonen?&quot;</div>
-                      <div>• &quot;Hvordan støttet vi barnets lek uten å ta over styringen?&quot;</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Avdelingsmote avdelingNavn={avdelingNavn} />
             )}
           </div>
         );
@@ -786,7 +750,7 @@ Gi et inspirerende, didaktisk strukturert og faglig solid svar. Ta med forslag t
                 }`}
               >
                 <MessageCircle size={16} />
-                <span>Sokratisk Sparring</span>
+                <span>Sparring</span>
               </button>
               <button
                 onClick={() => setLederstotteSubTab('spesped')}
