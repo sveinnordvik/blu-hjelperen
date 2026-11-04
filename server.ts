@@ -675,7 +675,7 @@ Dokumentinnhold:
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: { middlewareMode: true, hmr: false, ws: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -693,15 +693,16 @@ Dokumentinnhold:
     });
   }
 
-  const tryListen = (attemptsLeft = 5, delay = 500) => {
+  const tryListen = (attemptsLeft = 10, delay = 1000) => {
     const server = app.listen(PORT, HOST, () => {
       console.log(`Server running on http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
     });
 
     server.on("error", (err: any) => {
+      try { server.close(); } catch {}
       if (err.code === "EADDRINUSE" && attemptsLeft > 0) {
         console.warn(`Port ${PORT} is busy, retrying in ${delay}ms... (${attemptsLeft} attempts remaining)`);
-        setTimeout(() => tryListen(attemptsLeft - 1, delay + 500), delay);
+        setTimeout(() => tryListen(attemptsLeft - 1, delay), delay);
       } else {
         console.error("Server listen error:", err);
         process.exit(1);

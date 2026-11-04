@@ -3990,187 +3990,104 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         "bg-white border-b border-slate-100 sticky top-0 z-50 transition-all duration-300",
         isFocusMode && "opacity-0 -translate-y-full pointer-events-none"
       )}>
-        <div className="max-w-7xl mx-auto px-4 md:px-6">
-          <div className="flex items-center h-16 gap-4 lg:gap-8">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
             <div 
               id="app-main-logo"
-        className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity group shrink-0 py-1 px-1 bg-white select-none"
-        onClick={() => setActiveTab('home')}
-      >
-        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-[#465568] rounded-2xl shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-          <HandHelping className="text-white w-6 h-6 sm:w-6.5 sm:h-6.5" strokeWidth={2.2} />
-        </div>
-        <h1 className="font-serif font-black text-2xl sm:text-[26px] tracking-tight text-slate-900 leading-none m-0">
-          BLU-Hjelperen
-        </h1>
-      </div>
-
-      {/* Desktop Main Nav */}
-      <div className="hidden md:flex flex-1 items-center relative overflow-hidden group/nav">
-        <button 
-          onClick={() => scrollNav('left')}
-          className="absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-white via-white/80 to-transparent z-10 flex items-center justify-start hover:scale-110 transition-transform cursor-pointer"
-          title="Rull mot venstre"
-          aria-label="Rull mot venstre"
-        >
-          <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 ml-1">
-            <ChevronLeft className="w-4 h-4 text-primary" />
-          </div>
-        </button>
-        <nav 
-          ref={navRef}
-          onScroll={checkScroll}
-          className="flex items-center gap-1 lg:gap-2 flex-1 justify-start overflow-x-auto no-scrollbar py-1 px-8 scroll-smooth"
-        >
-          {navigationGroups.filter(g => !lowStressMode || ['hjem', 'skriving', 'profil'].includes(g.id)).map((group) => (
-            <button
-              key={`top-nav-btn-${group.id}`}
-              onClick={() => handleTabClick(group.subTabs[0].id, group.subTabs[0].requiredTier)}
-              className={cn(
-                "px-2 lg:px-4 py-2 rounded-xl text-[11px] lg:text-sm font-bold transition-all flex items-center gap-1.5 lg:gap-2 whitespace-nowrap shrink-0",
-                activeGroup.id === group.id 
-                  ? "bg-primary-light text-primary-dark" 
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              )}
+              className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity group shrink-0 py-1 px-1 bg-white select-none mr-4"
+              onClick={() => setActiveTab('home')}
             >
-              <group.icon className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
-              <span>{group.label}</span>
-              {!checkAccess(group.subTabs[0].requiredTier) && <Lock className="w-3 h-3 opacity-60" />}
-            </button>
-          ))}
-        </nav>
-        <button 
-          onClick={() => scrollNav('right')}
-          className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white via-white/80 to-transparent z-10 flex items-center justify-end hover:scale-110 transition-transform cursor-pointer"
-          title="Rull mot høyre"
-          aria-label="Rull mot høyre"
-        >
-          <div className="bg-white p-1 rounded-full shadow-md border border-slate-100 mr-1">
-            <ChevronRight className="w-4 h-4 text-primary" />
-          </div>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 lg:gap-4 shrink-0">
-        <button 
-          onClick={() => setIsFocusMode(!isFocusMode)}
-          className={cn(
-            "p-2 rounded-xl transition-all flex items-center gap-2",
-            isFocusMode ? "bg-primary text-white" : "bg-slate-50 text-slate-400 hover:text-primary"
-          )}
-          title="Fokusmodus"
-        >
-          <Maximize2 className="w-4 h-4 lg:w-5 h-5" />
-          <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">Fokus</span>
-        </button>
-        {canSwitch && (
-          <button 
-            onClick={() => {
-              setRole('STYRERN');
-              navigate('/styrer');
-            }}
-            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
-            title="Gå tilbake til Styrern / Portalen"
-          >
-            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Til Styrern</span>
-          </button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 lg:gap-3 shrink-0">
-        {user ? (
-          <div className="flex items-center gap-3 ml-auto">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-[10px] font-bold text-slate-900 leading-none">
-                {user.displayName || 'Bruker'}
-              </span>
-              <span className="text-[8px] text-slate-400 font-medium leading-none mt-1 truncate max-w-[100px]">
-                {user.email}
-              </span>
+              <div className="w-10 h-10 bg-[#465568] rounded-xl shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                <HandHelping className="text-white w-5 h-5" strokeWidth={2.2} />
+              </div>
+              <h1 className="font-serif font-black text-xl tracking-tight text-slate-900 leading-none m-0">
+                BLU-Hjelperen
+              </h1>
             </div>
-            <button 
-              onClick={() => setActiveTab('profile')}
-              className="w-8 h-8 rounded-full bg-primary-light border border-primary/20 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all"
+
+            {/* Hovednavigasjon (Sentrert) */}
+            <nav 
+              ref={navRef}
+              onScroll={checkScroll}
+              className="hidden md:flex items-center gap-1 lg:gap-2 flex-1 justify-center overflow-x-auto no-scrollbar py-1 px-4 scroll-smooth"
             >
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="Profil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              {navigationGroups.filter(g => !lowStressMode || ['hjem', 'skriving', 'profil'].includes(g.id)).map((group) => (
+                <button
+                  key={`top-nav-btn-${group.id}`}
+                  onClick={() => handleTabClick(group.subTabs[0].id, group.subTabs[0].requiredTier)}
+                  className={cn(
+                    "px-3 py-2 rounded-lg text-xs lg:text-sm font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0",
+                    activeGroup.id === group.id 
+                      ? "bg-slate-100 text-slate-900" 
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  )}
+                >
+                  <group.icon className="w-4 h-4" />
+                  <span>{group.label}</span>
+                  {!checkAccess(group.subTabs[0].requiredTier) && <Lock className="w-3 h-3 opacity-60" />}
+                </button>
+              ))}
+            </nav>
+
+            {/* Profil / Modusvelger høyre side */}
+            <div className="flex items-center gap-2 lg:gap-4 shrink-0">
+              <button 
+                type="button"
+                onClick={() => setIsFocusMode(!isFocusMode)}
+                className={cn(
+                  "p-2 rounded-xl transition-all flex items-center gap-2",
+                  isFocusMode ? "bg-primary text-white" : "bg-slate-50 text-slate-400 hover:text-primary"
+                )}
+                title="Fokusmodus"
+              >
+                <Maximize2 className="w-4 h-4 lg:w-5 h-5" />
+                <span className="hidden lg:inline text-[10px] font-black uppercase tracking-widest">Fokus</span>
+              </button>
+              {canSwitch && (
+                <button 
+                  onClick={() => {
+                    setRole('STYRERN');
+                    navigate('/styrer');
+                  }}
+                  className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+                  title="Gå tilbake til Styrern / Portalen"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="hidden sm:inline">Til Styrern</span>
+                </button>
+              )}
+
+              {user ? (
+                <div className="flex items-center gap-3 ml-auto">
+                  <button 
+                    onClick={() => setActiveTab('profile')}
+                    className="w-8 h-8 rounded-full bg-primary-light border border-primary/20 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary/20 transition-all"
+                  >
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="Profil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User className="w-4 h-4 text-primary" />
+                    )}
+                  </button>
+                </div>
               ) : (
-                <User className="w-4 h-4 text-primary" />
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
+                >
+                  Logg inn
+                </button>
               )}
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="hidden sm:flex p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-              title="Logg ut"
-            >
-              <ExternalLink className="w-4 h-4 rotate-180" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 ml-auto">
-            <button 
-              onClick={() => setShowAuthModal(true)}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-primary transition-all"
-            >
-              Logg inn
-            </button>
-            <button 
-              onClick={() => setShowAuthModal(true)}
-              className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
-            >
-              Opprett konto
-            </button>
-          </div>
-        )}
-
-        <div className="h-8 w-px bg-slate-200 hidden sm:block mx-1"></div>
-        
-        {/* Pomodoro Widget */}
-        {settings.showTimerInHeader && !lowStressMode && (
-          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-            <Timer className={cn("w-4 h-4", timerIsRunning ? "text-primary animate-pulse" : "text-slate-600")} />
-            <span className="text-xs font-mono font-bold text-slate-800">
-              {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-            </span>
-            <button 
-              onClick={() => setTimerIsRunning(!timerIsRunning)}
-              className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider ml-1"
-            >
-              {timerIsRunning ? 'Pause' : 'Start'}
-            </button>
-            <div className="w-px h-3 bg-slate-200 mx-1"></div>
-            <span className="text-[8px] font-bold text-slate-600 uppercase">{timerMode === 'focus' ? 'Fokus' : 'Pause'}</span>
-          </div>
-        )}
-
-        {settings.showDeadlineInHeader && daysLeft !== null && !lowStressMode && (
-          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-primary-light rounded-lg border border-primary-light">
-            <Clock className="w-4 h-4 text-primary" />
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-primary uppercase tracking-wider leading-none">Innlevering</span>
-              <span className="text-xs font-black text-primary-dark leading-none mt-0.5">{daysLeft} dager igjen</span>
+              
+            {/* Mobile Menu Toggle */}
+              <button 
+                className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+              >
+                {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
             </div>
-          </div>
-        )}
-        
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg border border-slate-200">
-            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest hidden lg:inline">Online</span>
-          </div>
-
-          {/* Mobile Menu Toggle */}
-          <button 
-            className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-          >
-            {showMobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
         </div>
-      </div>
-    </div>
-  </div>
+      </header>
 
         {/* Mobile Menu Overlay */}
         <AnimatePresence>
@@ -4335,7 +4252,6 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             })}
           </div>
         )}
-      </header>
 
       {/* Auth Modal */}
       <AnimatePresence>
@@ -6376,10 +6292,10 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             <button 
               onClick={() => setActiveTab('profile')}
               className="hover:text-primary transition-colors py-1 font-semibold text-slate-400 hover:text-slate-600 flex items-center gap-1.5"
-              title="BLU-Hjelperen v3.6.4 – Vis versjonshistorikk i profilen"
+              title="BLU-Hjelperen v3.6.5 – Vis versjonshistorikk i profilen"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              v3.6.4
+              v3.6.5
             </button>
           </div>
           {/* Ekstra avstand for mobil-navigasjon */}

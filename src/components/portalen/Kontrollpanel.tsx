@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useRole, Role } from '../../context/RoleContext';
 import { LegalModal } from '../common/LegalModal';
+import OmPedPortalenView from './OmPedPortalenView';
 import { useNavigate } from 'react-router-dom';
 
 interface Ansatt {
@@ -594,64 +595,13 @@ const Kontrollpanel: React.FC = () => {
 
       {/* OM PEDPORTALEN & SYSTEMSTATUS */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-800 flex items-center space-x-2">
+        <h3 className="text-lg font-semibold text-slate-800 flex items-center space-x-2 mb-1">
           <Shield size={20} className="text-indigo-600" />
           <span>Om PedPortalen & Systemstatus</span>
         </h3>
         <p className="text-sm text-slate-500 mb-6">Versjonskontroll, driftsstatus og juridiske rammer for barnehagen.</p>
 
-        <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-sm space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Appversjon</span>
-              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.4</span>
-              <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
-                <CheckCircle2 size={12} /> Siste stabile utgave
-              </span>
-            </div>
-
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Driftsmiljø</span>
-              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">Produksjon</span>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Google Cloud Platform</span>
-            </div>
-
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-[11px] font-medium text-slate-400 block uppercase tracking-wider">Oppdatert</span>
-              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">November 2026</span>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">Automatisk synkronisert</span>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-600">
-            <div>
-              <span className="font-semibold text-slate-800 block">Juridiske retningslinjer og personvern</span>
-              <span className="text-slate-500">I henhold til GDPR, opplæringsloven og barnehageloven.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setLegalTab('privacy');
-                  setLegalModalOpen(true);
-                }}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
-              >
-                Personvernerklæring
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLegalTab('terms');
-                  setLegalModalOpen(true);
-                }}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-semibold rounded-lg transition border border-slate-200 cursor-pointer"
-              >
-                Brukervilkår
-              </button>
-            </div>
-          </div>
-        </div>
+        <OmPedPortalenView embedded={true} />
       </div>
 
       <div className="flex justify-end pt-4">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { callGoogleAIProxy } from '../../services/geminiService';
+import VikarAINodhjelp from '../mobile/VikarAINodhjelp';
 import StaffMonthlyFocusWidget from './StaffMonthlyFocusWidget';
 import { 
   Zap, 
@@ -77,49 +77,9 @@ export default function VikarnApp() {
     return () => window.removeEventListener('pedportalen_vikarbrief_updated', handleBriefUpdated);
   }, []);
 
-  const [aiInput, setAiInput] = useState('');
-  const [aiLog, setAiLog] = useState<{ role: 'user' | 'assistant'; text: string }[]>([
-    { role: 'assistant', text: 'Hei Vikar! Velkommen til barnehagen. Jeg er din digitale makker. Er det noe du lurer på om rutiner, sikkerhet, eller trenger du en rask aktivitet for å aktivisere barna akkurat nå? Spør meg!' }
-  ]);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
   useEffect(() => {
     localStorage.setItem('vikarn_worklogs', JSON.stringify(workLogs));
   }, [workLogs]);
-
-  const handleAskAi = async () => {
-    if (!aiInput.trim()) return;
-    const msg = aiInput.trim();
-    setAiLog(prev => [...prev, { role: 'user', text: msg }]);
-    setAiInput('');
-    setIsAiLoading(true);
-
-    try {
-      const prompt = `Du er en vennlig, praktisk og trygg veileder for en tilkallingsvikar i en norsk barnehage.
-Vikar spør: "${msg}"
-Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn på sikkerhet og barns trygghet hvis relevant.`;
-
-      const data = await callGoogleAIProxy({
-        model: 'gemini-3.8-flash',
-        contents: prompt
-      });
-
-      if (data?.text) {
-        setAiLog(prev => [...prev, { role: 'assistant', text: data.text }]);
-      } else {
-        setTimeout(() => {
-          setAiLog(prev => [...prev, {
-            role: 'assistant',
-            text: `Raskt råd for vikar:\n\n1. **Spør kollegaen din**: Ingen forventer at du kan alt som vikar! Spør pedleder eller fagarbeider med en gang.\n2. **Sikkerhet først**: Hold alltid øye med porten og tell barna jevnlig.\n3. **Bli med i leken**: Sett deg ned på gulvet – barna elsker når den voksne er tilstede.`
-          }]);
-        }, 500);
-      }
-    } catch {
-      setAiLog(prev => [...prev, { role: 'assistant', text: `Husk: Det viktigste du gjør som vikar er å være varm, observant og tilstede for barna!` }]);
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
@@ -549,60 +509,8 @@ Gi et super-raskt, klart og praktisk svar som hjelper vikaren umiddelbart. Minn 
 
         {/* Tab 5: Vikar-AI */}
         {activeTab === 'vikar-ai' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col h-[650px]">
-              <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
-                    <Sparkles className="w-5 h-5 text-amber-300" />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-slate-900 text-base">Vikar-AI Nødhjelp</h3>
-                    <p className="text-xs text-slate-500">Spør om alt du er usikker på i barnehagen!</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                {aiLog.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === 'user' 
-                        ? 'bg-emerald-600 text-white rounded-br-none shadow' 
-                        : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
-                    }`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                {isAiLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-slate-100 text-slate-600 rounded-2xl rounded-bl-none p-4 text-xs flex items-center gap-2 border border-slate-200">
-                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-                      Vikar-AI finner svar...
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                <input 
-                  type="text"
-                  value={aiInput}
-                  onChange={(e) => setAiInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAskAi()}
-                  placeholder="Spør om hva som helst..."
-                  className="flex-1 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <button 
-                  onClick={handleAskAi}
-                  disabled={isAiLoading || !aiInput.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-md"
-                >
-                  <Send className="w-4 h-4" /> Send
-                </button>
-              </div>
-            </div>
+          <div className="max-w-4xl mx-auto">
+            <VikarAINodhjelp />
           </div>
         )}
       </main>

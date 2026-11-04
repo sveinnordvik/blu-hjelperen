@@ -14,11 +14,13 @@ import {
   ShieldCheck,
   Shield,
   Sparkles,
-  Save
+  Save,
+  Info
 } from 'lucide-react';
 import { useRole, Role } from '../../context/RoleContext';
 import { auth, signOut } from '../../firebase';
 import { LegalModal } from './LegalModal';
+import { OmPedPortalenView } from '../portalen/OmPedPortalenView';
 import { useNavigate } from 'react-router-dom';
 
 interface UserProfileModalProps {
@@ -65,6 +67,7 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [legalModalOpen, setLegalModalOpen] = useState(false);
   const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
+  const [omPedPortalenModalOpen, setOmPedPortalenModalOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -419,8 +422,17 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
             </form>
           )}
 
-          {/* HANDLINGSKNAPPER: BYTT PASSORD & LOGG UT */}
+          {/* HANDLINGSKNAPPER: OM PEDPORTALEN, BYTT PASSORD & LOGG UT */}
           <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+            <button 
+              type="button"
+              onClick={() => setOmPedPortalenModalOpen(true)} 
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/90 text-indigo-900 text-xs font-bold transition cursor-pointer"
+            >
+              <Info className="w-4 h-4 text-indigo-600" />
+              Om PedPortalen & status
+            </button>
+
             {!showPasswordChange && (
               <button 
                 type="button"
@@ -446,7 +458,7 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-1.5 font-medium">
               <Shield className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{(!isSvein && !isPortalBeta) || role === 'STUDENTN' ? 'BLU-hjelperen' : 'PedPortalen'} · v3.6.4</span>
+              <span>{(!isSvein && !isPortalBeta) || role === 'STUDENTN' ? 'BLU-hjelperen' : 'PedPortalen'} · v3.6.5</span>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -481,6 +493,33 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
         onClose={() => setLegalModalOpen(false)}
         initialTab={legalTab}
       />
+
+      {/* Om PedPortalen Modal */}
+      {omPedPortalenModalOpen && (
+        <div className="fixed inset-0 z-[10005] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div 
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden my-auto border border-slate-100 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-slate-900 px-6 py-4 text-white flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-base">Om PedPortalen & Systemstatus</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOmPedPortalenModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <OmPedPortalenView />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

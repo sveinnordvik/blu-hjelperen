@@ -57,11 +57,9 @@ export async function callGoogleAIProxy(params: {
   const maxRetries = 2;
   let attempt = 0;
 
-  // Hent API-nøkkelen utelukkende via import.meta.env.VITE_GEMINI_API_KEY
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim() || apiKey === 'MY_GEMINI_API_KEY') {
-    throw new Error("Mangler VITE_GEMINI_API_KEY i miljøvariabler. Vennligst sjekk at VITE_GEMINI_API_KEY er lagt inn under Settings -> Secrets eller i GitHub Secrets.");
-  }
+  // Hent API-nøkkelen via import.meta.env.VITE_GEMINI_API_KEY dersom den er tilgjengelig i nettleseren
+  const apiKey = typeof import.meta.env.VITE_GEMINI_API_KEY === 'string' ? import.meta.env.VITE_GEMINI_API_KEY.trim() : '';
+  const hasValidClientKey = apiKey && apiKey !== 'MY_GEMINI_API_KEY';
 
   // 1. STRICT API VALIDERING OG SANITISERING AV HISTORIKK
   let validatedContents = params.contents;
@@ -154,56 +152,80 @@ export async function callGoogleAIProxy(params: {
   delete cleanConfig.topK;
   delete cleanConfig.candidateCount;
 
-  const { GoogleGenAI } = await import("@google/genai");
-  const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-
-  while (attempt <= maxRetries) {
+  // 1. Forsøk direkte nettleser-kall via @google/genai dersom VITE_GEMINI_API_KEY er oppgitt
+  if (hasValidClientKey) {
     try {
-      let modelForAttempt = requestedModel;
-      if (attempt === 1) {
-        modelForAttempt = "gemini-3.1-flash-lite";
-      } else if (attempt >= 2) {
-        modelForAttempt = "gemini-flash-latest";
-      }
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: apiKey });
 
-      const response = await ai.models.generateContent({
-        model: modelForAttempt,
-        contents: validatedContents,
-        config: cleanConfig,
-      });
+      while (attempt <= maxRetries) {
+        try {
+          let modelForAttempt = requestedModel;
+          if (attempt === 1) {
+            modelForAttempt = "gemini-3.1-flash-lite";
+          } else if (attempt >= 2) {
+            modelForAttempt = "gemini-flash-latest";
+          }
 
-      return {
-        text: response.text || ""
-      };
-    } catch (error: any) {
-      const msg = error && typeof error === 'object' && error.message 
-        ? String(error.message) 
-        : (error instanceof Error ? error.message : String(error || ''));
+          const response = await ai.models.generateContent({
+            model: modelForAttempt,
+            contents: validatedContents,
+            config: cleanConfig,
+          });
 
-      console.warn(`Gemini API-kall feilet (forsøk ${attempt + 1}/${maxRetries + 1}):`, msg);
+          return {
+            text: response.text || ""
+          };
+        } catch (error: any) {
+          const msg = error && typeof error === 'object' && error.message 
+            ? String(error.message) 
+            : (error instanceof Error ? error.message : String(error || ''));
 
-      if (
-        msg.includes("API key not valid") || 
-        msg.includes("API_KEY_INVALID")
-      ) {
-        throw new Error("Ugyldig Gemini API-nøkkel (VITE_GEMINI_API_KEY). Vennligst kontroller nøkkelen din.");
-      }
+          console.warn(`Gemini API-kall feilet (forsøk ${attempt + 1}/${maxRetries + 1}):`, msg);
 
-      if (attempt >= maxRetries) {
-        if (msg.includes("429") || msg.includes("Rate limit") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("quota") || error?.status === 429) {
-          throw new Error("Superveilederen opplever stor pågang akkurat nå (mange studenter bruker tjenesten samtidig). Vent 10–15 sekunder og prøv igjen.");
+          if (attempt >= maxRetries) {
+            break; // Gå videre til proxy fallback
+          }
+          
+          attempt++;
+          const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || error?.status === 429 || error?.status === 503;
+          const delayMs = isRateOrBusy ? 2000 : 1000;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
         }
-        if (msg.includes("503") || msg.includes("High Demand") || msg.includes("stor pågang") || msg.includes("UNAVAILABLE") || error?.status === 503) {
-          throw new Error("KI-modellen opplever midlertidig stor pågang (503). Prøv igjen om et lite øyeblikk.");
-        }
-        throw new Error(msg || `${UIfriendlyError} (Siste feilmelding: ${msg})`);
       }
-      
-      attempt++;
-      const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || error?.status === 429 || error?.status === 503;
-      const delayMs = isRateOrBusy ? 2000 : 1000;
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+    } catch (clientInitErr) {
+      console.warn("Kunne ikke starte GoogleGenAI på klient, bruker backend-proxy:", clientInitErr);
     }
+  }
+
+  // 2. Fallback til express backend-proxy (/api/gemini/generate) som benytter server-miljøets GEMINI_API_KEY
+  try {
+    const proxyRes = await fetch('/api/gemini/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: requestedModel,
+        contents: validatedContents,
+        config: cleanConfig
+      })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data?.text) {
+        return { text: data.text };
+      }
+    } else {
+      const errJson = await proxyRes.json().catch(() => null);
+      if (errJson?.error) {
+        throw new Error(errJson.error);
+      }
+    }
+  } catch (proxyErr: any) {
+    if (proxyErr?.message && (proxyErr.message.includes("saldo") || proxyErr.message.includes("credits") || proxyErr.message.includes("429") || proxyErr.message.includes("GEMINI_API_KEY"))) {
+      throw proxyErr;
+    }
+    console.warn("Backend-proxy feilet:", proxyErr);
   }
 
   throw new Error(UIfriendlyError);
