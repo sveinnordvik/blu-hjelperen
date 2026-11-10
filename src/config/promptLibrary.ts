@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.6',
+    date: '2026-11-10',
+    title: 'Sikkerhet, KI-arkitektur & Stabilitet',
+    changes: [
+      'Herdet KI-arkitektur: Sikring av API-nøkler med Secret Manager og token-verifisering.',
+      'Sikre Cloud Functions: askBlu callable og REST-endepunkter med streng autentisering (Bearer-tokens og context.auth).',
+      'Ytelse og opprydding: Optimalisering av ressursbruk og helhetlig versjonsoppgradering til v3.6.6.'
+    ]
+  },
+  {
     version: 'v3.6.5',
     date: '2026-11-03',
     title: 'Dynamisk Pedagogisk Grunnsyn & Veilederintegrasjon',

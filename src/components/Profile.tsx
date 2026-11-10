@@ -1140,10 +1140,10 @@ export function Profile({
                       {/* Siste / Gjeldende versjon */}
                       <div className="p-3 bg-slate-50 rounded-xl border border-primary/20 bg-primary/5">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <strong className="text-slate-900 block font-bold">v3.6.5 Pedagogisk Grunnsyn & Profiloptimalisering (November 2026)</strong>
+                          <strong className="text-slate-900 block font-bold">v3.6.6 Sikkerhet, KI-arkitektur & Stabilitet (November 2026)</strong>
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Nyeste</span>
                         </div>
-                        <span className="text-slate-600">Lansering av dynamisk Pedagogisk Grunnsyn-bygger med Sokratiske spørsmål, Word/PDF-eksport, fjerning av oppstartsmodaler og direkte integrasjon i Superveilederen.</span>
+                        <span className="text-slate-600">Herdet KI-arkitektur med Secret Manager, token-autentisering for eksterne endepunkter, ressursoptimalisering og forsterket systemstabilitet.</span>
                       </div>
 
                       {/* Mappe/nedtrekk for eldre versjoner */}
@@ -1155,7 +1155,7 @@ export function Profile({
                         >
                           <span className="flex items-center gap-2">
                             <FolderArchive className="w-3.5 h-3.5 text-slate-500" />
-                            <span>Tidligere versjoner (v3.6.1, v3.6.0, v3.5.9, v3.5.8)</span>
+                            <span>Tidligere versjoner (v3.6.5, v3.6.1, v3.6.0, v3.5.9)</span>
                           </span>
                           {showOlderVersions ? (
                             <ChevronUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1166,6 +1166,10 @@ export function Profile({
 
                         {showOlderVersions && (
                           <ul className="space-y-2 mt-2 pt-1 border-t border-slate-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                            <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
+                              <strong className="text-slate-800 block mb-0.5">v3.6.5 (November 2026)</strong>
+                              <span className="text-slate-500">Pedagogisk Grunnsyn Builder, Sokratiske veilederspørsmål, Word/PDF-eksport og integrasjon i Superveilederen.</span>
+                            </li>
                             <li className="p-2.5 bg-slate-50/70 rounded-xl border border-slate-200/60">
                               <strong className="text-slate-800 block mb-0.5">v3.6.1 (Oktober 2026)</strong>
                               <span className="text-slate-500">IP-beskyttelse og sikkerhetsstrategi på tvers av applikasjonen.</span>
