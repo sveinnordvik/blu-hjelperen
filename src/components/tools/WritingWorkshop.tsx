@@ -1066,7 +1066,7 @@ export function WritingWorkshop(_props?: { [key: string]: any }) {
     }
 
     // Filtrer ut feilmeldinger fra samtalen så de ikke forurenser konteksten
-    const cleanHistory = messages.filter(m => !m.isError && !(typeof m.content === 'string' && (m.content.includes("stor pågang") || m.content.includes("Kapasitetsgrensen") || m.content.includes("429 Rate limit"))));
+    const cleanHistory = messages.filter(m => !m.isError && !(typeof m.content === 'string' && (m.content.includes("stor pågang") || m.content.includes("Kapasitetsgrensen") || m.content.includes("429 Rate limit") || m.content.includes("saldo") || m.content.includes("credits"))));
 
     const isRetry = Boolean(textOverride);
     const lastIsSameUser = isRetry && cleanHistory.length > 0 && cleanHistory[cleanHistory.length - 1].role === 'user';
@@ -4435,6 +4435,9 @@ ${activeDoc.content}`;
                       const isErrorMsg = msg.isError || (msg.role === 'assistant' && typeof msg.content === 'string' && (
                         msg.content.includes("Kapasitetsgrensen for forespørsler er midlertidig nådd") ||
                         msg.content.includes("429 Rate limit") ||
+                        msg.content.includes("402") ||
+                        msg.content.includes("saldo") ||
+                        msg.content.includes("credits") ||
                         msg.content.includes("stor pågang") ||
                         msg.content.includes("opplever stor pågang")
                       ));

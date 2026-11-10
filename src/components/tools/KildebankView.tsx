@@ -29,6 +29,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { TransferSourcesModal } from './TransferSourcesModal';
 import { WorkspaceLayout } from '../WorkspaceLayout';
+import { PensumHubActionMenu, PensumHubAction } from './PensumHubActionMenu';
+import { usePensumHub } from '../../context/PensumHubContext';
 
 interface KildebankViewProps {
   onNavigateToWorkshop?: (targetDocId?: string) => void;
@@ -43,10 +45,12 @@ export const KildebankView: React.FC<KildebankViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [customSources, setCustomSources] = useState<AcademicSource[]>(() => getStoredCustomSources());
+  const { pendingAction, startPensumAction } = usePensumHub();
 
   // Avhuking / Multi-select tilstand
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isPensumHubMenuOpen, setIsPensumHubMenuOpen] = useState(false);
 
   // Kopiert-tilstander
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -990,10 +994,28 @@ export const KildebankView: React.FC<KildebankViewProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setIsTransferModalOpen(true)}
+                  onClick={() => {
+                    const formattedList = selectedSourcesList.map(s => ({
+                      id: s.id,
+                      title: `${s.author} (${s.year}). ${s.title}`,
+                      content: `${s.title}\nForfatter: ${s.author} (${s.year})\nKategori: ${s.categoryLabel}\nSammendrag: ${s.fullReference}`,
+                      category: s.categoryLabel
+                    }));
+
+                    if (pendingAction) {
+                      startPensumAction(formattedList, pendingAction);
+                      if (onNavigateToWorkshop) {
+                        onNavigateToWorkshop('verktoy');
+                      }
+                      window.dispatchEvent(new CustomEvent('blu-switch-tab', { detail: { tab: 'verktoy', subTab: pendingAction } }));
+                      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+                    } else {
+                      setIsPensumHubMenuOpen(true);
+                    }
+                  }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>Overfør til oppgave...</span>
+                  <span>Bruk kilder</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
 
@@ -1009,6 +1031,35 @@ export const KildebankView: React.FC<KildebankViewProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        <PensumHubActionMenu
+          isOpen={isPensumHubMenuOpen}
+          onClose={() => setIsPensumHubMenuOpen(false)}
+          selectedCount={selectedSourceIds.size}
+          selectedTitles={selectedSourcesList.map(s => s.title)}
+          selectedFilesList={selectedSourcesList.map(s => ({
+            id: s.id,
+            title: `${s.author} (${s.year}). ${s.title}`,
+            content: s.fullReference,
+            category: s.categoryLabel
+          }))}
+          onSelectAction={(actionType) => {
+            console.log("Valgt handling i Kildebanken:", actionType);
+            if (onNavigateToWorkshop) {
+              onNavigateToWorkshop('verktoy');
+            }
+            window.dispatchEvent(new CustomEvent('blu-switch-tab', { detail: { tab: 'verktoy', subTab: actionType } }));
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+          onNavigateToTools={(actionType) => {
+            const target = actionType || 'flashcards';
+            if (onNavigateToWorkshop) {
+              onNavigateToWorkshop('verktoy');
+            }
+            window.dispatchEvent(new CustomEvent('blu-switch-tab', { detail: { tab: 'verktoy', subTab: target } }));
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }}
+        />
 
         <TransferSourcesModal
           isOpen={isTransferModalOpen}

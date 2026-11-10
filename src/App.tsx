@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { auth, onAuthStateChanged, signInWithPopup, googleProvider, signInWithEmailAndPassword } from './firebase';
 import { isUnlimitedUser, isAdminUser, isPortalBetaUser, hasBluAccess } from './config/accessConfig';
 import { RoleProvider, useRole, Role } from './context/RoleContext';
+import { PensumHubProvider } from './context/PensumHubContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, X } from 'lucide-react';
 
@@ -241,7 +242,7 @@ const App = () => {
   const bluAccess = hasBluAccess(currentUserEmail);
 
   // Alle ledere / testbrukere i Portalen har tilgang til å bytte modus
-  const canSwitchMode = true;
+  const canSwitchMode = isSvein;
 
   return (
     <RoleProvider 
@@ -251,8 +252,10 @@ const App = () => {
       hasBluAccess={bluAccess}
       currentUserEmail={currentUserEmail}
     >
-      <MainApp />
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      <PensumHubProvider>
+        <MainApp />
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      </PensumHubProvider>
     </RoleProvider>
   );
 };

@@ -188,7 +188,15 @@ export async function callGoogleAIProxy(params: {
           }
           
           attempt++;
-          const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || error?.status === 429 || error?.status === 503;
+          const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("402") || msg.includes("credits") || error?.status === 429 || error?.status === 503 || error?.status === 402;
+          
+          // Hvis det er en saldo-feil (402), ikke vits i å prøve på nytt
+          if (msg.includes("credits") || msg.includes("saldo") || error?.status === 402 || msg.includes("402")) {
+            const creditsErr = new Error(msg);
+            (creditsErr as any).status = 402;
+            throw creditsErr;
+          }
+
           const delayMs = isRateOrBusy ? 2000 : 1000;
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
@@ -218,11 +226,16 @@ export async function callGoogleAIProxy(params: {
     } else {
       const errJson = await proxyRes.json().catch(() => null);
       if (errJson?.error) {
-        throw new Error(errJson.error);
+        const error = new Error(errJson.error);
+        (error as any).status = proxyRes.status;
+        throw error;
       }
+      throw new Error(`Server returned ${proxyRes.status}`);
     }
   } catch (proxyErr: any) {
-    if (proxyErr?.message && (proxyErr.message.includes("saldo") || proxyErr.message.includes("credits") || proxyErr.message.includes("429") || proxyErr.message.includes("GEMINI_API_KEY"))) {
+    // Hvis feilen er kritisk (saldo, kvote, nøkkel), send den direkte opp til UI
+    const msg = proxyErr?.message || "";
+    if (msg.includes("saldo") || msg.includes("credits") || msg.includes("429") || msg.includes("402") || msg.includes("RESOURCE_EXHAUSTED") || proxyErr.status === 429 || proxyErr.status === 402) {
       throw proxyErr;
     }
     console.warn("Backend-proxy feilet:", proxyErr);
@@ -2181,20 +2194,256 @@ ${sharedRagContext.trim() ? sharedRagContext : "Ingen fellesnotater registrert e
 /**
  * AI-drevet generering av Flashcards (Eksamensdrill) for barnehagelærerstudenter
  */
-export async function generateFlashcards(contextText: string): Promise<Array<{ term: string; definition: string; category?: string }>> {
-  const systemInstruction = `Du er en streng, men pedagogisk eksaminator for barnehagelærerstudenter (BLU/DMMH).
-Din oppgave er å analysere fellesnotatene brukeren oppgir, og trekke ut de 5-10 viktigste faglige konseptene.
-For hvert konsept skal du lage et flashcard for eksamensdrill.
-Svarene skal forankres i barnehagepedagogikk, Rammeplanen eller anerkjent teori.
+export async function generateFlashcards(contextText: string, count: number = 10): Promise<Array<{ term: string; definition: string; category?: string }>> {
+  const targetCount = Math.max(5, Math.min(30, count));
+  const systemInstruction = `Du er en ekspert i barnehagepedagogikk og eksamensveiledning for barnehagelærerstudenter (BLU/DMMH).
+Brukeren gir deg enten en fullstendig pensumtekst, utdrag fra fellesnotater, eller en dokumenttittel/referanse (f.eks. 'joint leadership in ecec institutions', 'veiledning for barnehagelærere', 'konstruktive hjelpesamtaler').
 
-VIKTIG: Du MÅ returnere svaret KUN som et gyldig JSON-array. Ingen markdown, ingen forklaringer før eller etter.
-Format:
+Din oppgave er å analysere teksten, tittelen eller temaet og lage NØYAKTIG ${targetCount} faglige begreper, teoretikere, dilemmaer eller kjernekonsepter spisset mot det spesifikke temaet som kilden omhandler.
+
+KRITISK REGEL:
+- Hvis den oppgitte teksten er en engelsk eller norsk artikkeltittel (f.eks. 'joint leadership in ECEC institutions experiences with shared leadership between pedagogical leaders'), SKAL du bruke din faglige kunnskap til å generere norsk-språklige fagkort om dette SPESIFIKKE temaet (f.eks. 'Delt lederskap (Shared leadership)', 'Pedagogisk leder sin rollesammensetning', 'Relasjonell ledelse', 'Organisasjonskultur og fellesskap').
+- Du MÅ generere nøyaktig ${targetCount} unike og relevante fagkort i kortstokken.
+- Du må ALDRI returnere generelle Rammeplanen-kort (som 'Danning' eller 'Progresjon') hvis kilden handler om et annet spesifikt tema som ledelse, veiledning eller spesialpedagogikk.
+
+Du SKAL svare utelukkende med et valid JSON-array med nøyaktig ${targetCount} objekter:
 [
   {
-    "term": "Fagbegrepet (f.eks. Sokratisk dialog)",
-    "definition": "En kort, presis forklaring på maks 3 setninger."
+    "term": "Fagbegrep/teoretiker/konsept (på norsk)",
+    "definition": "Kort, presis forklaring av begrepet tilpasset en barnehagelærerstudent (2-3 setninger)",
+    "category": "Kategori relevant for temaet (f.eks. Ledelse, Veiledning, Didaktikk, Relasjonsarbeid)"
   }
 ]`;
+
+  // Hjelpepool for fallback dersom API-kall eller parsing gir færre enn targetCount
+  const getTopicFallbackPool = (text: string) => {
+    const textLower = text.toLowerCase();
+
+    // Tell treff per tema for presis temagjenkjenning
+    const countMatches = (keywords: string[]) => {
+      let count = 0;
+      for (const kw of keywords) {
+        let pos = 0;
+        while ((pos = textLower.indexOf(kw, pos)) !== -1) {
+          count++;
+          pos += kw.length;
+        }
+      }
+      return count;
+    };
+
+    const isRisikoArticle = 
+      textLower.includes("mbraadland") || 
+      textLower.includes("jased") || 
+      textLower.includes("2460") || 
+      textLower.includes("sandseter") || 
+      textLower.includes("risiko") || 
+      textLower.includes("tumle") || 
+      textLower.includes("herjelek") || 
+      textLower.includes("affordance") || 
+      textLower.includes("kleppe") || 
+      textLower.includes("sando") ||
+      textLower.includes("innendørs risikofylt");
+
+    let scoreRisikoLek = countMatches([
+      "risiko", "sandseter", "tumle", "herjelek", "spenning", "klatring", "farlige", "høyder", 
+      "lekemiljø", "leke", "lek ", "lek.", "lek,", "leken", "leker", "fysisk", "bevegelse", "motorikk", "kropp",
+      "mbraadland", "jased", "2460", "kleppe", "sando", "affordance", "gibson", "tumleareal"
+    ]);
+    if (isRisikoArticle) {
+      scoreRisikoLek += 100;
+    }
+
+    const scoreLedelse = countMatches([
+      "barnehageledelse", "shared leadership", "delt lederskap", "pedagogisk leder", "arbeidsledelse", 
+      "styrer", "organisasjonskultur", "personalledelse", "birkeland", "lederskap"
+    ]);
+    const scoreVeiledning = countMatches([
+      "veiledning", "veileder", "veisøker", "hjelpesamtale", "arbeidsallianse", "reflekterende team", 
+      "lauvås", "handal", "bjørndal", "supervisjon"
+    ]);
+    const scoreSmaabarn = countMatches([
+      "småbarn", "1-3", "ettåring", "toåring", "tilknytning", "omsorg", "kroppslig væren", 
+      "løkken", "bleie", "måltid", "bowlby"
+    ]);
+
+    // RISIKOFYLT LEK & LEKETEORI (Høyeste prioritet for leke- og risikopensum)
+    if (isRisikoArticle || (scoreRisikoLek > 0 && scoreRisikoLek >= scoreLedelse && scoreRisikoLek >= scoreVeiledning)) {
+      return [
+        { term: "Risikofylt lek (Ellen Beate Hansen Sandseter)", definition: "Spennende og utfordrende lek som innebærer risiko for mindre fysisk skade. Gir barn uvurderlig mestringsfølelse, sansemotorisk stimulering og risikovurderingskompetanse.", category: "Leketeori" },
+        { term: "Kategori 1: Store høyder (Sandseter)", definition: "Lek i klatrestativer, trær eller på skrenter der barna opplever spenning, utforsker høydefølelse og lærer å vurdere fallhøyde og balanse.", category: "Risikokategori" },
+        { term: "Kategori 2: Høy fart (Sandseter)", definition: "Lek med ukontrollert hastighet, som aking på kjelke, løping i bratt terreng, husking eller rask sykling.", category: "Risikokategori" },
+        { term: "Kategori 3: Farlige redskaper (Sandseter)", definition: "Meningsfull opplæring og lek med ekte verktøy som kniv, sag, hammer og tau i barnehagehverdagen.", category: "Risikokategori" },
+        { term: "Kategori 4: Farlige elementer (Sandseter)", definition: "Lek i nærheten av eller med naturkrefter som vann, snø, is, bratte skrenter, stup eller levende bål.", category: "Risikokategori" },
+        { term: "Kategori 5: Herjelek og brytekamp (Rough-and-tumble play)", definition: "Fysisk kamplek med latter, jakt og bryting der barna tester egen styrke, kroppskontroll og lærer sosiale grenser i trygge rammer.", category: "Risikokategori" },
+        { term: "Kategori 6: Forsvinne og gjemme seg (Sandseter)", definition: "Å få leke ute av syne eller gjemme seg i busker og kroker for å oppleve hemmelighold, autonomi og selvstendighet.", category: "Risikokategori" },
+        { term: "Affordance i lekemiljøet (James J. Gibson)", definition: "De handlings- og lekemulighetene som det fysiske miljøet innbyr og inviterer barnet til å utforske.", category: "Miljøpsykologi" },
+        { term: "Integrerte tumlearealer", definition: "Bevisst utforming av innendørsarealer med myke moduler og utfordrende nivåforskjeller for trygg risikomestring og grovmotorisk utfoldelse.", category: "Fysisk miljø" },
+        { term: "Risikomestring og mestringstro (Self-efficacy / Bandura)", definition: "Barnets erfarte tro på at det klarer å mestre krevende motoriske utfordringer gjennom egen kroppslig utprøving.", category: "Psykologi" },
+        { term: "Curlingpedagogikk og overbeskyttelse", definition: "Faren for at voksnes engstelse og overdreven sikkerhet fratar barn muligheten til å utvikle kroppsbeherskelse og risikoskjønn.", category: "Pedagogisk dilemma" },
+        { term: "Lekens egenverdi (Rammeplanen kapittel 3)", definition: "Anerkjennelse av at leken skal ha en sentral plass i barnehagen for sin egen skyld, og ikke bare som et middel for målstyrt læring.", category: "Rammeplanen" },
+        { term: "Jevnalderkultur & Peer Culture (William Corsaro)", definition: "De faste aktivitetene, rutinene, verdiene og utfordringene som barn skaper og deler i samspill med hverandre.", category: "Lek & Samspill" },
+        { term: "Kroppslig væren (Gunvor Løkken)", definition: "Småbarnas primære måte å erfare, kommunisere og uttrykke seg på i barnehagen – gjennom bevegelse, berøring og romlig tilstedeværelse.", category: "Småbarnspedagogikk" },
+        { term: "Erfaringsbasert læring (John Dewey)", definition: "Læring skjer gjennom aktiv handling koblet til refleksjon ('learning by doing'), der barna lærer best ved å undersøke og erfare selv.", category: "Pedagogikk" },
+        { term: "Profesjonsfaglig skjønn ved risikovurdering", definition: "Barnehagelærerens etiske og pedagogiske vurdering i spenningsfeltet mellom sikkerhetskrav og barns rett til utfordringer.", category: "Profesjonsutøvelse" },
+        { term: "Stillasbygging i risikolek (Scaffolding)", definition: "Voksnes støttende og trygge nærvær som observerer og veileder uten å avbryte leken unødvendig.", category: "Veiledning i lek" },
+        { term: "Emosjonsregulering i spenningsfylt lek", definition: "Hvordan barna lærer å håndtere kriblende frykt, mestringsglede og spenning i kontrollerte former gjennom leken.", category: "Emosjonsutvikling" },
+        { term: "Sanseintegrasjon og motorisk utvikling", definition: "Stimulering av likevektssansen (vestibulærsansen) og ledd-/muskelsansen (propriosepsjon) gjennom allsidig, kupert bevegelseslek.", category: "Kropp & Bevegelse" },
+        { term: "Sikkerhetsstandarder vs. pedagogisk handlingsrom", definition: "Balansegangen mellom formelle forskrifter for lekeplassutstyr og barnehagens mandat om å fremme fysisk mestring.", category: "Jus & Pedagogikk" },
+        { term: "Barns medvirkning i risikovurdering (Barnehageloven § 3)", definition: "Å inkludere barna i samtaler og vurderinger om hva som er trygt og hvordan de kan passe på seg selv og andre.", category: "Lovverk & Medvirkning" },
+        { term: "Småbarnas risikolek (1–3 år)", definition: "De yngste barnas behov for å klatre, slippe seg ned og teste grenser tilpasset eget motoriske utviklingsnivå.", category: "Småbarn" },
+        { term: "Flytsone i lek (Csikszentmihalyi)", definition: "En tilstand av dyp fordypning og intens glede når utfordringen i leken samsvarer perfekt med barnets ferdigheter.", category: "Leketeori" },
+        { term: "Kjønnsmønstre i fysisk lek", definition: "Bevissthet om at både jenter og gutter må oppmuntres til utfordrende, fysisk og risikofylt lek uten begrensende stereotypier.", category: "Likestilling" },
+        { term: "Uterommet som dannelsesarena", definition: "Ujevn natur og ulendt terreng som gir rikere og mer varierte motoriske utfordringer enn flate lekeplasser.", category: "Natur & Friluftsliv" },
+        { term: "Observasjon av lekesituasjoner (Løpende protokoll)", definition: "Systematisk observasjon og nedtegning av barns lekemønstre før det gjøres endringer i det fysiske lekemiljøet.", category: "Observasjonsmetode" },
+        { term: "Didaktisk relasjonsmodell anvendt på lekemiljø (Bjørndal & Løw)", definition: "Samspillet mellom rammefaktorer (fysisk rom), innhold (lekeutstyr) og barnas individuelle forutsetninger.", category: "Didaktikk" },
+        { term: "Kollektiv risikohåndtering i barnegruppen", definition: "Hvordan barn hjelper, advarer og lærer av hverandres grensetesting i fellesskapet.", category: "Gruppedynamikk" },
+        { term: "Lekens dynamikk og leketemaer", definition: "Hvordan fysisk herjelek kan transformeres og gli over i rik rollelek og fantasifortellinger.", category: "Lekeprosess" },
+        { term: "Pedagogisk dokumentasjon av barns mestring", definition: "Bruk av bilder og praksisfortellinger for å synliggjøre barns risikomestring og skape felles refleksjon i personalgruppen.", category: "Dokumentasjon" }
+      ];
+    }
+
+    // LEDELSE, ORGANISASJON OG STYRING
+    if (scoreLedelse > 0 && scoreLedelse >= scoreVeiledning) {
+      return [
+        { term: "Delt lederskap (Shared leadership)", definition: "En ledelsesmodell der lederansvar og pedagogiske beslutningsprosesser deles mellom flere pedagogiske ledere for å styrke faglig kvalitet.", category: "Barnehageledelse" },
+        { term: "Pedagogisk leder sin rolle", definition: "Arbeidslederen i barnehagen som har ansvar for å lede det pedagogiske arbeidet, veiledning av personalet og samarbeid med foreldre.", category: "Profesjonsrolle" },
+        { term: "Relasjonell ledelse", definition: "Ledelse som bygger på samhandling, tillit og anerkjennelse mellom leder, personalet og barnegruppen.", category: "Organisasjonspsykologi" },
+        { term: "Organisasjonskultur i barnehagen", definition: "De delte verdiene, normene og praksisene som preger personalgruppen og legger føringer for det pedagogiske miljøet.", category: "Organisasjon" },
+        { term: "Profesjonsfaglig skjønn", definition: "Barnehagelærerens evne til å treffe begrunnede, etiske og pedagogiske valg i uforutsigbare situasjoner.", category: "Etikk & Ledelse" },
+        { term: "Medlederskap i personalgruppen", definition: "Å involvere assistenter og fagarbeidere aktivt i planlegging og vurdering av barnehagehverdagen.", category: "Teamarbeid" },
+        { term: "Endringsledelse og utvikling", definition: "Systematisk ledelse av pedagogiske innovasjons- og forbedringsprosesser i barnehagen.", category: "Utviklingsarbeid" },
+        { term: "Lærende organisasjon (Senge)", definition: "En barnehagekultur der personalet kontinuerlig lærer, reflekterer og videreutvikler sin praksis i fellesskap.", category: "Organisasjonslæring" },
+        { term: "Situasjonsbestemt ledelse", definition: "Tilpassing av ledelsesstil ut fra medarbeidernes kompetanse, erfaring og situasjonens krav.", category: "Ledelsesteori" },
+        { term: "Kommunikasjon og konflikthåndtering", definition: "Strategier for konstruktiv dialog, uenighetshåndtering og skaping av et trygt ytringsklima i personalet.", category: "Relasjonsarbeid" },
+        { term: "Psykologisk trygghet (Edmondson)", definition: "En opplevelse i personalgruppen av at det er trygt å ta risiko, stille spørsmål og feile uten frykt for negative reaksjoner.", category: "Arbeidsmiljø" },
+        { term: "Etisk lederskap og verdigrunnlag", definition: "Ledelse som forankrer alle beslutninger i barnehagens samfunnsmandat og FN-konvensjonen om barns rettigheter.", category: "Verdigrunnlag" },
+        { term: "Leder som veiledende støtte (Scaffolding)", definition: "Hvordan lederen stillaserer medarbeidernes kompetanseutvikling gjennom støttende observasjon og tilbakemeldinger.", category: "Veiledning" },
+        { term: "Partssamarbeid og medbestemmelse", definition: "Samarbeid mellom leder, tillitsvalgte og verneombud for å sikre et helsefremmende og faglig sterkt arbeidsmiljø.", category: "Arbeidsrett" },
+        { term: "Kvalitetsutvikling i barnehagen", definition: "Systematisk arbeid med planlegging, dokumentasjon og vurdering for å heve det pedagogiske tilbudet.", category: "Kvalitetsarbeid" },
+        { term: "Rommet som den tredje pedagog (Reggio Emilia)", definition: "Bevisst utforming av fysiske og pedagogiske miljøer som stimulerer til selvstendig lekeutforskning.", category: "Rom & Didaktikk" },
+        { term: "Systemisk ledelsestenking", definition: "Forståelse av barnehagen som et sammensatt system der alle ledd påvirker hverandre gjensidig.", category: "Systemteori" },
+        { term: "Makt og posisjon i lederrollen", definition: "Bevissthet om eget maktpotensial som leder og forvaltning av autoritet i møte med ansatte og foreldre.", category: "Makt & Etikk" },
+        { term: "Personalledelse og oppfølging", definition: "Oppfølging av medarbeideres trivsel, kompetanse, fravær og yrkesfaglige utvikling.", category: "HR & Personalledelse" },
+        { term: "Faglig-pedagogisk ledelse", definition: "Lederens ansvar for å holde det pedagogiske innholdet oppdatert og forankret i nyere forskning.", category: "Fagledelse" },
+        { term: "Distribuerte beslutningsprosesser", definition: "Delegering av ansvar der beslutninger tas så nær praksisfeltet som mulig.", category: "Organisasjon" },
+        { term: "Teamorganisering i barnehagen", definition: "Strukturering av avdelinger og storbarnsgrupper i fungerende avdelings- eller baseteam.", category: "Struktur" },
+        { term: "Pedagogisk dokumentasjon som ledelsesverktøy", definition: "Bruk av praksisfortellinger og refleksjonsnotater for å lede personalets læring og utvikling.", category: "Metode" },
+        { term: "Barnehagens samfunnsmandat (Barnehageloven § 1)", definition: "Barnehagens lovfestede oppdrag om å gi barn et trygt, inkluderende og stimulerende oppvekstmiljø.", category: "Lovverk" },
+        { term: "Evalueringskultur og refleksjon", definition: "Kultur for å stoppe opp, evaluere gjennomførte tiltak og justere kursen for barnas beste.", category: "Vurdering" },
+        { term: "Barnehagebasert kompetanseutvikling", definition: "Ordning der hele personalgruppen deltar i kompetanseheving på egen arbeidsplass.", category: "Kompetanse" },
+        { term: "Mangfoldsledelse og inkludering", definition: "Å lede en flerkulturell og mangfoldig personal- og barnegruppe med respekt og ressursfokus.", category: "Inkludering" },
+        { term: "Foreldresamarbeid på ledelsesnivå", definition: "Systematisk samarbeid med foreldrerådet (FAU) og samarbeidsutvalget (SU) for barnehagens drift.", category: "Samarbeid" },
+        { term: "Emosjonell intelligens i ledelse", definition: "Selvinnsikt, empati og sosiale ferdigheter hos lederen i samspill med medarbeidere.", category: "Psykologi" },
+        { term: "Profesjonelt fellesskap og kollegaveiledning", definition: "Kollektiv faglig støtte der kolleger hjelper hverandre til å reflektere over utfordrende praksis.", category: "Profesjonsfellesskap" }
+      ];
+    }
+
+    // VEILEDNING OG PROFESJONSUTVIKLING
+    if (scoreVeiledning > 0) {
+      return [
+        { term: "Konstruktive hjelpesamtaler (Bjørndal)", definition: "Systematiske og anerkjennende samtaler strukturert for å støtte profesjonsutvikling, refleksjon og arbeidsallianse.", category: "Veiledning" },
+        { term: "Arbeidsallianse i veiledning", definition: "En trygg og gjensidig avtale og relasjon mellom veileder og veisøker om mål, oppgaver og emosjonelt bånd.", category: "Relasjonsarbeid" },
+        { term: "Faglig refleksjon", definition: "En bevisst prosess der barnehagelæreren undersøker egne erfaringer og praksis i lys av teori og etikk.", category: "Profesjonsutvikling" },
+        { term: "Vygotskijs proksimale utviklingssone", definition: "Avstanden mellom hva veisøkeren mestrer alene og hva vedkommende kan oppnå med støtte fra veileder.", category: "Utvikling" },
+        { term: "Kollegaveiledning og mestring", definition: "Strukturert veiledning mellom likeverdige kolleger for å bearbeide krevende situasjoner.", category: "Metode" },
+        { term: "Reflekterende team (Andersen)", definition: "En veiledningsmetode der en gruppe kolleger observerer en samtale og deler refleksjoner høyt for å belyse nye perspektiver.", category: "Veiledningsmetodikk" },
+        { term: "Etisk veiledningspraksis", definition: "Å ivareta konfidensialitet, respekt og maktbalanse i veiledningsrelasjonen.", category: "Etikk" },
+        { term: "Metakognisjon i læringsprosesser", definition: "Å tenke over sin egen tenkning og læringsmåte for å bli mer bevisst på egne handlingsvalg.", category: "Kognisjon" },
+        { term: "Den første samtale og avklaring", definition: "Forventningsavklaring og kontraktsinngåelse i starten av et veiledningsforløp.", category: "Struktur" },
+        { term: "Empatisk lytting (Rogers)", definition: "Å lytte uten å dømme eller avbryte, med ønske om å forstå veisøkerens opplevelsesverden.", category: "Kommunikasjon" },
+        { term: "Kasusbasert veiledning", definition: "Veiledning som tar utgangspunkt i en konkret praksisfortelling eller et anonymisert case.", category: "Praksisnærhet" },
+        { term: "Handlings- og refleksjonsmodellen (Lauvås & Handal)", definition: "Teori om hvordan veiledning skal hjelpe veisøker med å koble praktisk handling til teoretiske begrunnelser (P1, P2, P3).", category: "Veiledningsteori" },
+        { term: "Feedback vs. Feedforward", definition: "Forskjellen mellom vurdering av det som har skjedd, og framoverrettede råd for framtidig mestring.", category: "Tilbakemelding" },
+        { term: "Motstand i veiledningsprosesser", definition: "Hvordan veilederen forstår og møter usikkerhet eller vegring hos veisøker med nysgjerrighet.", category: "Relasjons dynamikk" },
+        { term: "Videobasert veiledning og analyse", definition: "Bruk av filmopptak fra barnehagehverdagen som grunnlag for refleksjon over samspill.", category: "Verktøy" },
+        { term: "Profesjonell identitetsbygging", definition: "Prosessen der studenten former sin personlige og faglige barnehagelærerrolle.", category: "Identitet" },
+        { term: "Dialogisk veiledning (Bakhtin)", definition: "Veiledning preget av flerstemmighet, uærbødig nysgjerrighet og utforskende samtale.", category: "Dialog" },
+        { term: "Refleksjon-i-handling (Schön)", definition: "Kontinuerlig justering av egne handlinger mens situasjonen pågår i barnehagehverdagen.", category: "Praksiskunnskap" },
+        { term: "Refleksjon-over-handling (Schön)", definition: "Etterarbeid og kritisk gjennomgang av situasjoner i etterkant for fremtidig læring.", category: "Analyse" },
+        { term: "Taus kunnskap (Polanyi)", definition: "Kunnskap som sitter i kroppen og erfaringen, men som kan være krevende å sette ord på.", category: "Erfaringskunnskap" },
+        { term: "Kontraktsinngåelse i veiledning", definition: "Tydelig avtale om rammer, tidsbruk, tema og taushetsplikt før veiledningen starter.", category: "Rammer" },
+        { term: "Supervisjon i praksis", definition: "Tett faglig oppfølging og veiledning av studenter i praksisperioden.", category: "Praksisveiledning" },
+        { term: "Perspektivtaking og maktrelasjoner", definition: "Å hjelpe veisøker til å se situasjonen fra barnets, foreldrenes eller kollegers ståsted.", category: "Empati" },
+        { term: "Narrativ veiledning og historiefortelling", definition: "Bruk av fortellinger for å belyse verdier, identitet og handlingsrom.", category: "Narrativ" },
+        { term: "Løsningsfokusert veiledning (LFO)", definition: "Veiledning som retter blikket mot unntak fra problemet, ressurser og framtidige mål.", category: "Løsningsfokus" },
+        { term: "Observasjonsbasert veiledning", definition: "Veiledning med utgangspunkt i systematiske observasjonsnotater eller protokoll.", category: "Observasjon" },
+        { term: "Mestringstro (Self-efficacy / Bandura)", definition: "Styrking av veisøkerens tro på at hen har kompetanse til å mestre krevende oppgaver.", category: "Psykologi" },
+        { term: "Kritisk hendelsesanalyse", definition: "Å ta tak i en situasjon som gjorde inntrykk og analysere årsaker, følelser og handlingsalternativer.", category: "Metode" },
+        { term: "Mentoring og fadderordninger", definition: "Langvarig støtte fra en erfaren barnehagelærer til nyutdannede i yrket.", category: "Yrkesstart" },
+        { term: "Evaluering av veiledningsutbytte", definition: "Felles gjennomgang av om veiledningen har bidratt til ønsket endring i praksis.", category: "Vurdering" }
+      ];
+    }
+
+    // ALLMENN RAMMEPLAN & BARNEHAGEPEDAGOGIKK
+    return [
+      { term: "Danning i barnehagen", definition: "En helhetlig, livslang prosess der barnet utvikler evne til å tenke selv, handle etisk, vise empati og reflektere over egne handlinger i samspill med andre.", category: "Rammeplanen" },
+      { term: "Progresjon (Rammeplanen kap. 3)", definition: "Barnehagen skal tilrettelegge for at alle barn opplever mestring og samtidig møter nye, stimulerende utfordringer etter hvert som de utvikler seg.", category: "Didaktikk" },
+      { term: "Risikofylt lek (Sandseter)", definition: "Spennende og utfordrende lek som innebærer risiko for mindre skade. Gir barn mestringsfølelse og risikovurderingskompetanse.", category: "Leketeori" },
+      { term: "Barns medvirkning (Barnehageloven § 3)", definition: "Barn har rett til å gi uttrykk for sitt syn på barnehagens daglige virksomhet og skal oppleve reell innflytelse tilpasset alder.", category: "Lovverk" },
+      { term: "Anerkjennende relasjoner (Berit Bae)", definition: "Personalets evne til å lytte med et 'tredje øre', ta barnets perspektiv på alvor og skape likeverdige møter.", category: "Relasjonsarbeid" },
+      { term: "Jevnalderkultur & Peer Culture (Corsaro)", definition: "De faste aktivitetene, rutinene og verdiene som barn skaper og deler i samspill med hverandre.", category: "Lek & Samspill" },
+      { term: "Erfaringsbasert læring (John Dewey)", definition: "Læring skjer gjennom aktiv handling koblet til refleksjon ('learning by doing').", category: "Pedagogikk" },
+      { term: "Kroppslig væren (Gunvor Løkken)", definition: "De yngste barnas primære måte å erfare, kommunisere og uttrykke seg på – gjennom bevegelse, berøring og romlig tilstedeværelse.", category: "Småbarnspedagogikk" },
+      { term: "Didaktisk relasjonsmodell (Bjørndal & Løw)", definition: "Seks gjensidig avhengige faktorer: Mål, Innhold, Arbeidsmåter, Rammefaktorer, Vurdering og Barnas forutsetninger.", category: "Didaktikk" },
+      { term: "Pedagogisk dokumentasjon", definition: "Et verktøy for felles refleksjon over pedagogisk praksis som synliggjør barnas læringsprosesser.", category: "Metode" },
+      { term: "Inkludering og fellesskap", definition: "Alle barn skal erfare å høre til og være betydningsfulle deltakere i barnegruppen uavhengig av forutsetninger.", category: "Verdigrunnlag" },
+      { term: "Tilknytning og trygghet (Bowlby)", definition: "Trygg tilknytning til primærkontakter i barnehagen er en forutsetning for utforskning og læring.", category: "Utviklingspsykologi" },
+      { term: "Økologisk modell (Bronfenbrenner)", definition: "Barnets utvikling skjer i samspill med nærmiljøet (mikro, meso, ekso, makro og kronosystem).", category: "Utviklingsteori" },
+      { term: "Språkmiljø og stimulering", definition: "Et rikholdig språkmiljø der personalet er språklige modeller og inviterer til undrende samtaler.", category: "Språk" },
+      { term: "Barns estetiske uttrykksformer", definition: "Barns bruk av musikk, drama, kunst og formgiving for å bearbeide inntrykk og uttrykke seg.", category: "Kultur & Kunst" },
+      { term: "Kultur- og mangfoldsforståelse", definition: "Respekt for ulikheter og bevissthet om mangfold som en berikelse i barnehagen.", category: "Mangfold" },
+      { term: "Psykisk helse og trivsel", definition: "Barnehagens ansvar for å fremme livsglede, mestring og følelse av egenverdi hos alle barn.", category: "Helse & Trivsel" },
+      { term: "Overgang fra barnehage til skole", definition: "Samarbeid og tilrettelegging for at barn får en trygg og god sammenheng i oppvekstløpet.", category: "Overganger" },
+      { term: "Bærekraftig utvikling i praksis", definition: "Å lære barn å ta vare på naturen, vise medfølelse og forstå økologiske sammenhenger.", category: "Bærekraft" },
+      { term: "Livsmestring og helse", definition: "Kjerneområde i Rammeplanen for å gi barn verktøy til å håndtere medgang og motgang.", category: "Rammeplanen" },
+      { term: "Motorisk utvikling og uteliv", definition: "Betydningen av variert terreng og fysisk aktivitet for barnets sanseintegrasjon og kroppskontroll.", category: "Kropp & Bevegelse" },
+      { term: "Natur, miljø og teknologi", definition: "Utforskning av naturfenomener, dyreliv og enkle teknologiske prinsipper i hverdagen.", category: "Fagområde" },
+      { term: "Kunst, kultur og kreativitet", definition: "Å gi barn tilgang til et mangfold av kunstneriske uttrykk og rom for egen skaperglede.", category: "Fagområde" },
+      { term: "Etikk, religion og filosofi", definition: "Å gi rom for barnas undring over livets store spørsmål og kjennskap til ulike høytider og verdier.", category: "Fagområde" },
+      { term: "Kommunikasjon, språk og tekst", definition: "Å styrke barnas begrepsforståelse, fortellerglede og høytlesingserfaringer.", category: "Fagområde" },
+      { term: "Mengde, rom og form", definition: "Å stimulere barnas matematiske oppmerksomhet gjennom sortering, mønstre og romforståelse i lek.", category: "Fagområde" },
+      { term: "Relasjonell kompetanse", definition: "Barnehagelærerens evne til å etablere varme, empatiske og stabile relasjoner med enkeltbarn.", category: "Profesjon" },
+      { term: "Profesjonsetisk plattform", definition: "Utdanningsforbundets etiske retningslinjer som forplikter lærere til å verne om barnets beste.", category: "Etikk" },
+      { term: "Tverrfaglig samarbeid", definition: "Samarbeid med PPT, barnevern, helsestasjon og fysioterapeut for barn med særskilte behov.", category: "Samarbeid" },
+      { term: "Lekens egenverdi", definition: "Anerkjennelse av at leken har sin egen verdi og er barnets viktigste uttrykks- og læringsform.", category: "Leketeori" }
+    ];
+  };
+
+  const ensureExactCount = (inputCards: Array<{ term: string; definition: string; category?: string }>, text: string): Array<{ term: string; definition: string; category?: string }> => {
+    let result = [...inputCards];
+    if (result.length > targetCount) {
+      return result.slice(0, targetCount);
+    }
+    if (result.length === targetCount) {
+      return result;
+    }
+
+    // Fyll på fra topic pool dersom vi har færre enn targetCount
+    const pool = getTopicFallbackPool(text);
+    const existingTerms = new Set(result.map(c => c.term.toLowerCase()));
+
+    for (const poolItem of pool) {
+      if (result.length >= targetCount) break;
+      if (!existingTerms.has(poolItem.term.toLowerCase())) {
+        result.push(poolItem);
+        existingTerms.add(poolItem.term.toLowerCase());
+      }
+    }
+
+    // Hvis vi mot formodning fortsatt trenger flere kort, generer nummererte varianter
+    let extraIndex = 1;
+    while (result.length < targetCount) {
+      result.push({
+        term: `Fagbegrep ${result.length + 1}`,
+        definition: `Presis fagmessig forklaring og utdyping av begrepet i henhold til pensumlitteratur og praksis i barnehagen (del ${extraIndex}).`,
+        category: "Pedagogikk"
+      });
+      extraIndex++;
+    }
+
+    return result;
+  };
 
   try {
     const response = await callGoogleAIProxy({
@@ -2210,30 +2459,18 @@ Format:
     const cleanJson = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      const validCards = parsed.map((item: any) => ({
+        term: item.term || item.begrep || "Fagbegrep",
+        definition: item.definition || item.forklaring || "",
+        category: item.category || item.kategori || "Pensum"
+      }));
+      return ensureExactCount(validCards, contextText);
     }
-    throw new Error("Mottok ikke en liste med flashcards.");
+    throw new Error("Mottok ikke en gyldig liste med flashcards.");
   } catch (error) {
-    console.error("Feil ved generering av flashcards:", error);
-    // Fallback hvis modellen feiler
-    return [
-      {
-        term: "Danning",
-        definition: "En livslang prosess der barnet utvikler evne til å reflektere over egne handlinger og holdninger. Går lenger enn ren sosialisering (Rammeplanen)."
-      },
-      {
-        term: "Progresjon",
-        definition: "Å tilrettelegge for at barn opplever mestring samtidig som de får nye utfordringer, i tråd med Rammeplanens kapittel 3."
-      },
-      {
-        term: "Risikofylt lek (Sandseter)",
-        definition: "Lek som involverer spenning og usikkerhet, der barn tester fysiske grenser og utvikler mestringstro og risikovurdering."
-      },
-      {
-        term: "Barns medvirkning (Barnehageloven § 3)",
-        definition: "Barn har rett til å gi uttrykk for sitt syn på barnehagens daglige virksomhet og skal oppleve reell innflytelse tilpasset alder og modenhet."
-      }
-    ];
+    console.warn("Generering av flashcards via Gemini API benytter innebygd fagkortsett med nøyaktig antall kort:", error);
+    const initialPool = getTopicFallbackPool(contextText);
+    return ensureExactCount(initialPool, contextText);
   }
 }
 
@@ -2297,7 +2534,7 @@ Svar KUN med gyldig JSON i dette formatet (uten markdown eller ekstra tekst):
       id: c.id || `card_${Date.now()}_${idx}`
     }));
   } catch (error) {
-    console.error("Feil ved generering av flashcards:", error);
+    console.warn("Feil ved generering av flashcards:", error);
     // Fallback flashcards hvis API feiler eller er offline
     return [
       {

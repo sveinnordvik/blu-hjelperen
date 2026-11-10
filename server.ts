@@ -643,6 +643,41 @@ Dokumentinnhold:
     }
   });
 
+  // ask-blu Endpoint (speiler Cloud Function med sikkerhet og feilhåndtering)
+  app.post(["/api/ask-blu", "/api/ask-blu/"], async (req, res) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+        return res.status(500).json({ error: "GEMINI_API_KEY er ikke konfigurert på serveren." });
+      }
+
+      const { prompt } = req.body || {};
+      if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+        return res.status(400).json({ error: "Mangler gyldig 'prompt' i forespørselen." });
+      }
+
+      if (prompt.length > 40000) {
+        return res.status(400).json({ error: "Forespørselen overstiger maksimal tillatt lengde på 40 000 tegn." });
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+
+      const response = await callGenAIWithFallback(
+        ai,
+        "gemini-3.8-flash",
+        prompt.trim(),
+        {}
+      );
+
+      res.json({ reply: response.text || "" });
+    } catch (error: any) {
+      console.error("ask-blu endpoint error:", error);
+      res.status(500).json({ error: String(error?.message || error) });
+    }
+  });
+
+
   // FCM Sending Endpoint
   app.post("/api/send-notification", async (req, res) => {
     if (!admin.apps.length) {

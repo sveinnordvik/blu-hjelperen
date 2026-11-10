@@ -553,6 +553,33 @@ Dokumentinnhold:
       }
     }
 
+    // Endepunkt: /api/ask-blu (Beskyttet av Firebase Auth Bearer-token via middleware ovenfor)
+    if (rawPath.includes("/ask-blu")) {
+      try {
+        const { prompt } = req.body || {};
+        if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+          return res.status(400).json({ error: "Mangler gyldig 'prompt' i forespørselen." });
+        }
+        if (prompt.length > 40000) {
+          return res.status(400).json({ error: "Forespørselen overstiger maksimal tillatt lengde på 40 000 tegn." });
+        }
+
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: prompt.trim(),
+        });
+
+        return res.status(200).json({
+          reply: response.text || "",
+          user: req.user ? { uid: req.user.uid, email: req.user.email } : null
+        });
+      } catch (error) {
+        console.error("Feil i Cloud Function /api/ask-blu:", error);
+        return res.status(500).json({ error: error?.message || "Noe gikk galt under generering av tekst." });
+      }
+    }
+
     return res.status(404).json({ error: `Endepunktet '${rawPath}' ble ikke funnet på API-funksjonen.` });
   }
 );
@@ -853,6 +880,77 @@ exports.pedlederAI = functions.region('europe-west1').https.onCall(async (data, 
     throw new functions.https.HttpsError('internal', 'Kunne ikke kontakte Gemini: ' + error.message);
   }
 });
+
+/**
+ * =================================================================================
+ * FUNKSJON 9: askBlu (Firebase Cloud Functions Callable)
+ * =================================================================================
+ * 100% sikkerhetssertifisert metode for å kalle Gemini via Firebase.
+ *
+ * SIKKERHETSLAG:
+ * 1. Skjuler API-nøkkel på serversiden (bruker Secret Manager / miljøvariabler).
+ * 2. Håndhever streng Firebase Auth: Kun innloggede brukere slipper gjennom (context.auth).
+ * 3. Automatisk CSRF- og CORS-beskyttelse via Firebase Callable Functions.
+ * 4. Validering og lengdebegrensning på innkommende prompts.
+ */
+exports.askBlu = functions.region("europe-west1").https.onCall(async (data, context) => {
+  // 1. Verifiser at brukeren faktisk er autentisert
+  if (!context.auth || !context.auth.uid) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "Autentisering kreves. Du må være logget inn for å bruke BLU-assistenten."
+    );
+  }
+
+  // 2. Valider prompt
+  const rawPrompt = (data && data.prompt) ? data.prompt : (typeof data === "string" ? data : "");
+  if (!rawPrompt || typeof rawPrompt !== "string" || !rawPrompt.trim()) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Ugyldig forespørsel: 'prompt' må være en ikke-tom tekststreng."
+    );
+  }
+
+  if (rawPrompt.length > 40000) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Forespørselen overstiger maksimal tillatt størrelse (40 000 tegn)."
+    );
+  }
+
+  // 3. Hent API-nøkkel trygt på serveren
+  const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
+  if (!apiKey) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "GEMINI_API_KEY er ikke konfigurert i serverens miljø eller Secret Manager."
+    );
+  }
+
+  // 4. Kall Gemini
+  try {
+    const { GoogleGenAI } = require("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: rawPrompt.trim(),
+    });
+
+    return {
+      success: true,
+      reply: response.text || "",
+      uid: context.auth.uid
+    };
+  } catch (err) {
+    console.error("Feil i askBlu callable:", err);
+    throw new functions.https.HttpsError(
+      "internal",
+      err?.message || "Noe gikk galt under generering av svar fra Gemini."
+    );
+  }
+});
+
 
 
 

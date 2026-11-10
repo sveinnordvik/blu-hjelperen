@@ -284,7 +284,9 @@ export const FieldAssistant: React.FC<FieldAssistantProps> = ({
 
       if (msg.includes('logget inn') || msg.includes('autentisering') || msg.includes('401')) {
         userNotice = '🔒 Du må være logget inn for å bruke Feltveilederen. Vennligst logg inn med din studentkonto øverst i appen.';
-      } else if (msg.includes('429') || msg.includes('pågang') || msg.includes('kvote')) {
+      } else if (msg.includes('402') || msg.includes('credits') || msg.includes('saldo') || err?.status === 402) {
+        userNotice = '💳 API-nøkkelen er tom for saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på kreditt, eller oppdater nøkkelen i innstillingene.';
+      } else if (msg.includes('429') || msg.includes('pågang') || msg.includes('kvote') || err?.status === 429) {
         userNotice = '⏳ Feltveilederen opplever stor pågang akkurat nå. Vent noen sekunder og send meldingen din på nytt.';
       } else if (msg && !msg.includes('[object') && msg.length < 250) {
         userNotice = msg;

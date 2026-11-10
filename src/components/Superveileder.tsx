@@ -602,7 +602,7 @@ export function Superveileder({
 
     try {
       const cleanHistory = activeChat.messages
-        .filter(m => m.agent !== 'FEIL' && !String(m.content).startsWith('Feil:') && !String(m.content).includes('Kapasitetsgrensen'))
+        .filter(m => m.agent !== 'FEIL' && !String(m.content).startsWith('Feil:') && !String(m.content).includes('Kapasitetsgrensen') && !String(m.content).includes('saldo') && !String(m.content).includes('credits'))
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
           content: m.content
@@ -1629,7 +1629,11 @@ export function Superveileder({
                     msg.content.startsWith('Feil:') || 
                     msg.content.includes('ikke tilgjengelig') || 
                     msg.content.includes('Klarte ikke') ||
-                    msg.content.includes('Serverfeil')
+                    msg.content.includes('Serverfeil') ||
+                    msg.content.includes('saldo') ||
+                    msg.content.includes('credits') ||
+                    msg.content.includes('429') ||
+                    msg.content.includes('402')
                   ))
                 );
                 const agentStyle = !isUser ? getAgentStyling(msg.agent || (isFelt ? 'FELT' : msg.mode)) : null;

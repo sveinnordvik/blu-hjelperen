@@ -19,6 +19,8 @@ import { FieldAssistant } from '../mobile/FieldAssistant';
 import { ProjectorDisplayScreen } from '../presentation/ProjectorDisplayScreen';
 import { VersionBanner } from '../VersionBanner';
 import { useNavigate } from 'react-router-dom';
+import { usePensumHub } from '../../context/PensumHubContext';
+import { FlashcardModule } from '../FlashcardModule';
 
 /**
  * @license
@@ -422,9 +424,45 @@ export default function StudentnApp() {
     return 'home';
   });
   const [fieldAssistantPrompt, setFieldAssistantPrompt] = useState<string>('');
-  const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'empirical-analysis'>('tools-overview');
+  const [activeSubTab, setActiveSubTab] = useState<'tools-overview' | 'flashcards' | 'quiz' | 'podcast' | 'simulator' | 'presentations' | 'document-analysis' | 'dictionary' | 'empirical-analysis'>('tools-overview');
   const [docAnalysisInitialTool, setDocAnalysisInitialTool] = useState<'sensor' | 'summary' | 'humanizer'>('sensor');
   const [writingStep, setWritingStep] = useState(1);
+  const { pendingAction, setPendingAction } = usePensumHub();
+
+  // Global Tab Switch Event Listener
+  useEffect(() => {
+    const handleSwitchTab = (e: any) => {
+      if (e.detail?.tab) {
+        console.log("StudentnApp: Switching tab via blu-switch-tab event:", e.detail);
+        setActiveTab(e.detail.tab);
+        if (e.detail.subTab) {
+          setActiveSubTab(e.detail.subTab);
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
+    };
+    window.addEventListener('blu-switch-tab', handleSwitchTab);
+    return () => window.removeEventListener('blu-switch-tab', handleSwitchTab);
+  }, []);
+
+  // Sync tab/tool from URL search parameters on popstate
+  useEffect(() => {
+    const syncFromUrl = () => {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        const tab = p.get('tab');
+        const tool = p.get('tool');
+        if (tab === 'verktoy') {
+          setActiveTab('verktoy');
+          if (tool && ['flashcards', 'quiz', 'podcast', 'simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis', 'tools-overview'].includes(tool)) {
+            setActiveSubTab(tool as any);
+          }
+        }
+      } catch {}
+    };
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
 
   // Global Inactivity Router (Idle Timeout)
   const activeTabRef = useRef(activeTab);
@@ -1233,8 +1271,13 @@ export default function StudentnApp() {
       }
     }
 
-    if (['tools-overview', 'simulator', 'presentations', 'document-analysis', 'dictionary'].includes(tabId)) {
+    if (['tools-overview', 'simulator', 'presentations', 'document-analysis', 'dictionary', 'flashcards', 'quiz', 'podcast'].includes(tabId)) {
       setActiveSubTab(tabId as any);
+      setActiveTab('verktoy');
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      return;
     }
 
     if (tabId === 'verktoy' || tabId === 'tools' || tabId === 'tools-overview') {
@@ -5551,12 +5594,13 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       userEmail={user?.email || profile.email}
                       humanizerCredits={humanizerCredits}
                       onBuyCredits={handleAddHumanizerCredits}
+                      onNavigateToResources={() => setActiveTab('file-archive')}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                           setDocAnalysisInitialTool('humanizer');
                           setActiveSubTab('document-analysis');
                           setActiveTab('verktoy');
-                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
+                        } else if (['flashcards', 'quiz', 'podcast', 'simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                           if (toolId === 'document-analysis') {
                             setDocAnalysisInitialTool('sensor');
                           }
@@ -5568,6 +5612,22 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       }}
                       onUpgrade={() => setActiveTab('pricing')}
                     />
+                  );
+                case 'flashcards':
+                  return (
+                    <div className="w-full max-w-4xl mx-auto py-2 px-2">
+                      <FlashcardModule 
+                        key="flashcards-view"
+                        onBackToTools={() => {
+                          setActiveSubTab('tools-overview');
+                          setActiveTab('verktoy');
+                        }}
+                        onNavigateToResources={() => {
+                          setPendingAction('flashcards');
+                          setActiveTab('file-archive');
+                        }}
+                      />
+                    </div>
                   );
                 case 'simulator':
                   return (
@@ -5652,12 +5712,13 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       userEmail={user?.email || profile.email}
                       humanizerCredits={humanizerCredits}
                       onBuyCredits={handleAddHumanizerCredits}
+                      onNavigateToResources={() => setActiveTab('resources')}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                           setDocAnalysisInitialTool('humanizer');
                           setActiveSubTab('document-analysis');
                           setActiveTab('verktoy');
-                        } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
+                        } else if (['flashcards', 'quiz', 'podcast', 'simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                           if (toolId === 'document-analysis') {
                             setDocAnalysisInitialTool('sensor');
                           }
@@ -5687,12 +5748,13 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 userEmail={user?.email || profile.email}
                 humanizerCredits={humanizerCredits}
                 onBuyCredits={handleAddHumanizerCredits}
+                onNavigateToResources={() => setActiveTab('resources')}
                 onSelectTool={(toolId) => {
                   if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
                     setDocAnalysisInitialTool('humanizer');
                     setActiveSubTab('document-analysis');
                     setActiveTab('verktoy');
-                  } else if (['simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
+                  } else if (['flashcards', 'quiz', 'podcast', 'simulator', 'presentations', 'document-analysis', 'dictionary', 'empirical-analysis'].includes(toolId)) {
                     if (toolId === 'document-analysis') {
                       setDocAnalysisInitialTool('sensor');
                     }
@@ -6071,7 +6133,26 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
 
 
           {activeTab === 'resources' && (
-            <Resources key="resources" collegeName={profile.college || 'DMMH'} initialMenu="library" />
+            <Resources 
+              key="resources" 
+              collegeName={profile.college || 'DMMH'} 
+              initialMenu="library" 
+              onNavigateToTools={(toolId) => {
+                setActiveTab('verktoy');
+                setActiveSubTab((toolId as any) || 'flashcards');
+              }}
+              onNavigateToWorkshop={(targetDocId) => {
+                if (targetDocId === 'verktoy') {
+                  setActiveTab('verktoy');
+                  setActiveSubTab('flashcards');
+                } else {
+                  if (targetDocId) {
+                    localStorage.setItem('blu_active_document_id', targetDocId);
+                  }
+                  setActiveTab('writing-workshop');
+                }
+              }}
+            />
           )}
           {checkoutSuccess && (
             <motion.div 
@@ -6111,7 +6192,26 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           )}
 
           {activeTab === 'file-archive' && (
-            <Resources key="file-archive" collegeName={profile.college || 'DMMH'} initialMenu="files" />
+            <Resources 
+              key="file-archive" 
+              collegeName={profile.college || 'DMMH'} 
+              initialMenu="files" 
+              onNavigateToTools={(toolId) => {
+                setActiveTab('verktoy');
+                setActiveSubTab((toolId as any) || 'flashcards');
+              }}
+              onNavigateToWorkshop={(targetDocId) => {
+                if (targetDocId === 'verktoy') {
+                  setActiveTab('verktoy');
+                  setActiveSubTab('flashcards');
+                } else {
+                  if (targetDocId) {
+                    localStorage.setItem('blu_active_document_id', targetDocId);
+                  }
+                  setActiveTab('writing-workshop');
+                }
+              }}
+            />
           )}
 
           {activeTab === 'kildebank' && (
@@ -6119,11 +6219,20 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
               key="kildebank" 
               collegeName={profile.college || 'DMMH'} 
               initialMenu="sources" 
+              onNavigateToTools={(toolId) => {
+                setActiveTab('verktoy');
+                setActiveSubTab((toolId as any) || 'flashcards');
+              }}
               onNavigateToWorkshop={(targetDocId) => {
-                if (targetDocId) {
-                  localStorage.setItem('blu_active_document_id', targetDocId);
+                if (targetDocId === 'verktoy') {
+                  setActiveTab('verktoy');
+                  setActiveSubTab('flashcards');
+                } else {
+                  if (targetDocId) {
+                    localStorage.setItem('blu_active_document_id', targetDocId);
+                  }
+                  setActiveTab('writing-workshop');
                 }
-                setActiveTab('writing-workshop');
               }}
             />
           )}
