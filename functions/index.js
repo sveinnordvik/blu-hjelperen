@@ -298,6 +298,8 @@ exports.handleNewUserReferralV2 = onDocumentCreated(
     }
   }
 );
+// Sikre bakoverkompatibilitet for eksisterende Firestore trigger-navn
+exports.handleNewUserReferral = exports.handleNewUserReferralV2;
 
 /**
  * =================================================================================
