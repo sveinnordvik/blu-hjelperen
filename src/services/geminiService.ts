@@ -1,4 +1,3 @@
-import { Type } from "@google/genai";
 import { 
   GLOBAL_SAFETY_SYSTEM_INSTRUCTION, 
   SKRIVEBOTEN_CONFIG, 
@@ -6,44 +5,55 @@ import {
   LYTTEBOTEN_CONFIG, 
   RAG_BOT_CONFIG 
 } from "../config/promptLibrary";
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '../firebaseConfig';
 
-export { Type }; // Re-export Type for components that use it from here
-
-/**
- * Kaller Firebase Cloud Functions 'pedlederAI' eller 'kallGeminiAPI' (Callable Function),
- * med direkte klient-fallback ved behov.
- */
-export async function kallGeminiCloudFunction(prompt: string): Promise<{ success: boolean; resultatTekst: string }> {
-  try {
-    const { getFunctions, httpsCallable } = await import('firebase/functions');
-    const { app } = await import('../firebaseConfig');
-    const functions = getFunctions(app, 'europe-west1');
-    
-    // Prøver først pedlederAI, deretter kallGeminiAPI
-    try {
-      const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'pedlederAI');
-      const response = await callable({ prompt });
-      if (response?.data?.resultatTekst) {
-        return { success: true, resultatTekst: response.data.resultatTekst };
-      }
-    } catch {
-      const callableFallback = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
-      const response = await callableFallback({ prompt });
-      if (response?.data?.resultatTekst) {
-        return { success: true, resultatTekst: response.data.resultatTekst };
-      }
-    }
-  } catch (cloudErr) {
-    console.warn("Cloud Function pedlederAI / kallGeminiAPI utilgjengelig eller feilet, bruker server-proxy fallback:", cloudErr);
-  }
-
-  // Robust fallback til express server-proxy
-  const res = await callGoogleAIProxy({
-    model: 'gemini-3.8-flash',
-    contents: prompt
-  });
-  return { success: true, resultatTekst: res.text || '' };
+// 1. Vi lager vår egen Type-enum, slik at du slipper å importere den fra det utrygge @google/genai-biblioteket.
+export enum Type {
+  STRING = "STRING",
+  NUMBER = "NUMBER",
+  INTEGER = "INTEGER",
+  BOOLEAN = "BOOLEAN",
+  ARRAY = "ARRAY",
+  OBJECT = "OBJECT",
 }
+
+// 2. Den nye, skuddsikre dørvakten: Sender forespørselen til din skjulte Firebase Cloud Function
+export async function callGoogleAIProxy(params: {
+  model: string;
+  contents: any;
+  config?: any;
+}) {
+  const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
+
+  try {
+    // Kobler til Firebase-prosjektet ditt (husk å sjekke at regionen stemmer overens med ditt oppsett, f.eks europe-west1)
+    const functions = getFunctions(app, 'europe-west1'); 
+    
+    // Kaller den sikre backend-funksjonen vi skal lage etterpå
+    const askGemini = httpsCallable(functions, 'askGemini');
+
+    // Sender dataene til bakrommet. Ingen API-nøkler er synlige i nettleseren!
+    const response = await askGemini({
+      model: params.model || "gemini-3.8-flash",
+      contents: params.contents,
+      config: params.config
+    });
+
+    const data = response.data as { text: string };
+    return { text: data.text || "" };
+
+  } catch (error: any) {
+    console.error("Feil ved kontakt med sikker backend:", error);
+    throw new Error(UIfriendlyError);
+  }
+}
+
+// Beholder denne for bakoverkompatibilitet i andre filer
+export const kallPedlederAICloudFunction = async (prompt: string) => {
+  const res = await callGoogleAIProxy({ model: 'gemini-3.8-flash', contents: prompt });
+  return { success: true, resultatTekst: res.text };
+};
 
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
@@ -2891,8 +2901,8 @@ export interface ParentUpdateResult {
 /**
  * generateParentUpdate - Lager dagens bilde og pedagogisk tekstutkast til foreldre/MyKid/Vigilo
  */
+
 export async function generateParentUpdate(activity: string): Promise<ParentUpdateResult> {
-  // 1. Generer teksten med Gemini
   const textSystemInstruction = `Du er en pedagogisk leder i en norsk barnehage som skal skrive en kort, fengende og hjertevarm dagsoppdatering til foreldrene (f.eks. for MyKid, Vigilo eller oppslagstavle).
   
 REGLER:
@@ -2903,14 +2913,9 @@ REGLER:
 5. Inkluder 3-5 relevante emneknagger (f.eks. #KroppBevegelseMatHelse, #Rammeplanen, #Skogsgruppe, #GledeILek).
 6. Maks 3-4 korte avsnitt.`;
 
-  const imagePrompt = `A playful, heartwarming, gentle watercolor and digital illustration of Norwegian kindergarten children outdoors engaged in: ${activity}. Focus on forest school, outdoor nature, mossy stones, rain gear/wool sweaters, social interaction, laughter and joyful exploration. Soft Nordic lighting, inviting storybook style.`;
-
   let generatedText = "";
-  let imageUrl = "";
-
   try {
-    // Parallelt kall: Tekstgenerering og Bildegenerering
-    const textPromise = callGoogleAIProxy({
+    const textRes = await callGoogleAIProxy({
       model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: `Aktivitet i dag: ${activity}` }] }],
       config: {
@@ -2918,68 +2923,30 @@ REGLER:
         temperature: 0.8
       }
     });
-
-    let imagePromise: Promise<any>;
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
-      imagePromise = (async () => {
-        try {
-          const { GoogleGenAI } = await import("@google/genai");
-          const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite-image',
-            contents: { parts: [{ text: imagePrompt }] },
-            config: { imageConfig: { aspectRatio: '16:9' as any } }
-          });
-          for (const cand of response.candidates || []) {
-            for (const part of cand.content?.parts || []) {
-              if (part.inlineData?.data) {
-                return { imageUrl: `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}` };
-              }
-            }
-          }
-        } catch (e) {
-          console.warn("Bildegenerering for foreldreoppdatering feilet, bruker kuratert bilde:", e);
-        }
-        return { imageUrl: '' };
-      })();
-    } else {
-      imagePromise = Promise.resolve({ imageUrl: '' });
-    }
-
-    const [textRes, imageRes] = await Promise.all([textPromise, imagePromise]);
     generatedText = textRes.text;
-    imageUrl = imageRes?.imageUrl || '';
-
   } catch (error) {
     console.error("Feil ved generering av foreldreoppdatering:", error);
     generatedText = `🌲 **Små oppdagere på hemmelig oppdrag i skogen!**\n\nHva skjer når en trestokk forvandles til et sjørøverskip midt i blåbærlyngen? I dag har vi utforsket skogkanten og funnet både kongledyr, meitemark og fargerike høstblader.\n\nGjennom felles undring og klatring på steiner øver barna på kroppskontroll, risikovurdering og sosialt samspill – helt i tråd med Rammeplanens fagområde *Kropp, bevegelse, mat og helse*.\n\n#GledeILek #NaturOgMiljø #Rammeplanen #Skogsgruppe`;
   }
 
-  // Hvis bildegenereringen ikke ga bilde (f.eks. manglende Imagen-nøkkel), bruk en vakker kurert barnehageillustrasjon
-  if (!imageUrl) {
-    const fallbackImages = [
-      "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=1200&q=80", // barn i skog
-      "https://images.unsplash.com/photo-1472162072942-cd5147eb3902?auto=format&fit=crop&w=1200&q=80", // utelek og latter
-      "https://images.unsplash.com/photo-1485546246426-74dc88dec4d9?auto=format&fit=crop&w=1200&q=80", // natur og undring
-      "https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=1200&q=80" // kreativ lek
-    ];
-    imageUrl = fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
-  }
-
-  // Trekk ut rammeplantagger
-  const rammeplanTags = [
-    "Kropp, bevegelse, mat og helse",
-    "Natur, miljø og teknologi",
-    "Kommunikasjon, språk og tekst",
-    "Lekens egenverdi (kap. 3)"
+  const fallbackImages = [
+    "https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1472162072942-cd5147eb3902?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1485546246426-74dc88dec4d9?auto=format&fit=crop&w=1200&q=80",
+    "https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=1200&q=80"
   ];
+  const imageUrl = fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
 
   return {
     text: generatedText,
     imageUrl,
-    imagePrompt,
-    rammeplanTags
+    imagePrompt: "Generering foregår trygt via fallback inntil backend er oppdatert.",
+    rammeplanTags: [
+      "Kropp, bevegelse, mat og helse",
+      "Natur, miljø og teknologi",
+      "Kommunikasjon, språk og tekst",
+      "Lekens egenverdi (kap. 3)"
+    ]
   };
 }
 
@@ -3071,79 +3038,17 @@ export const CURATED_SLIDE_BACKGROUNDS: CuratedSlideBackground[] = [
  * Genererer et bilde direkte i nettleseren via @google/genai uten server-proxy
  */
 export async function generateDirectImageBrowser(prompt: string, aspectRatio: '16:9' | '1:1' | '4:3' = '16:9'): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: { parts: [{ text: prompt }] },
-        config: { imageConfig: { aspectRatio: aspectRatio as any } }
-      });
-      for (const cand of response.candidates || []) {
-        for (const part of cand.content?.parts || []) {
-          if (part.inlineData?.data) {
-            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Nettleser-bildegenerering feilet:", err);
-    }
-  }
+  console.warn("Direkte bildegenerering i nettleser er deaktivert av sikkerhetshensyn.");
   return '';
 }
 
-/**
- * Genererer et KI-basert bakgrunnsbilde tilpasset presentasjonens pedagogiske tema
- */
 export async function generateSlideBackgroundImage(topic: string): Promise<string> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (apiKey && typeof apiKey === 'string' && apiKey.trim() && apiKey !== 'MY_GEMINI_API_KEY') {
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: apiKey.trim() });
-      const prompt = `A tasteful, subtle, minimalist and artistic background wallpaper for an academic slide presentation in a Norwegian early childhood kindergarten education (barnehagelærer) context about: ${topic}. Soft diffused Nordic natural light, uncluttered center, gentle watercolor and subtle texture, muted earth or pastel tones, peaceful atmosphere, horizontal 16:9 widescreen composition without any text, letters, typography or human faces.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-image',
-        contents: {
-          parts: [{ text: prompt }]
-        },
-        config: {
-          imageConfig: {
-            aspectRatio: '16:9' as any,
-          }
-        }
-      });
-
-      for (const cand of response.candidates || []) {
-        for (const part of cand.content?.parts || []) {
-          if (part.inlineData?.data) {
-            return `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Kunne ikke generere bilde via @google/genai, bruker kuratert bilde:", err);
-    }
-  }
-
-  // Velg kuratert bakgrunn ved feil eller manglende bilde-respons
   const t = topic.toLowerCase();
-  if (t.includes('skog') || t.includes('tur') || t.includes('natur') || t.includes('ute')) {
-    return CURATED_SLIDE_BACKGROUNDS[0].url;
-  }
-  if (t.includes('bok') || t.includes('språk') || t.includes('tekst') || t.includes('eventyr')) {
-    return CURATED_SLIDE_BACKGROUNDS[3].url;
-  }
-  if (t.includes('lek') || t.includes('bygg') || t.includes('samspill')) {
-    return CURATED_SLIDE_BACKGROUNDS[4].url;
-  }
-  if (t.includes('kunst') || t.includes('farge') || t.includes('tegne') || t.includes('kreativ')) {
-    return CURATED_SLIDE_BACKGROUNDS[6].url;
-  }
+  if (t.includes('skog') || t.includes('tur') || t.includes('natur') || t.includes('ute')) return CURATED_SLIDE_BACKGROUNDS[0].url;
+  if (t.includes('bok') || t.includes('språk') || t.includes('tekst') || t.includes('eventyr')) return CURATED_SLIDE_BACKGROUNDS[3].url;
+  if (t.includes('lek') || t.includes('bygg') || t.includes('samspill')) return CURATED_SLIDE_BACKGROUNDS[4].url;
+  if (t.includes('kunst') || t.includes('farge') || t.includes('tegne') || t.includes('kreativ')) return CURATED_SLIDE_BACKGROUNDS[6].url;
+  
   return CURATED_SLIDE_BACKGROUNDS[7].url;
 }
 
