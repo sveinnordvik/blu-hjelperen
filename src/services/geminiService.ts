@@ -64,11 +64,46 @@ export async function callGoogleAIProxy(params: {
 }) {
   const modelName = params.model || 'gemini-3.8-flash';
 
-  // 1. Forsøk først Express backend-proxyen (/api/gemini/generate) på serveren (ingen API-nøkkel på klienten!)
+  // Hent gjeldende brukers Firebase Auth ID-token (for autentiserte endepunkter i produksjon)
+  let authToken = '';
+  try {
+    const { getAuth } = await import('firebase/auth');
+    const { app } = await import('../firebaseConfig');
+    const auth = getAuth(app);
+    if (auth.currentUser) {
+      authToken = await auth.currentUser.getIdToken();
+    }
+  } catch (authErr) {
+    console.warn("Kunne ikke hente Firebase Auth-token:", authErr);
+  }
+
+  // Sjekk om appen kjører i produksjon (f.eks. blu-hjelperen.no) vs lokalt/preview
+  const isLocalOrPreview = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('run.app') ||
+    window.location.hostname.includes('aistudio')
+  );
+
+  // På produksjonsdomenet blu-hjelperen.no kreves innlogging
+  if (!authToken && !isLocalOrPreview) {
+    return {
+      text: "🔒 **Innlogging kreves for å bruke Superveilederen:**\n\nFor å ivareta personvern og datasikkerhet i tråd med barnehagens retningslinjer, må du være logget inn på din konto for å sparre med KI-assistenten.\n\nKlikk på **Logg inn** øverst til høyre for å starte veiledningen!"
+    };
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  // 1. Forsøk først Express / Firebase Hosting proxyen (/api/gemini/generate)
   try {
     const proxyRes = await fetch('/api/gemini/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         model: modelName,
         contents: params.contents,
@@ -82,6 +117,11 @@ export async function callGoogleAIProxy(params: {
         return { text: data.text };
       }
     } else {
+      if (proxyRes.status === 401) {
+        return {
+          text: "🔒 **Innlogging kreves:**\n\nDin innloggingsøkt er utløpt eller mangler. Vennligst logg inn på nytt øverst til høyre for å fortsette veiledningssamtalen."
+        };
+      }
       const errJson = await proxyRes.json().catch(() => null);
       if (errJson?.text) {
         return { text: errJson.text };
@@ -94,7 +134,7 @@ export async function callGoogleAIProxy(params: {
     console.warn("Lokal /api/gemini/generate feilet, forsøker Firebase Cloud Function:", proxyErr);
   }
 
-  // 2. Forsøk Firebase Cloud Functions (kallGeminiAPI)
+  // 2. Forsøk Firebase Cloud Functions callable (kallGeminiAPI)
   try {
     const { getFunctions, httpsCallable } = await import('firebase/functions');
     const { app } = await import('../firebaseConfig');
@@ -131,6 +171,11 @@ export async function callGoogleAIProxy(params: {
     }
   } catch (cloudErr: any) {
     console.warn("Firebase Cloud Function feilet:", cloudErr);
+    if (cloudErr?.code === 'unauthenticated' || cloudErr?.message?.includes('unauthenticated')) {
+      return {
+        text: "🔒 **Innlogging kreves:**\n\nVennligst logg inn på din konto for å bruke KI-assistenten."
+      };
+    }
   }
 
   // 3. Hvis begge feilet, returner en vennlig veiledningstekst

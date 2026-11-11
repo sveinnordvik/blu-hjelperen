@@ -34,6 +34,7 @@ jobs:
           cd functions
           echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
           echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
           echo "GEMINI_API_KEY_PRIMARY=${{ secrets.GEMINI_API_KEY_PRIMARY }}" >> .env
           echo "GEMINI_API_KEY_BACKUP=${{ secrets.GEMINI_API_KEY_BACKUP }}" >> .env
 
