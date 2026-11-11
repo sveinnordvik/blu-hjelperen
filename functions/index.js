@@ -206,7 +206,7 @@ exports.stripeWebhook = functions
  * Lytter på opprettelse av dokumenter i 'users'-kolleksjonen.
  * Sjekker om brukeren har feltet referredBy, og belønner verver (+10 vask) og ny bruker (+5 vask).
  */
-exports.handleNewUserReferral = onDocumentCreated(
+exports.handleNewUserReferralV2 = onDocumentCreated(
   {
     document: "users/{userId}",
     region: "europe-west1",
