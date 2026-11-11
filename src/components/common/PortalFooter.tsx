@@ -19,7 +19,7 @@ export const PortalFooter: React.FC<PortalFooterProps> = ({
   const canAccessPortal = isSvein || isPortalBeta;
   const brandName = canAccessPortal ? 'PedPortalen' : 'BLU-hjelperen';
   const tagLine = canAccessPortal ? 'Profesjonsverktøy for barnehagen' : 'Digital partner for barnehagelærerstudiet';
-  const appVersion = '3.6.7';
+  const appVersion = '3.6.8';
 
   const openLegal = (tab: 'privacy' | 'terms') => {
     setLegalTab(tab);

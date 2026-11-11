@@ -10,14 +10,11 @@
 const functions = require("firebase-functions");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
 
-// Definer hemmelighetene som hentes sikkert fra Firebase Secret Manager
-const geminiApiKeyPrimary = defineSecret("GEMINI_API_KEY_PRIMARY");
-const geminiApiKeyBackup = defineSecret("GEMINI_API_KEY_BACKUP");
+// API-nøkler hentes fra process.env (satt via GitHub Secrets .env-fil)
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -51,27 +48,10 @@ function getSafeConfig() {
 }
 const legacyConfig = getSafeConfig();
 
-// Sikker uthenting av Gemini API-nøkler (primær Free Tier og reserve med saldo) fra Secret Manager eller miljøvariabler
+// Sikker uthenting av Gemini API-nøkler (primær Free Tier og reserve med saldo) fra miljøvariabler
 function getGeminiKeys() {
-  let primaryKey = "";
-  let backupKey = "";
-  try {
-    if (geminiApiKeyPrimary && typeof geminiApiKeyPrimary.value === "function") {
-      primaryKey = geminiApiKeyPrimary.value() || "";
-    }
-  } catch (e) {}
-  try {
-    if (geminiApiKeyBackup && typeof geminiApiKeyBackup.value === "function") {
-      backupKey = geminiApiKeyBackup.value() || "";
-    }
-  } catch (e) {}
-
-  if (!primaryKey) {
-    primaryKey = process.env.GEMINI_API_KEY_FREE || process.env.GEMINI_API_KEY_PRIMARY || process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key || "";
-  }
-  if (!backupKey) {
-    backupKey = process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY_BACKUP || "";
-  }
+  const primaryKey = (process.env.GEMINI_API_KEY_FREE || process.env.GEMINI_API_KEY_PRIMARY || process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key || "").trim();
+  const backupKey = (process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY_BACKUP || "").trim();
   return { primaryKey, backupKey };
 }
 
@@ -343,8 +323,7 @@ function checkFuncRateLimit(ip, limit = 30, windowMs = 60000) {
 
 exports.api = onRequest(
   { 
-    region: "europe-west1", 
-    secrets: [geminiApiKeyPrimary, geminiApiKeyBackup] 
+    region: "europe-west1"
   },
   async (req, res) => {
     // CORS headers
@@ -847,7 +826,6 @@ exports.generateClosingChecklists = exports.checklistDispatcher;
 exports.kallGeminiAPI = onCall(
   { 
     region: "europe-west1", 
-    secrets: [geminiApiKeyPrimary, geminiApiKeyBackup],
     cors: true
   },
   async (request) => {

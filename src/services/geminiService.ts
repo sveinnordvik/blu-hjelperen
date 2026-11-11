@@ -100,6 +100,7 @@ export async function callGoogleAIProxy(params: {
   }
 
   // 1. Forsøk først Express / Firebase Hosting proxyen (/api/gemini/generate)
+  let lastProxyError = '';
   try {
     const proxyRes = await fetch('/api/gemini/generate', {
       method: 'POST',
@@ -123,18 +124,16 @@ export async function callGoogleAIProxy(params: {
         };
       }
       const errJson = await proxyRes.json().catch(() => null);
-      if (errJson?.text) {
-        return { text: errJson.text };
-      }
-      if (errJson?.error) {
-        return { text: String(errJson.error) };
-      }
+      lastProxyError = errJson?.error || errJson?.text || `Status ${proxyRes.status}`;
+      console.warn("Proxy feilet:", lastProxyError);
     }
   } catch (proxyErr: any) {
+    lastProxyError = proxyErr?.message || String(proxyErr);
     console.warn("Lokal /api/gemini/generate feilet, forsøker Firebase Cloud Function:", proxyErr);
   }
 
   // 2. Forsøk Firebase Cloud Functions callable (kallGeminiAPI)
+  let lastCloudError = '';
   try {
     const { getFunctions, httpsCallable } = await import('firebase/functions');
     const { app } = await import('../firebaseConfig');
@@ -170,6 +169,7 @@ export async function callGoogleAIProxy(params: {
       return { text: response.data.resultatTekst };
     }
   } catch (cloudErr: any) {
+    lastCloudError = cloudErr?.message || String(cloudErr);
     console.warn("Firebase Cloud Function feilet:", cloudErr);
     if (cloudErr?.code === 'unauthenticated' || cloudErr?.message?.includes('unauthenticated')) {
       return {
@@ -178,9 +178,14 @@ export async function callGoogleAIProxy(params: {
     }
   }
 
-  // 3. Hvis begge feilet, returner en vennlig veiledningstekst
+  // 3. Hvis begge feilet, returner en vennlig veiledningstekst med feildetaljer
+  const errorDetails = [
+    lastProxyError ? `Proxy: ${lastProxyError}` : '',
+    lastCloudError ? `Cloud: ${lastCloudError}` : ''
+  ].filter(Boolean).join(' | ');
+
   return {
-    text: "⚠️ **Kunne ikke kontakte AI-tjenesten akkurat nå:**\n\nVennligst sjekk at Gemini API-nøkkelen er lagt inn under **Settings > Secrets** som `GEMINI_API_KEY_PRIMARY` (eller `GEMINI_API_KEY`).\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*"
+    text: `⚠️ **Kunne ikke kontakte AI-tjenesten akkurat nå:**\n\n${errorDetails ? `*Teknisk feil: ${errorDetails}*\n\n` : ''}Vennligst sjekk at Gemini API-nøkkelen er lagt inn under **Settings > Secrets** som \`GEMINI_API_KEY_PRIMARY\` (eller \`GEMINI_API_KEY\`) i GitHub eller AI Studio.\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*`
   };
 }
 

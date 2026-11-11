@@ -44,7 +44,7 @@ export const OmPedPortalenView: React.FC<OmPedPortalenViewProps> = ({
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/60 text-indigo-700 text-xs font-bold mb-2">
             <Info className="w-3.5 h-3.5 text-indigo-600" />
-            <span>PedPortalen v3.6.7 (Sikkerhet, Drift & Progresjon)</span>
+            <span>PedPortalen v3.6.8 (Sikkerhet, Drift & Progresjon)</span>
           </div>
           <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Om PedPortalen & Systemstatus</h2>
           <p className="text-slate-500 text-sm mt-1">Versjonskontroll, faglige rammer, driftsstatus og juridiske betingelser for barnehagen.</p>
@@ -113,7 +113,7 @@ export const OmPedPortalenView: React.FC<OmPedPortalenViewProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Appversjon</span>
-              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.7</span>
+              <span className="text-base font-extrabold text-slate-900 mt-0.5 block">v3.6.8</span>
               <span className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Produksjonsklar
               </span>
@@ -150,13 +150,13 @@ export const OmPedPortalenView: React.FC<OmPedPortalenViewProps> = ({
               {/* Siste versjon */}
               <div className="p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-200/80">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <strong className="text-indigo-950 font-bold">v3.6.7 – Free Tier Failover & Skyutrulling (November 2026)</strong>
+                  <strong className="text-indigo-950 font-bold">v3.6.8 – Produksjonssikring & Feildiagnostikk (November 2026)</strong>
                   <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200 shrink-0">
                     Aktiv
                   </span>
                 </div>
                 <p className="text-slate-700 leading-relaxed mt-1">
-                  Intelligent dørvakt med permanent Free Tier-prioritering, automatisk reservenøkkel-failover ved kvotetak, Node 22 Cloud Functions og forsterket systemstabilitet på tvers av samtlige portalfunksjoner.
+                  Forbedret feildiagnostikk i produksjon (blu-hjelperen.no), robust miljøvariabel-støtte for Cloud Functions og direkte integrasjon med GitHub Secrets.
                 </p>
               </div>
 
@@ -167,12 +167,16 @@ export const OmPedPortalenView: React.FC<OmPedPortalenViewProps> = ({
                   onClick={() => setShowOlderVersions(!showOlderVersions)}
                   className="text-xs font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-1 py-1 cursor-pointer"
                 >
-                  <span>Tidligere versjoner (v3.6.6, v3.6.5, v3.6.4, v3.6.1, v3.6.0)</span>
+                  <span>Tidligere versjoner (v3.6.7, v3.6.6, v3.6.5, v3.6.4, v3.6.1, v3.6.0)</span>
                   {showOlderVersions ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
 
                 {showOlderVersions && (
                   <div className="space-y-2 mt-2 pl-2 border-l-2 border-slate-200 text-[11px] text-slate-600">
+                    <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
+                      <strong className="text-slate-900 block font-bold mb-0.5">v3.6.7 (November 2026)</strong>
+                      <span>Intelligent dørvakt med permanent Free Tier-prioritering, automatisk reservenøkkel-failover ved kvotetak, Node 22 Cloud Functions og herdet Gemini 3.8-arkitektur.</span>
+                    </div>
                     <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/60">
                       <strong className="text-slate-900 block font-bold mb-0.5">v3.6.6 (November 2026)</strong>
                       <span>Herdet KI-arkitektur med Secret Manager, token-autentisering for eksterne endepunkter, ressursoptimalisering og forsterket systemstabilitet.</span>

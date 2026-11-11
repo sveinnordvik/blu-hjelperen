@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.8',
+    date: '2026-11-11',
+    title: 'Produksjonssikring & Feildiagnostikk',
+    changes: [
+      'Forbedret feildiagnostikk: Detaljert teknisk feilrapportering direkte i chat ved feilende nettverkskall.',
+      'Smidig Cloud Functions-konfigurasjon: Fjernet avhengighet til Secret Manager for å forhindre oppstartsfeil på eksterne servere.',
+      'Robust GitHub Actions-miljø: Direkte lesing av GEMINI_API_KEY_PRIMARY og GEMINI_API_KEY_BACKUP fra .env.'
+    ]
+  },
+  {
     version: 'v3.6.7',
     date: '2026-11-11',
     title: 'Free Tier Failover & Skyutrulling (Node 22)',
