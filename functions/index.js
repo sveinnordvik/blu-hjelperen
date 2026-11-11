@@ -9,8 +9,15 @@
 
 const functions = require("firebase-functions");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
 const Stripe = require("stripe");
+
+// Definer hemmelighetene som hentes sikkert fra Firebase Secret Manager
+const geminiApiKeyPrimary = defineSecret("GEMINI_API_KEY_PRIMARY");
+const geminiApiKeyBackup = defineSecret("GEMINI_API_KEY_BACKUP");
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -43,6 +50,30 @@ function getSafeConfig() {
   return {};
 }
 const legacyConfig = getSafeConfig();
+
+// Sikker uthenting av Gemini API-nøkler (primær Free Tier og reserve med saldo) fra Secret Manager eller miljøvariabler
+function getGeminiKeys() {
+  let primaryKey = "";
+  let backupKey = "";
+  try {
+    if (geminiApiKeyPrimary && typeof geminiApiKeyPrimary.value === "function") {
+      primaryKey = geminiApiKeyPrimary.value() || "";
+    }
+  } catch (e) {}
+  try {
+    if (geminiApiKeyBackup && typeof geminiApiKeyBackup.value === "function") {
+      backupKey = geminiApiKeyBackup.value() || "";
+    }
+  } catch (e) {}
+
+  if (!primaryKey) {
+    primaryKey = process.env.GEMINI_API_KEY_FREE || process.env.GEMINI_API_KEY_PRIMARY || process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key || "";
+  }
+  if (!backupKey) {
+    backupKey = process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY_BACKUP || "";
+  }
+  return { primaryKey, backupKey };
+}
 
 // Hent Stripe API-nøkler fra environment variables eller Firebase Functions config
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || legacyConfig.stripe?.secret_key;
@@ -295,8 +326,6 @@ exports.handleNewUserReferral = onDocumentCreated(
  * Håndterer /api/gemini/generate, /api/chat/message og /api/health for
  * frontend-klienter på Firebase Hosting (f.eks. bluhjelperen.no).
  */
-const { onRequest } = require("firebase-functions/v2/https");
-const { GoogleGenAI } = require("@google/genai");
 
 // Enkel rate limiter for å forhindre tap av tokens og bots
 const functionRateLimit = new Map();
@@ -784,61 +813,120 @@ exports.generateClosingChecklists = exports.checklistDispatcher;
 
 /**
  * =================================================================================
- * FUNKSJON 7: kallGeminiAPI (Callable HTTPS Function)
+ * FUNKSJON 7: kallGeminiAPI (Dørvakt med automatisk fallback mellom primær og reserve)
  * =================================================================================
- * Kalles direkte fra React via getFunctions(app, 'europe-west1') & httpsCallable('kallGeminiAPI').
- * Tar imot { prompt: string, model?: string } og returnerer { success: true, resultatTekst: string }.
+ * Kalles fra frontend via getFunctions(app, 'europe-west1') & httpsCallable('kallGeminiAPI')
+ * eller via standard HTTP POST.
  */
-exports.kallGeminiAPI = functions
-  .region("europe-west1")
-  .https.onCall(async (data, context) => {
-    const prompt = (data && data.prompt) ? data.prompt : (typeof data === "string" ? data : "");
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      throw new functions.https.HttpsError("invalid-argument", "Mangler gyldig 'prompt' i data.");
-    }
+exports.kallGeminiAPI = onRequest(
+  { 
+    region: "europe-west1", 
+    secrets: [geminiApiKeyPrimary, geminiApiKeyBackup] 
+  },
+  async (req, res) => {
+    // Tillat CORS hvis nødvendig, eller la Firebase håndtere det
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
 
-    const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key;
-    if (!apiKey) {
-      console.error("Mangler GEMINI_API_KEY i Cloud Functions miljø.");
-      throw new functions.https.HttpsError("failed-precondition", "Mangler GEMINI_API_KEY på serveren.");
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
     }
 
     try {
-      // Bruker @google/genai eller standard fetch
-      let responseText = "";
-      try {
-        const { GoogleGenAI } = require("@google/genai");
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt,
-        });
-        responseText = response.text || "";
-      } catch (sdkErr) {
-        // Fallback til Google Generative AI REST endpoint
-        console.warn("Bruker REST fallback for Gemini:", sdkErr.message);
-        const fetch = global.fetch || require("node-fetch");
-        const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-        const restRes = await fetch(restUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        });
-        const restData = await restRes.json();
-        responseText = restData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      // Henter ut data sendt fra frontend (støtter både HTTPS-kall og callable-objekter)
+      const data = req.body?.data || req.body || {};
+      const { model, contents, config } = data;
+      const actualContents = contents || data.prompt || data;
+
+      // Sørg for å bruke gjeldende Free Tier-modeller (oppgrader utgåtte versjoner)
+      let modelName = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
+      if (modelName.includes("2.5") || modelName.includes("2.0") || modelName.includes("1.5") || modelName.includes("pro")) {
+        modelName = "gemini-3.8-flash";
       }
 
-      return {
-        success: true,
-        resultatTekst: responseText
-      };
+      let { primaryKey, backupKey } = getGeminiKeys();
+      let textResult = "";
+
+      // Forsøk 1: Bruk ALLTID Free Tier først (primærnøkkel)
+      try {
+        if (!primaryKey && backupKey) {
+          primaryKey = backupKey;
+        }
+        if (!primaryKey) {
+          throw new Error("Mangler gyldig GEMINI_API_KEY_PRIMARY (eller GEMINI_API_KEY).");
+        }
+
+        const aiPrimary = new GoogleGenAI({ apiKey: primaryKey });
+        const response = await aiPrimary.models.generateContent({
+          model: modelName,
+          contents: actualContents,
+          config: config || {}
+        });
+        textResult = response.text || "";
+      } catch (primaryError) {
+        const errMsg = primaryError?.message || String(primaryError);
+        const isQuotaError = 
+          primaryError?.status === 429 || 
+          primaryError?.status === 503 ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("quota") ||
+          errMsg.includes("credits") ||
+          errMsg.includes("prepayment") ||
+          errMsg.includes("depleted");
+
+        // Hvis Free Tier-kvoten nås (429/Quota) og reservenøkkel (betalt saldo) finnes, koble over til reservenøkkel:
+        if (isQuotaError && backupKey && backupKey !== primaryKey) {
+          console.warn("Free Tier-kvote nådd (429/Quota). Bytter midlertidig til reservenøkkel med saldo...");
+          
+          const aiBackup = new GoogleGenAI({ apiKey: backupKey });
+          const backupResponse = await aiBackup.models.generateContent({
+            model: modelName,
+            contents: actualContents,
+            config: config || {}
+          });
+          textResult = backupResponse.text || "";
+        } else {
+          // Hvis modellen returnerte 404, forsøk med gemini-3.1-flash-lite som Free Tier fallback
+          if (primaryError?.status === 404 || errMsg.includes("not found")) {
+            const aiPrimary = new GoogleGenAI({ apiKey: primaryKey });
+            const backupResponse = await aiPrimary.models.generateContent({
+              model: "gemini-3.1-flash-lite",
+              contents: actualContents,
+              config: config || {}
+            });
+            textResult = backupResponse.text || "";
+          } else {
+            throw primaryError;
+          }
+        }
+      }
+
+      // Returner svaret i formatet Firebase httpsCallable forventer ({ data: ... }) samt top-level
+      res.status(200).json({ 
+        data: { text: textResult, resultatTekst: textResult },
+        text: textResult,
+        resultatTekst: textResult,
+        success: true
+      });
+
     } catch (error) {
-      console.error("Gemini Feil i kallGeminiAPI:", error);
-      throw new functions.https.HttpsError("internal", "Kunne ikke kontakte Gemini: " + (error.message || String(error)));
+      console.warn("kallGeminiAPI advarsel:", error?.message || error);
+      const isDepleted = error?.message?.includes("prepayment") || error?.message?.includes("credits") || error?.status === 402;
+      const guidanceText = isDepleted 
+        ? "💳 **Prosjektets forhåndsbetalte saldo er oppbrukt (Prepayment credits depleted):**\n\nGoogle Cloud har registrert at prosjektet denne nøkkelen tilhører er knyttet til fakturering med forhåndsbetaling, og saldoen står i 0 kr.\n\n**Anbefalt løsning:** Åpne https://aistudio.google.com/app/apikey -> klikk 'Create API key' -> velg 'Create API key in new project' (uten betalingskort) for å få en 100% gratis Free Tier-nøkkel, og oppdater den i Settings > Secrets."
+        : (error?.message || "En feil oppstod ved kommunikasjon med AI-assistenten.");
+
+      res.status(200).json({ 
+        data: { text: guidanceText, resultatTekst: guidanceText },
+        text: guidanceText,
+        resultatTekst: guidanceText,
+        success: false
+      });
     }
-  });
+  }
+);
 
 // ============================================================================
 // PEDPORTALEN: Felles AI-motor for Pedleder'n (PPT-logg, Sparring, Ukeplan)

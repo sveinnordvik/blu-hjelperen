@@ -56,45 +56,87 @@ export async function kallGeminiCloudFunction(prompt: string): Promise<{ success
 
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
-// Hjelpefunksjon for å kalle Google Gemini sikkert via Firebase Cloud Functions
+// Hjelpefunksjon for å kalle Google Gemini sikkert via backend-proxy eller Firebase Cloud Functions
 export async function callGoogleAIProxy(params: {
   model: string;
   contents: any;
   config?: any;
 }) {
-  const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
+  const modelName = params.model || 'gemini-3.8-flash';
 
+  // 1. Forsøk først Express backend-proxyen (/api/gemini/generate) på serveren (ingen API-nøkkel på klienten!)
   try {
-    // 1. Henter Firebase-funksjoner dynamisk
+    const proxyRes = await fetch('/api/gemini/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelName,
+        contents: params.contents,
+        config: params.config
+      })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data?.text) {
+        return { text: data.text };
+      }
+    } else {
+      const errJson = await proxyRes.json().catch(() => null);
+      if (errJson?.text) {
+        return { text: errJson.text };
+      }
+      if (errJson?.error) {
+        return { text: String(errJson.error) };
+      }
+    }
+  } catch (proxyErr: any) {
+    console.warn("Lokal /api/gemini/generate feilet, forsøker Firebase Cloud Function:", proxyErr);
+  }
+
+  // 2. Forsøk Firebase Cloud Functions (kallGeminiAPI)
+  try {
     const { getFunctions, httpsCallable } = await import('firebase/functions');
     const { app } = await import('../firebaseConfig');
-    
-    // Sørg for at regionen stemmer med der du deployet (ofte europe-west1 eller us-central1)
-    const functions = getFunctions(app, 'europe-west1'); 
+    const functions = getFunctions(app, 'europe-west1');
 
-    // 2. Kaller dørvakten i skyen (ingen nøkler i frontenden!)
-    // Pass på at navnet her ('kallGeminiAPI') er det samme som du kalte funksjonen i index.js
+    // Transformer 'contents' til en samlet tekststreng hvis Cloud Function foretrekker prompt
+    let promptString = '';
+    if (typeof params.contents === 'string') {
+      promptString = params.contents;
+    } else if (Array.isArray(params.contents)) {
+      promptString = params.contents
+        .map((item: any) => {
+          if (!item) return '';
+          return Array.isArray(item.parts)
+            ? item.parts.map((p: any) => typeof p === 'string' ? p : (p?.text || '')).join(' ')
+            : (item.text || '');
+        })
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
     const callable = httpsCallable(functions, 'kallGeminiAPI'); 
-    const response: any = await callable(params);
+    const response: any = await callable({
+      model: modelName,
+      contents: params.contents,
+      prompt: promptString || (typeof params.contents === 'string' ? params.contents : undefined),
+      config: params.config
+    });
 
     if (response?.data?.text) {
       return { text: response.data.text };
     } else if (response?.data?.resultatTekst) {
       return { text: response.data.resultatTekst };
     }
-
-    throw new Error("Ugyldig svar fra Firebase");
-  } catch (error: any) {
-    console.error("Backend-proxy feilet:", error);
-    
-    // Videresend spesifikke kvote/saldo-feil hvis de kommer fra skyen
-    const msg = error?.message || "";
-    if (msg.includes("saldo") || msg.includes("credits") || msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-      throw error;
-    }
-    
-    throw new Error(UIfriendlyError);
+  } catch (cloudErr: any) {
+    console.warn("Firebase Cloud Function feilet:", cloudErr);
   }
+
+  // 3. Hvis begge feilet, returner en vennlig veiledningstekst
+  return {
+    text: "⚠️ **Kunne ikke kontakte AI-tjenesten akkurat nå:**\n\nVennligst sjekk at Gemini API-nøkkelen er lagt inn under **Settings > Secrets** som `GEMINI_API_KEY_PRIMARY` (eller `GEMINI_API_KEY`).\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*"
+  };
 }
 
 export const SYSTEM_INSTRUCTION = `${GLOBAL_SAFETY_SYSTEM_INSTRUCTION}
@@ -1027,8 +1069,8 @@ STUDENTENS SPESIFIKKE PROFIL:
 
     return response.text;
   } catch (error: any) {
-    console.error("Feil i askSocraticAgent:", error);
-    throw new Error(error?.message || "Klarte ikke å få kontakt med den sokratiske partneren akkurat nå.");
+    console.warn("askSocraticAgent advarsel:", error?.message || error);
+    return error?.message || "Klarte ikke å få kontakt med den sokratiske partneren akkurat nå.";
   }
 }
 

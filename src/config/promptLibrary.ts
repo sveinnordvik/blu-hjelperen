@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.7',
+    date: '2026-11-11',
+    title: 'Free Tier Failover & Skyutrulling (Node 22)',
+    changes: [
+      'Intelligent Free Tier Dørvakt: Appen prioriterer alltid Free Tier-nøkkelen først og kobler kun inn reservenøkkel med saldo ved 429/kvotetak.',
+      'Gemini 3.8 & Modell-oppgradering: Fullstendig migrering og parameter-sanering for nyeste modeller (gemini-3.8-flash og gemini-3.1-flash-lite).',
+      'Skyutrulling (Node 22): Forberedt GitHub Actions og Firebase Cloud Functions for Node 22 runtime og Secret Manager-nøkler.'
+    ]
+  },
+  {
     version: 'v3.6.6',
     date: '2026-11-10',
     title: 'Sikkerhet, KI-arkitektur & Stabilitet',

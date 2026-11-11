@@ -717,7 +717,7 @@ export function Superveileder({
         setChats(prev => appendMessage(prev, activeChatId));
       }
     } catch (err: any) {
-      console.error('AI chat error', err);
+      console.warn('AI chat advarsel:', err);
       const errorMsg: ChatMessage = {
         id: 'err-' + Date.now(),
         role: 'assistant',

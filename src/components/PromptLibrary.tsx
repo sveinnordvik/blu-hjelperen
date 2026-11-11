@@ -54,7 +54,7 @@ export function PromptLibrary() {
         <div className="absolute right-0 top-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
         <div className="relative z-10 space-y-3 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold border border-indigo-400/30">
-            <Cpu className="w-3.5 h-3.5" /> BLU-Hjelperen Prompt Library & Guidelines v3.6.6
+            <Cpu className="w-3.5 h-3.5" /> BLU-Hjelperen Prompt Library & Guidelines v3.6.7
           </div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">
             Prompt-bibliotek & Modell-innstillinger
