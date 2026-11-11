@@ -8,7 +8,7 @@ import {
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '../firebaseConfig';
 
-// 1. Vi lager vår egen Type-enum, slik at du slipper å importere den fra det utrygge @google/genai-biblioteket.
+// 1. Egendefinert Type-enum for modellstrukturer
 export enum Type {
   STRING = "STRING",
   NUMBER = "NUMBER",
@@ -18,240 +18,83 @@ export enum Type {
   OBJECT = "OBJECT",
 }
 
-// 2. Den nye, skuddsikre dørvakten: Sender forespørselen til din skjulte Firebase Cloud Function
-export async function callGoogleAIProxy(params: {
-  model: string;
-  contents: any;
-  config?: any;
-}) {
-  const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
-
+/**
+ * Kaller Firebase Cloud Functions 'pedlederAI' eller 'kallGeminiAPI' (Callable Function),
+ * med direkte klient-fallback ved behov.
+ */
+export async function kallGeminiCloudFunction(prompt: string): Promise<{ success: boolean; resultatTekst: string }> {
   try {
-    // Kobler til Firebase-prosjektet ditt (husk å sjekke at regionen stemmer overens med ditt oppsett, f.eks europe-west1)
-    const functions = getFunctions(app, 'europe-west1'); 
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const { app } = await import('../firebaseConfig');
+    const functions = getFunctions(app, 'europe-west1');
     
-    // Kaller den sikre backend-funksjonen vi skal lage etterpå
-    const askGemini = httpsCallable(functions, 'askGemini');
-
-    // Sender dataene til bakrommet. Ingen API-nøkler er synlige i nettleseren!
-    const response = await askGemini({
-      model: params.model || "gemini-3.8-flash",
-      contents: params.contents,
-      config: params.config
-    });
-
-    const data = response.data as { text: string };
-    return { text: data.text || "" };
-
-  } catch (error: any) {
-    console.error("Feil ved kontakt med sikker backend:", error);
-    throw new Error(UIfriendlyError);
+    // Prøver først pedlederAI, deretter kallGeminiAPI
+    try {
+      const callable = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'pedlederAI');
+      const response = await callable({ prompt });
+      if (response?.data?.resultatTekst) {
+        return { success: true, resultatTekst: response.data.resultatTekst };
+      }
+    } catch {
+      const callableFallback = httpsCallable<{ prompt: string }, { success: boolean; resultatTekst: string }>(functions, 'kallGeminiAPI');
+      const response = await callableFallback({ prompt });
+      if (response?.data?.resultatTekst) {
+        return { success: true, resultatTekst: response.data.resultatTekst };
+      }
+    }
+  } catch (cloudErr) {
+    console.warn("Cloud Function pedlederAI / kallGeminiAPI utilgjengelig eller feilet, bruker server-proxy fallback:", cloudErr);
   }
-}
 
-// Beholder denne for bakoverkompatibilitet i andre filer
-export const kallPedlederAICloudFunction = async (prompt: string) => {
-  const res = await callGoogleAIProxy({ model: 'gemini-3.8-flash', contents: prompt });
-  return { success: true, resultatTekst: res.text };
-};
+  // Robust fallback til express server-proxy
+  const res = await callGoogleAIProxy({
+    model: 'gemini-3.8-flash',
+    contents: prompt
+  });
+  return { success: true, resultatTekst: res.text || '' };
+}
 
 export const kallPedlederAICloudFunction = kallGeminiCloudFunction;
 
-// Hjelpefunksjon for å kalle Google Gemini direkte fra nettleseren via @google/genai SDK
+// Hjelpefunksjon for å kalle Google Gemini sikkert via Firebase Cloud Functions
 export async function callGoogleAIProxy(params: {
   model: string;
   contents: any;
   config?: any;
 }) {
   const UIfriendlyError = "Akkurat nå er det veldig stor pågang hos AI-assistenten. Ta en slurk kaffe og prøv igjen om et lite øyeblikk! ☕";
-  const maxRetries = 2;
-  let attempt = 0;
 
-  // Hent API-nøkkelen via import.meta.env.VITE_GEMINI_API_KEY dersom den er tilgjengelig i nettleseren
-  const apiKey = typeof import.meta.env.VITE_GEMINI_API_KEY === 'string' ? import.meta.env.VITE_GEMINI_API_KEY.trim() : '';
-  const hasValidClientKey = apiKey && apiKey !== 'MY_GEMINI_API_KEY';
-
-  // 1. STRICT API VALIDERING OG SANITISERING AV HISTORIKK
-  let validatedContents = params.contents;
-  if (typeof validatedContents === 'string') {
-    if (!validatedContents.trim()) validatedContents = " ";
-  } else if (Array.isArray(validatedContents)) {
-    // Fjern meldinger som representerer feilmeldinger fra UI så vi ikke forurenser konteksten til Gemini
-    const nonErrorMessages = validatedContents.filter((item: any) => {
-      if (!item) return false;
-      const text = (Array.isArray(item.parts) ? item.parts.map((p: any) => p?.text || '').join(' ') : (item.text || '')).toLowerCase();
-      if (
-        text.includes("kapasitetsgrensen for forespørsler er midlertidig nådd") ||
-        text.includes("forespørselen ble avbrutt") ||
-        text.includes("serverfeil ved kontakt med gemini") ||
-        text.includes("ki-modellen opplever stor pågang") ||
-        text.includes("det oppstod et midlertidig avbrudd") ||
-        text.includes("det oppstod en midlertidig feil") ||
-        text.includes("midlertidig avbrudd") ||
-        text.includes("midlertidig feil") ||
-        text.includes("du må være logget inn") ||
-        text.includes("klarte ikke å nå api-endepunktet") ||
-        text.includes("feil (404)") ||
-        text.startsWith("feil:")
-      ) {
-        return false;
-      }
-      return true;
-    });
-
-    // Sørg for at listen ikke starter med 'model', da Gemini krever 'user' først
-    const firstUserIndex = nonErrorMessages.findIndex((item: any) => item && (item.role === 'user' || !item.role));
-    let cleanedList = firstUserIndex !== -1 ? nonErrorMessages.slice(firstUserIndex) : nonErrorMessages;
-    if (cleanedList.length === 0) {
-      cleanedList = [{ role: 'user', parts: [{ text: "Hei" }] }];
-    }
-
-    // Normaliser deler og roller (veksle mellom user og model, samle duplikater)
-    const normalizedList: any[] = [];
-    for (const item of cleanedList) {
-      if (item && typeof item === 'object') {
-        let role = item.role;
-        if (role && role !== 'user' && role !== 'model') {
-          role = 'model';
-        }
-        if (!role) role = 'user';
-
-        let newParts = item.parts;
-        if (Array.isArray(newParts)) {
-          newParts = newParts.map((p: any) => {
-            if (p && typeof p === 'object' && 'text' in p) {
-              return { ...p, text: (typeof p.text === 'string' && p.text.trim()) ? p.text : " " };
-            }
-            return typeof p === 'string' ? { text: p } : p;
-          });
-        } else if (item.text) {
-          newParts = [{ text: item.text }];
-        } else {
-          newParts = [{ text: " " }];
-        }
-
-        const validTurn = { role, parts: newParts };
-
-        // Hvis to påfølgende meldinger har samme rolle, slå dem sammen for å unngå turn-rekkefølgefeil i Gemini API
-        if (normalizedList.length > 0 && normalizedList[normalizedList.length - 1].role === role) {
-          const prevText = normalizedList[normalizedList.length - 1].parts[0]?.text || '';
-          const currentText = validTurn.parts[0]?.text || '';
-          if (prevText === currentText) {
-            continue;
-          }
-          normalizedList[normalizedList.length - 1].parts[0].text = `${prevText}\n\n${currentText}`;
-        } else {
-          normalizedList.push(validTurn);
-        }
-      }
-    }
-
-    validatedContents = normalizedList.length > 0 ? normalizedList : [{ role: 'user', parts: [{ text: "Hei" }] }];
-  }
-
-  // Modellnavn type validation fallback med dynamisk VITE_GEMINI_MODEL miljøvariabel for fremtidssikring
-  const defaultEnvModel = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-flash";
-  let requestedModel = (typeof params.model === 'string' && params.model.trim()) ? params.model.trim() : defaultEnvModel;
-  if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
-    requestedModel = defaultEnvModel;
-  }
-
-  const cleanConfig = { ...(params.config || {}) };
-  delete cleanConfig.temperature;
-  delete cleanConfig.topP;
-  delete cleanConfig.topK;
-  delete cleanConfig.candidateCount;
-
-  // 1. Forsøk direkte nettleser-kall via @google/genai dersom VITE_GEMINI_API_KEY er oppgitt
-  if (hasValidClientKey) {
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-
-      while (attempt <= maxRetries) {
-        try {
-          let modelForAttempt = requestedModel;
-          if (attempt === 1) {
-            modelForAttempt = "gemini-3.1-flash-lite";
-          } else if (attempt >= 2) {
-            modelForAttempt = "gemini-flash-latest";
-          }
-
-          const response = await ai.models.generateContent({
-            model: modelForAttempt,
-            contents: validatedContents,
-            config: cleanConfig,
-          });
-
-          return {
-            text: response.text || ""
-          };
-        } catch (error: any) {
-          const msg = error && typeof error === 'object' && error.message 
-            ? String(error.message) 
-            : (error instanceof Error ? error.message : String(error || ''));
-
-          console.warn(`Gemini API-kall feilet (forsøk ${attempt + 1}/${maxRetries + 1}):`, msg);
-
-          if (attempt >= maxRetries) {
-            break; // Gå videre til proxy fallback
-          }
-          
-          attempt++;
-          const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("402") || msg.includes("credits") || error?.status === 429 || error?.status === 503 || error?.status === 402;
-          
-          // Hvis det er en saldo-feil (402), ikke vits i å prøve på nytt
-          if (msg.includes("credits") || msg.includes("saldo") || error?.status === 402 || msg.includes("402")) {
-            const creditsErr = new Error(msg);
-            (creditsErr as any).status = 402;
-            throw creditsErr;
-          }
-
-          const delayMs = isRateOrBusy ? 2000 : 1000;
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-      }
-    } catch (clientInitErr) {
-      console.warn("Kunne ikke starte GoogleGenAI på klient, bruker backend-proxy:", clientInitErr);
-    }
-  }
-
-  // 2. Fallback til express backend-proxy (/api/gemini/generate) som benytter server-miljøets GEMINI_API_KEY
   try {
-    const proxyRes = await fetch('/api/gemini/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: requestedModel,
-        contents: validatedContents,
-        config: cleanConfig
-      })
-    });
+    // 1. Henter Firebase-funksjoner dynamisk
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const { app } = await import('../firebaseConfig');
+    
+    // Sørg for at regionen stemmer med der du deployet (ofte europe-west1 eller us-central1)
+    const functions = getFunctions(app, 'europe-west1'); 
 
-    if (proxyRes.ok) {
-      const data = await proxyRes.json();
-      if (data?.text) {
-        return { text: data.text };
-      }
-    } else {
-      const errJson = await proxyRes.json().catch(() => null);
-      if (errJson?.error) {
-        const error = new Error(errJson.error);
-        (error as any).status = proxyRes.status;
-        throw error;
-      }
-      throw new Error(`Server returned ${proxyRes.status}`);
+    // 2. Kaller dørvakten i skyen (ingen nøkler i frontenden!)
+    // Pass på at navnet her ('kallGeminiAPI') er det samme som du kalte funksjonen i index.js
+    const callable = httpsCallable(functions, 'kallGeminiAPI'); 
+    const response: any = await callable(params);
+
+    if (response?.data?.text) {
+      return { text: response.data.text };
+    } else if (response?.data?.resultatTekst) {
+      return { text: response.data.resultatTekst };
     }
-  } catch (proxyErr: any) {
-    // Hvis feilen er kritisk (saldo, kvote, nøkkel), send den direkte opp til UI
-    const msg = proxyErr?.message || "";
-    if (msg.includes("saldo") || msg.includes("credits") || msg.includes("429") || msg.includes("402") || msg.includes("RESOURCE_EXHAUSTED") || proxyErr.status === 429 || proxyErr.status === 402) {
-      throw proxyErr;
+
+    throw new Error("Ugyldig svar fra Firebase");
+  } catch (error: any) {
+    console.error("Backend-proxy feilet:", error);
+    
+    // Videresend spesifikke kvote/saldo-feil hvis de kommer fra skyen
+    const msg = error?.message || "";
+    if (msg.includes("saldo") || msg.includes("credits") || msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+      throw error;
     }
-    console.warn("Backend-proxy feilet:", proxyErr);
+    
+    throw new Error(UIfriendlyError);
   }
-
-  throw new Error(UIfriendlyError);
 }
 
 export const SYSTEM_INSTRUCTION = `${GLOBAL_SAFETY_SYSTEM_INSTRUCTION}
