@@ -140,18 +140,83 @@ function sanitizeContents(contents: any): any {
   return normalized.length > 0 ? normalized : [{ role: 'user', parts: [{ text: "Hei" }] }];
 }
 
+// Sentral modell-normalisering: bruker alltid støttede Gemini 4 / 3.8 / 3.1-modeller
+function normalizeGeminiModel(preferredModel: string | undefined): string {
+  const raw = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-4-hydrogen";
+  const lower = raw.toLowerCase();
+
+  // TTS-modeller: bevar eksplisitt lite-tts, men oppgrader alle utgåtte/preview TTS-navn til flaggskipet gemini-3.8-flash-tts
+  if (lower.includes("tts")) {
+    return lower === "gemini-3.8-flash-lite-tts" ? "gemini-3.8-flash-lite-tts" : "gemini-3.8-flash-tts";
+  }
+
+  // Live / native-audio preview-modeller -> gemini-3.8-live
+  if (lower.includes("native-audio") || (lower.includes("live") && (lower.includes("2.5") || lower.includes("preview")))) {
+    return "gemini-3.8-live";
+  }
+
+  // Utgåtte eller ugyldige tekstmodell-aliaser -> gemini-4-hydrogen
+  if (
+    lower.includes("1.5") ||
+    lower.includes("2.0") ||
+    lower.includes("2.5") ||
+    lower === "gemini-pro" ||
+    lower === "gemini-flash" ||
+    lower === "gemini-3.8-flash"
+  ) {
+    return "gemini-4-hydrogen";
+  }
+
+  return raw;
+}
+
+function isAuthOrKeyError(err: any): boolean {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 401 ||
+    err?.status === 403 ||
+    errMsg.includes("API_KEY_INVALID") ||
+    errMsg.includes("API key not valid") ||
+    errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+    errMsg.includes("UNAUTHENTICATED") ||
+    errMsg.includes("PERMISSION_DENIED") ||
+    errMsg.includes("API keys are not supported")
+  );
+}
+
+function isDepletedCreditsError(err: any): boolean {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 402 ||
+    errMsg.includes("prepayment credits are depleted") ||
+    errMsg.includes("credits are depleted")
+  );
+}
+
+function isQuotaOrTransientError(err: any): boolean {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 429 ||
+    err?.status === 503 ||
+    errMsg.includes("429") ||
+    errMsg.includes("RESOURCE_EXHAUSTED") ||
+    errMsg.includes("UNAVAILABLE") ||
+    errMsg.includes("high demand") ||
+    errMsg.includes("quota") ||
+    errMsg.includes("credits") ||
+    errMsg.includes("prepayment") ||
+    errMsg.includes("depleted")
+  );
+}
+
 // Hjelpefunksjon for å kalle Gemini med intelligent fallback på tvers av modeller
 async function callGenAIWithFallback(ai: any, preferredModel: string | undefined, contents: any, config: any) {
-  let initial = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-3.8-flash";
-  // Oppgrader utgåtte modeller (1.5, 2.0, 2.5) til 3.8-flash
-  if (initial.includes("1.5") || initial.includes("2.0") || initial.includes("2.5") || initial === "gemini-pro") {
-    initial = "gemini-3.8-flash";
-  }
+  const initial = normalizeGeminiModel(preferredModel);
 
   // Sørg for at contents alltid er strengt vekslende og uten feilmeldinger
   const sanitizedContents = sanitizeContents(contents);
 
-  // Saniter config: Fjern utgåtte/avviste samplingsparametere for Gemini 3.8/3.1
+  // Saniter config: Fjern utgåtte/avviste samplingsparametere for Gemini 4 / 3.1
   const sanitizedConfig = { ...(config || {}) };
   delete sanitizedConfig.temperature;
   delete sanitizedConfig.topP;
@@ -159,9 +224,10 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   delete sanitizedConfig.candidateCount;
 
   // Modellrekke for robusthet mot 404, 429 (kvote) og 503 (stor pågang)
+  const fallbackModel = initial.includes("tts") ? "gemini-3.8-flash-lite-tts" : "gemini-3.1-flash-lite";
   const modelCandidates = [
     initial,
-    "gemini-3.1-flash-lite"
+    fallbackModel
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError: any = null;
@@ -180,18 +246,17 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
       const errMsg = err?.message || String(err);
       const isQuotaOrRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || err?.status === 429;
       const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || err?.status === 503 || errMsg.includes("high demand");
-      const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
 
-      // Kritiske feil med selve API-nøkkelen kan ikke løses med å bytte modell
-      if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid") || isDepleted) {
+      // Kritiske nøkkel-, autorisasjons- eller saldofeil kan ikke løses ved å bytte modell alene
+      if (isAuthOrKeyError(err) || isDepletedCreditsError(err)) {
         throw err;
       }
 
       console.warn(`Modell ${currentModel} feilet (status: ${err?.status || 'ukjent'}, kvote: ${isQuotaOrRateLimit}, utilgjengelig: ${isUnavailable}). Forsøker neste kandidat (${modelCandidates[i + 1] || 'ingen'})...`);
 
-      // Hvis flere modeller gjenstår, vent for å la per-sekund burst-kvote resette seg før neste kandidat
+      // Hvis flere modeller gjenstår, vent kort før neste kandidat
       if (i < modelCandidates.length - 1) {
-        const waitTime = (isQuotaOrRateLimit || isUnavailable) ? 1400 : 500;
+        const waitTime = (isQuotaOrRateLimit || isUnavailable) ? 1200 : 400;
         await new Promise(r => setTimeout(r, waitTime));
       }
     }
@@ -200,72 +265,170 @@ async function callGenAIWithFallback(ai: any, preferredModel: string | undefined
   throw lastError;
 }
 
-const API_KEY_GUIDANCE = `⚠️ **Merk angående Gemini API-nøkkel:**\n\nGoogle avviste forespørselen med autorisasjonsfeil (\`UNAUTHENTICATED / ACCESS_TOKEN_TYPE_UNSUPPORTED\`).\n\n**Hva betyr dette?**\nBåde nøkler som starter med \`AQ...\` og \`AIzaSy...\` er offisielle nøkkelformater fra Google AI Studio. Når Google likevel svarer med denne feilmeldingen, betyr det at det underliggende Google Cloud-prosjektet som nøkkelen ble autogenerert i enten:\n1. Ikke har aktivert **Generative Language API** ennå, eller\n2. Har en intern prosjekt-/rettighetskonflikt i Google Cloud.\n\n**Slik løser du det på 1 minutt:**\n1. Åpne **[Google AI Studio (aistudio.google.com/app/apikey)](https://aistudio.google.com/app/apikey)**.\n2. Klikk på den blå knappen **"Create API key"**.\n3. **VIKTIG:** I listen/dialogen som åpnes, velg **"Create API key in new project"** (i et helt nytt prosjekt, ikke det autogenererte standardprosjektet).\n4. Kopier den nye nøkkelen og legg den inn under **Settings > Secrets** i AI Studio som \`GEMINI_API_KEY\` (eller \`GEMINI_API_KEY_PRIMARY\`).\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*`;
+const MISSING_API_KEY_GUIDANCE = `⚠️ **Ingen aktiv Gemini API-nøkkel ble funnet i servermiljøet:**\n\nServeren fant ingen gyldig verdi for \`GEMINI_API_KEY\`, \`GEMINI_API_KEY_PRIMARY\` eller \`GEMINI_API_KEY_FREE\` i miljøvariablene akkurat nå.\n\n**Slik sjekker du det:**\n1. Åpne **Settings > Secrets** i AI Studio (eller **GitHub Secrets** for produksjon).\n2. Bekreft at nøkkelen er lagret under \`GEMINI_API_KEY\` eller \`GEMINI_API_KEY_PRIMARY\` uten ekstra mellomrom eller anførselstegn.\n3. Last inn appen på nytt slik at serveren leser de oppdaterte miljøvariablene.\n\n*Alle øvrige verktøy, veiledere, pensumlister og didaktiske maler i appen fungerer som vanlig.*`;
 
-const DEPLETED_CREDITS_GUIDANCE = `💳 **Prosjektets forhåndsbetalte saldo er oppbrukt (Prepayment credits depleted):**\n\nGoogle Cloud har registrert at prosjektet denne nøkkelen tilhører er knyttet til fakturering med forhåndsbetaling (Prepay Billing), og saldoen står for øyeblikket i 0 kr.\n\n**To enkle måter å løse dette på:**\n\n**Alternativ A (100% Gratis Free Tier – Anbefalt):**\n1. Åpne **[Google AI Studio (aistudio.google.com/app/apikey)](https://aistudio.google.com/app/apikey)**.\n2. Klikk **"Create API key"** og velg **"Create API key in new project"**.\n3. *Ikke* legg til betalingskort på dette nye prosjektet. Da forblir prosjektet på ekte **Free Tier** med gratis daglig kvote.\n4. Oppdater nøkkelen i **Settings > Secrets** i AI Studio som \`GEMINI_API_KEY\` (eller \`GEMINI_API_KEY_PRIMARY\`).\n\n**Alternativ B (Fyll på saldo på eksisterende prosjekt):**\n1. Gå til **[ai.studio/projects](https://ai.studio/projects)** eller Google Cloud Console Billing.\n2. Fyll på ønsket beløp (f.eks. $5 eller 50 kr) for å åpne API-tilgangen igjen.\n\n*Alle didaktiske verktøy, pensumlister og maler i appen kan fortsatt brukes som normalt.*`;
+const API_KEY_GUIDANCE = `⚠️ **Merk angående Gemini API-nøkkel:**\n\nGoogle avviste forespørselen med autorisasjonsfeil (\`401 UNAUTHENTICATED / API key not valid\`) på de konfigurerte nøklene.\n\n**Hva betyr dette?**\nBåde nøkler som starter med \`AQ.\` og \`AIza...\` er offisielle API-nøkler fra Google AI Studio. Når Google likevel svarer \`401 / ACCESS_TOKEN_TYPE_UNSUPPORTED\`, betyr det som regel at:\n1. Nøkkelen er **slettet/tilbakekalt**, eller ble **avkortet / feilkopiert** da den ble limt inn i **Settings > Secrets**, eller\n2. Prosjektet nøkkelen tilhører ikke har aktivert tilgang til Gemini API.\n\n**Slik løser du det på 1 minutt:**\n1. Åpne **[Google AI Studio (aistudio.google.com/app/apikey)](https://aistudio.google.com/app/apikey)**.\n2. Klikk på **"Create API key"** og velg **"Create API key in new project"** (uten betalingskort for gratis Free Tier).\n3. Kopier **hele** nøkkelen og oppdater \`GEMINI_API_KEY_PRIMARY\` (og/eller \`GEMINI_API_KEY\`) under **Settings > Secrets**.\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*`;
 
-// Hjelpefunksjon for å hente primær (Free Tier) og reserve (betalt saldo)
-function getGeminiApiKeys() {
-  const free = (process.env.GEMINI_API_KEY_FREE || process.env.GEMINI_API_KEY_PRIMARY || process.env.GEMINI_API_KEY || "").trim();
-  const paid = (process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY_BACKUP || "").trim();
-  return { free, paid, primary: free, backup: paid };
+const DEPLETED_CREDITS_GUIDANCE = `💳 **Prosjektets forhåndsbetalte saldo er oppbrukt (Prepayment credits depleted):**\n\nGoogle Cloud har registrert at prosjektet denne nøkkelen tilhører er knyttet til fakturering med forhåndsbetaling (Prepay Billing), og saldoen står for øyeblikket i 0 kr.\n\n**To enkle måter å løse dette på:**\n\n**Alternativ A (100% Gratis Free Tier – Anbefalt):**\n1. Åpne **[Google AI Studio (aistudio.google.com/app/apikey)](https://aistudio.google.com/app/apikey)**.\n2. Klikk **"Create API key"** og velg **"Create API key in new project"**.\n3. *Ikke* legg til betalingskort på dette nye prosjektet. Da forblir prosjektet på ekte **Free Tier** med gratis daglig kvote.\n4. Oppdater nøkkelen i **Settings > Secrets** i AI Studio som \`GEMINI_API_KEY_PRIMARY\` (eller \`GEMINI_API_KEY\`).\n\n**Alternativ B (Fyll på saldo på eksisterende prosjekt):**\n1. Gå til **[ai.studio/projects](https://ai.studio/projects)** eller Google Cloud Console Billing.\n2. Fyll på ønsket beløp (f.eks. $5 eller 50 kr) for å åpne API-tilgangen igjen.\n\n*Alle didaktiske verktøy, pensumlister og maler i appen kan fortsatt brukes som normalt.*`;
+
+interface GeminiKeyCandidate {
+  envName: string;
+  tier: "free" | "paid";
+  key: string;
+  prefixType: "AQ" | "AIza" | "other";
 }
 
-// Intelligent dørvakt: Bruker ALLTID Free Tier først, og kobler KUN inn betalt saldo ved 429/kvote-overskridelse
+function cleanApiKey(raw: string | undefined): string {
+  if (!raw || typeof raw !== "string") return "";
+  let cleaned = raw.replace(/[\u200B-\u200D\uFEFF\r\n]/g, "").trim();
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  if (/^Bearer\s+/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^Bearer\s+/i, "").trim();
+  }
+  if (
+    !cleaned ||
+    cleaned === "MY_GEMINI_API_KEY" ||
+    cleaned === "YOUR_API_KEY" ||
+    cleaned === "undefined" ||
+    cleaned === "null"
+  ) {
+    return "";
+  }
+  return cleaned;
+}
+
+// Henter alle konfigurerte nøkler i streng Free-Tier-først rekkefølge, uten duplikater
+function getOrderedGeminiKeyCandidates(): GeminiKeyCandidate[] {
+  const orderedSources: Array<{ envName: string; tier: "free" | "paid" }> = [
+    { envName: "GEMINI_API_KEY_FREE", tier: "free" },
+    { envName: "GEMINI_API_KEY_PRIMARY", tier: "free" },
+    { envName: "GEMINI_API_KEY", tier: "free" },
+    { envName: "API_KEY", tier: "free" },
+    { envName: "GEMINI_API_KEY_PAID", tier: "paid" },
+    { envName: "GEMINI_API_KEY_BACKUP", tier: "paid" },
+  ];
+
+  const seenKeys = new Set<string>();
+  const candidates: GeminiKeyCandidate[] = [];
+
+  for (const src of orderedSources) {
+    const key = cleanApiKey(process.env[src.envName]);
+    if (!key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const prefixType: "AQ" | "AIza" | "other" = key.startsWith("AQ.")
+      ? "AQ"
+      : key.startsWith("AIza")
+        ? "AIza"
+        : "other";
+    candidates.push({
+      envName: src.envName,
+      tier: src.tier,
+      key,
+      prefixType,
+    });
+  }
+
+  return candidates;
+}
+
+function createGenAIClient(GoogleGenAI: any, apiKey: string, useVertexAI: boolean) {
+  return new GoogleGenAI({
+    apiKey,
+    ...(useVertexAI ? { vertexai: true } : {}),
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+}
+
+// Intelligent dørvakt: Prøver ALLTID alle Free Tier-nøkler først (støtter både AIza... og AQ.-nøkler),
+// og kobler KUN inn betalt reservenøkkel dersom Free Tier feiler med kvote/saldo/autorisasjon.
 async function callGenAIWithDualKeyFallback(preferredModel: string | undefined, contents: any, config: any) {
   const { GoogleGenAI } = await import("@google/genai");
-  const { free, paid } = getGeminiApiKeys();
+  const candidates = getOrderedGeminiKeyCandidates();
 
-  let activeFreeKey = free;
-  if (!activeFreeKey || activeFreeKey === "MY_GEMINI_API_KEY") {
-    activeFreeKey = paid;
+  if (candidates.length === 0) {
+    console.warn("[Gemini] Fant ingen gyldige API-nøkler i miljøvariablene (GEMINI_API_KEY_FREE / GEMINI_API_KEY_PRIMARY / GEMINI_API_KEY / GEMINI_API_KEY_PAID / GEMINI_API_KEY_BACKUP).");
+    return { text: MISSING_API_KEY_GUIDANCE };
   }
 
-  if (!activeFreeKey || activeFreeKey === "MY_GEMINI_API_KEY") {
-    return { text: API_KEY_GUIDANCE };
-  }
+  let lastError: any = null;
+  let authErrorCount = 0;
+  let depletedErrorCount = 0;
 
-  // 1. ALLTID: Forsøk Free Tier først på enhver forespørsel
-  try {
-    const aiFree = new GoogleGenAI({ apiKey: activeFreeKey });
-    return await callGenAIWithFallback(aiFree, preferredModel, contents, config);
-  } catch (freeErr: any) {
-    const errMsg = freeErr?.message || String(freeErr);
-    const isQuotaError = 
-      freeErr?.status === 429 || 
-      freeErr?.status === 503 || 
-      errMsg.includes("RESOURCE_EXHAUSTED") || 
-      errMsg.includes("quota") || 
-      errMsg.includes("credits") || 
-      errMsg.includes("prepayment") ||
-      errMsg.includes("depleted");
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    // Prøv alltid standard Gemini Developer API (vertexai: false) først for både AIza... og AQ. AI Studio-nøkler.
+    // Prøv kun Vertex AI Express Mode (vertexai: true) som fallback hvis Gemini API avviser tokentypen.
+    const modesToTry: boolean[] = [false, true];
+    let candidateLastErr: any = null;
 
-    const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted") || freeErr?.status === 402;
+    for (let mIdx = 0; mIdx < modesToTry.length; mIdx++) {
+      const useVertexAI = modesToTry[mIdx];
+      const modeLabel = useVertexAI ? "vertex-express" : "gemini-api";
 
-    // KUN hvis Free Tier-kvoten er nådd (429/RESOURCE_EXHAUSTED) kobler vi midlertidig inn betalt reservenøkkel:
-    if ((isQuotaError || isDepleted) && paid && paid !== activeFreeKey) {
-      console.warn("Free Tier-kvote nådd grensen (429/Quota). Kobler midlertidig inn betalt reservenøkkel med saldo...");
       try {
-        const aiPaid = new GoogleGenAI({ apiKey: paid });
-        return await callGenAIWithFallback(aiPaid, preferredModel, contents, config);
-      } catch (paidErr: any) {
-        const paidErrMsg = paidErr?.message || String(paidErr);
-        if (paidErrMsg.includes("prepayment") || paidErr?.status === 402) {
-          return { text: DEPLETED_CREDITS_GUIDANCE };
+        const ai = createGenAIClient(GoogleGenAI, candidate.key, useVertexAI);
+        return await callGenAIWithFallback(ai, preferredModel, contents, config);
+      } catch (err: any) {
+        candidateLastErr = err;
+        lastError = err;
+        const errMsg = err?.message || String(err);
+        const safeSnippet = errMsg.replace(/\s+/g, " ").slice(0, 180);
+        console.warn(`[Gemini] ${candidate.envName} (${candidate.tier}, ${candidate.prefixType}, ${modeLabel}) feilet (status=${err?.status || "ukjent"}): ${safeSnippet}`);
+
+        // Kun prøv Vertex Express som sekundærmodus ved eksplisitt token-type-avvisning fra Gemini API
+        if (mIdx === 0) {
+          const shouldTryVertex =
+            errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+            errMsg.includes("API keys are not supported");
+          if (!shouldTryVertex) {
+            break;
+          }
         }
-        if (paidErrMsg.includes("API_KEY_INVALID") || paidErrMsg.includes("UNAUTHENTICATED")) {
-          return { text: API_KEY_GUIDANCE };
-        }
-        throw paidErr;
       }
     }
 
-    if (isDepleted) {
-      return { text: DEPLETED_CREDITS_GUIDANCE };
+    if (isAuthOrKeyError(candidateLastErr)) {
+      authErrorCount++;
+    }
+    if (isDepletedCreditsError(candidateLastErr)) {
+      depletedErrorCount++;
     }
 
-    throw freeErr;
+    // Hvis flere kandidater gjenstår, gå videre til neste (gjenværende Free Tier først, deretter Paid backup)
+    const shouldFailover =
+      isQuotaOrTransientError(candidateLastErr) ||
+      isDepletedCreditsError(candidateLastErr) ||
+      isAuthOrKeyError(candidateLastErr) ||
+      candidateLastErr?.status === 404 ||
+      String(candidateLastErr?.message || "").toLowerCase().includes("not found");
+
+    if (!shouldFailover) {
+      throw candidateLastErr;
+    }
+
+    if (i < candidates.length - 1) {
+      const next = candidates[i + 1];
+      console.warn(`[Gemini] Bytter fra ${candidate.envName} (${candidate.tier}) til neste nøkkelkandidat ${next.envName} (${next.tier})...`);
+    }
   }
+
+  if (depletedErrorCount > 0 && depletedErrorCount + authErrorCount === candidates.length) {
+    return { text: DEPLETED_CREDITS_GUIDANCE };
+  }
+  if (authErrorCount === candidates.length) {
+    return { text: API_KEY_GUIDANCE };
+  }
+
+  throw lastError;
 }
 
 process.on("unhandledRejection", (reason, promise) => {
@@ -368,12 +531,6 @@ async function startServer() {
   // Dedicated Chat Endpoint for BLU-hjelperen (/api/chat/message)
   app.post(["/api/chat/message", "/api/chat/message/", "/chat/message"], async (req, res) => {
     try {
-      const { primary, backup } = getGeminiApiKeys();
-      const apiKey = primary || backup;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        return res.json({ text: API_KEY_GUIDANCE });
-      }
-
       const { history = [], newMessage, fileContext = '', fileName = '' } = req.body;
       if (!newMessage || typeof newMessage !== 'string') {
         return res.status(400).json({ error: "Mangler 'newMessage' i forespørselen." });
@@ -422,9 +579,8 @@ Når du svarer, følg disse retningslinjene:
         parts: [{ text: promptText }]
       });
 
-      const response = await callGenAIWithDualKeyFallback("gemini-3.8-flash", contents, {
+      const response = await callGenAIWithDualKeyFallback("gemini-4-hydrogen", contents, {
         systemInstruction,
-        temperature: 0.7,
         maxOutputTokens: 4096,
       });
 
@@ -528,90 +684,54 @@ Når du svarer, følg disse retningslinjene:
   // Gemini Image Generation Proxy Endpoint
   app.post(["/api/gemini/generate-image", "/api/gemini/generate-image/", "/gemini/generate-image"], async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        return res.status(500).json({ error: "Mangler GEMINI_API_KEY på serveren." });
-      }
-
+      const candidates = getOrderedGeminiKeyCandidates();
       const { prompt, aspectRatio = "16:9" } = req.body;
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
       const validAspectRatios = ["1:1", "3:4", "4:3", "9:16", "16:9"];
       const targetAspectRatio = validAspectRatios.includes(aspectRatio) ? aspectRatio : "16:9";
 
       let imageUrl = "";
 
-      // 1. Forsøk primær bildemodell: gemini-3.1-flash-image
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-image',
-          contents: {
-            parts: [{ text: prompt }]
-          },
-          config: {
-            imageConfig: {
-              aspectRatio: targetAspectRatio as any,
-              imageSize: "1K"
-            }
-          }
-        });
+      if (candidates.length > 0) {
+        const { GoogleGenAI } = await import("@google/genai");
+        const imageModels = [
+          { model: "gemini-3.1-flash-lite-image", imageConfig: { aspectRatio: targetAspectRatio as any, imageSize: "1K" } },
+          { model: "gemini-nano-banana-2.1", imageConfig: { aspectRatio: targetAspectRatio as any } },
+        ];
 
-        const candidates = response.candidates || [];
-        for (const cand of candidates) {
-          for (const part of cand.content?.parts || []) {
-            if (part.inlineData?.data) {
-              imageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-              break;
-            }
-          }
+        for (const candidate of candidates) {
           if (imageUrl) break;
-        }
-      } catch (err1) {
-        // Forsøk neste modell
-      }
-
-      // 2. Forsøk sekundær bildemodell: gemini-3.1-flash-lite-image
-      if (!imageUrl) {
-        try {
-          const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-lite-image',
-            contents: {
-              parts: [{ text: prompt }]
-            },
-            config: {
-              imageConfig: {
-                aspectRatio: targetAspectRatio as any,
-              }
-            }
-          });
-
-          const candidates = response.candidates || [];
-          for (const cand of candidates) {
-            for (const part of cand.content?.parts || []) {
-              if (part.inlineData?.data) {
-                imageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-                break;
-              }
-            }
+          const modesToTry = candidate.prefixType === "AQ" ? [false, true] : [false];
+          for (const useVertexAI of modesToTry) {
             if (imageUrl) break;
+            const ai = createGenAIClient(GoogleGenAI, candidate.key, useVertexAI);
+            for (const cfg of imageModels) {
+              try {
+                const response = await ai.models.generateContent({
+                  model: cfg.model,
+                  contents: { parts: [{ text: prompt }] },
+                  config: { imageConfig: cfg.imageConfig },
+                });
+                for (const cand of response.candidates || []) {
+                  for (const part of cand.content?.parts || []) {
+                    if (part.inlineData?.data) {
+                      imageUrl = `data:${part.inlineData.mimeType || "image/png"};base64,${part.inlineData.data}`;
+                      break;
+                    }
+                  }
+                  if (imageUrl) break;
+                }
+                if (imageUrl) break;
+              } catch {
+                // Prøv neste bildemodell/nøkkel
+              }
+            }
           }
-        } catch (err2) {
-          // Fallback til ekstern bildegenerator
         }
       }
 
-      // 3. Robust fallback hvis modellkvote er oppbrukt
+      // Robust fallback hvis modellkvote er oppbrukt eller bildegenerering ikke ga treff
       if (!imageUrl) {
-        const safePrompt = encodeURIComponent(prompt.trim() + ", kindergarten, norwegian barnehage, happy children, cozy atmosphere, realistic photography");
+        const safePrompt = encodeURIComponent(String(prompt || "").trim() + ", kindergarten, norwegian barnehage, happy children, cozy atmosphere, realistic photography");
         imageUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1200&height=800&nologo=true&seed=${Math.floor(Math.random() * 1000000)}`;
       }
 
@@ -625,17 +745,7 @@ Når du svarer, følg disse retningslinjene:
   // Superveilederen Chat Endpoint med dynamisk system-prompt
   app.post(["/api/superveilederen", "/api/superveilederenChat"], async (req, res) => {
     try {
-      const { primary, backup } = getGeminiApiKeys();
-      const apiKey = primary || backup;
       const { message, documentContext, history = [] } = req.body || {};
-
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-        return res.json({
-          text: API_KEY_GUIDANCE,
-          mode: documentContext ? "documentAnalysis" : "socratic",
-          aiMessages: []
-        });
-      }
 
       const baseSocraticPrompt = "Du er Superveilederen for barnehagelærerstudenter. Bruk sokratisk metode for å utforske deres refleksjoner. Ikke gi svaret direkte.";
       
@@ -672,11 +782,10 @@ Dokumentinnhold:
       });
 
       const response = await callGenAIWithDualKeyFallback(
-        "gemini-3.8-flash",
+        "gemini-4-hydrogen",
         contents,
         {
           systemInstruction: systemPrompt,
-          temperature: 0.7,
           maxOutputTokens: 4096,
         }
       );
@@ -722,7 +831,7 @@ Dokumentinnhold:
       }
 
       const response = await callGenAIWithDualKeyFallback(
-        "gemini-3.8-flash",
+        "gemini-4-hydrogen",
         prompt.trim(),
         {}
       );

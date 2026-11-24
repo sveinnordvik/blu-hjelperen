@@ -48,11 +48,227 @@ function getSafeConfig() {
 }
 const legacyConfig = getSafeConfig();
 
-// Sikker uthenting av Gemini API-nøkler (primær Free Tier og reserve med saldo) fra miljøvariabler
-function getGeminiKeys() {
-  const primaryKey = (process.env.GEMINI_API_KEY_FREE || process.env.GEMINI_API_KEY_PRIMARY || process.env.GEMINI_API_KEY || legacyConfig.gemini?.api_key || legacyConfig.gemini?.key || "").trim();
-  const backupKey = (process.env.GEMINI_API_KEY_PAID || process.env.GEMINI_API_KEY_BACKUP || "").trim();
-  return { primaryKey, backupKey };
+function cleanApiKey(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let cleaned = raw.replace(/[\u200B-\u200D\uFEFF\r\n]/g, "").trim();
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  if (/^Bearer\s+/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^Bearer\s+/i, "").trim();
+  }
+  if (
+    !cleaned ||
+    cleaned === "MY_GEMINI_API_KEY" ||
+    cleaned === "YOUR_API_KEY" ||
+    cleaned === "undefined" ||
+    cleaned === "null"
+  ) {
+    return "";
+  }
+  return cleaned;
+}
+
+// Henter alle konfigurerte nøkler i streng Free-Tier-først rekkefølge, uten duplikater
+function getOrderedGeminiKeyCandidates() {
+  const orderedSources = [
+    { envName: "GEMINI_API_KEY_FREE", tier: "free", value: process.env.GEMINI_API_KEY_FREE },
+    { envName: "GEMINI_API_KEY_PRIMARY", tier: "free", value: process.env.GEMINI_API_KEY_PRIMARY },
+    { envName: "GEMINI_API_KEY", tier: "free", value: process.env.GEMINI_API_KEY },
+    { envName: "API_KEY", tier: "free", value: process.env.API_KEY },
+    { envName: "legacy_config", tier: "free", value: legacyConfig.gemini?.api_key || legacyConfig.gemini?.key },
+    { envName: "GEMINI_API_KEY_PAID", tier: "paid", value: process.env.GEMINI_API_KEY_PAID },
+    { envName: "GEMINI_API_KEY_BACKUP", tier: "paid", value: process.env.GEMINI_API_KEY_BACKUP },
+  ];
+
+  const seen = new Set();
+  const candidates = [];
+  for (const src of orderedSources) {
+    const key = cleanApiKey(src.value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const prefixType = key.startsWith("AQ.") ? "AQ" : key.startsWith("AIza") ? "AIza" : "other";
+    candidates.push({ envName: src.envName, tier: src.tier, key, prefixType });
+  }
+  return candidates;
+}
+
+function createGenAIClient(apiKey, useVertexAI) {
+  return new GoogleGenAI({
+    apiKey,
+    ...(useVertexAI ? { vertexai: true } : {}),
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+}
+
+function isAuthOrKeyError(err) {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 401 ||
+    err?.status === 403 ||
+    errMsg.includes("API_KEY_INVALID") ||
+    errMsg.includes("API key not valid") ||
+    errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+    errMsg.includes("UNAUTHENTICATED") ||
+    errMsg.includes("PERMISSION_DENIED") ||
+    errMsg.includes("API keys are not supported")
+  );
+}
+
+function isDepletedCreditsError(err) {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 402 ||
+    errMsg.includes("prepayment credits are depleted") ||
+    errMsg.includes("credits are depleted")
+  );
+}
+
+function isQuotaOrTransientError(err) {
+  const errMsg = err?.message || String(err || "");
+  return (
+    err?.status === 429 ||
+    err?.status === 503 ||
+    errMsg.includes("429") ||
+    errMsg.includes("RESOURCE_EXHAUSTED") ||
+    errMsg.includes("UNAVAILABLE") ||
+    errMsg.includes("high demand") ||
+    errMsg.includes("quota") ||
+    errMsg.includes("credits") ||
+    errMsg.includes("prepayment") ||
+    errMsg.includes("depleted")
+  );
+}
+
+// Sentral modell-normalisering: bruker alltid støttede Gemini 4 / 3.8 / 3.1-modeller
+function normalizeGeminiModel(preferredModel) {
+  const raw = (typeof preferredModel === "string" && preferredModel.trim()) ? preferredModel.trim() : "gemini-4-hydrogen";
+  const lower = raw.toLowerCase();
+
+  // TTS-modeller: bevar eksplisitt lite-tts, men oppgrader alle utgåtte/preview TTS-navn til flaggskipet gemini-3.8-flash-tts
+  if (lower.includes("tts")) {
+    return lower === "gemini-3.8-flash-lite-tts" ? "gemini-3.8-flash-lite-tts" : "gemini-3.8-flash-tts";
+  }
+
+  // Live / native-audio preview-modeller -> gemini-3.8-live
+  if (lower.includes("native-audio") || (lower.includes("live") && (lower.includes("2.5") || lower.includes("preview")))) {
+    return "gemini-3.8-live";
+  }
+
+  // Utgåtte eller ugyldige tekstmodell-aliaser -> gemini-4-hydrogen
+  if (
+    lower.includes("1.5") ||
+    lower.includes("2.0") ||
+    lower.includes("2.5") ||
+    lower === "gemini-pro" ||
+    lower === "gemini-flash" ||
+    lower === "gemini-3.8-flash"
+  ) {
+    return "gemini-4-hydrogen";
+  }
+
+  return raw;
+}
+
+// Felles dørvakt for Cloud Functions: prøver ALLTID Free Tier-nøkler først (med AQ. Vertex Express-støtte),
+// og kobler KUN inn betalt reservenøkkel ved kvote/saldo/autorisasjonsfeil.
+async function generateWithFreeTierFirst(preferredModel, contents, config) {
+  const keyCandidates = getOrderedGeminiKeyCandidates();
+  if (keyCandidates.length === 0) {
+    throw new Error("Mangler Gemini API-nøkkel på serveren (GEMINI_API_KEY_PRIMARY eller GEMINI_API_KEY).");
+  }
+
+  const normalizedModel = normalizeGeminiModel(preferredModel);
+  const fallbackModel = normalizedModel.includes("tts") ? "gemini-3.8-flash-lite-tts" : "gemini-3.1-flash-lite";
+  const modelCandidates = [normalizedModel, fallbackModel].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  const sanitizedConfig = config ? { ...config } : undefined;
+  if (sanitizedConfig) {
+    delete sanitizedConfig.temperature;
+    delete sanitizedConfig.topP;
+    delete sanitizedConfig.topK;
+    delete sanitizedConfig.candidateCount;
+  }
+
+  const runWithClient = async (ai) => {
+    let lastModelErr = null;
+    for (let i = 0; i < modelCandidates.length; i++) {
+      try {
+        return await ai.models.generateContent({
+          model: modelCandidates[i],
+          contents,
+          ...(sanitizedConfig ? { config: sanitizedConfig } : {}),
+        });
+      } catch (err) {
+        lastModelErr = err;
+        if (isAuthOrKeyError(err) || isDepletedCreditsError(err)) {
+          throw err;
+        }
+        if (i < modelCandidates.length - 1) {
+          const msg = err?.message || String(err);
+          const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || err?.status === 429 || err?.status === 503;
+          await new Promise((r) => setTimeout(r, isRateOrBusy ? 1200 : 400));
+        }
+      }
+    }
+    throw lastModelErr;
+  };
+
+  let lastErr = null;
+
+  for (let i = 0; i < keyCandidates.length; i++) {
+    const candidate = keyCandidates[i];
+    const modesToTry = [false, true];
+    let candidateLastErr = null;
+
+    for (let mIdx = 0; mIdx < modesToTry.length; mIdx++) {
+      const useVertexAI = modesToTry[mIdx];
+      const modeLabel = useVertexAI ? "vertex-express" : "gemini-api";
+      try {
+        const ai = createGenAIClient(candidate.key, useVertexAI);
+        return await runWithClient(ai);
+      } catch (err) {
+        candidateLastErr = err;
+        lastErr = err;
+        const errMsg = err?.message || String(err);
+        console.warn(`[Cloud Functions Gemini] ${candidate.envName} (${candidate.tier}, ${candidate.prefixType}, ${modeLabel}) feilet (status=${err?.status || "ukjent"}): ${errMsg.replace(/\s+/g, " ").slice(0, 180)}`);
+
+        if (mIdx === 0) {
+          const shouldTryVertex =
+            errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+            errMsg.includes("API keys are not supported");
+          if (!shouldTryVertex) {
+            break;
+          }
+        }
+      }
+    }
+
+    const shouldFailover =
+      isQuotaOrTransientError(candidateLastErr) ||
+      isDepletedCreditsError(candidateLastErr) ||
+      isAuthOrKeyError(candidateLastErr) ||
+      candidateLastErr?.status === 404 ||
+      String(candidateLastErr?.message || "").toLowerCase().includes("not found");
+
+    if (!shouldFailover) {
+      throw candidateLastErr;
+    }
+
+    if (i < keyCandidates.length - 1) {
+      const next = keyCandidates[i + 1];
+      console.warn(`[Cloud Functions Gemini] Bytter fra ${candidate.envName} (${candidate.tier}) til ${next.envName} (${next.tier})...`);
+    }
+  }
+
+  throw lastErr;
 }
 
 // Hent Stripe API-nøkler fra environment variables eller Firebase Functions config
@@ -371,10 +587,7 @@ exports.api = onRequest(
       return res.status(401).json({ error: "Ugyldig eller utløpt innloggingstoken. Vennligst logg inn på nytt." });
     }
 
-    const { primaryKey, backupKey } = getGeminiKeys();
-    let apiKey = primaryKey || backupKey;
-
-    if (!apiKey) {
+    if (getOrderedGeminiKeyCandidates().length === 0) {
       return res.status(500).json({
         error: "Mangler Gemini API-nøkkel på serveren. Vennligst legg inn GEMINI_API_KEY_PRIMARY eller GEMINI_API_KEY i GitHub Secrets / Firebase Secrets.",
       });
@@ -384,10 +597,6 @@ exports.api = onRequest(
     if (rawPath.includes("/gemini/generate")) {
       try {
         const { model, contents, config } = req.body || {};
-        let requestedModel = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
-        if (requestedModel.includes("1.5") || requestedModel.includes("2.0") || requestedModel.includes("2.5") || requestedModel === "gemini-pro") {
-          requestedModel = "gemini-3.8-flash";
-        }
 
         let sanitizedContents = contents;
         if (Array.isArray(sanitizedContents)) {
@@ -397,57 +606,8 @@ exports.api = onRequest(
           }
         }
 
-        // Kandidater med uavhengige kvoter
-        const candidates = [
-          requestedModel,
-          "gemini-3.1-flash-lite"
-        ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
-
-        let lastErr = null;
-
-        // Kjør først med Free Tier-nøkkel (primaryKey)
-        const runWithKey = async (keyToUse) => {
-          const ai = new GoogleGenAI({ apiKey: keyToUse });
-          for (let i = 0; i < candidates.length; i++) {
-            const m = candidates[i];
-            try {
-              const response = await ai.models.generateContent({
-                model: m,
-                contents: sanitizedContents,
-                config,
-              });
-              return response;
-            } catch (mErr) {
-              lastErr = mErr;
-              const msg = mErr?.message || String(mErr);
-              if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
-                throw mErr;
-              }
-              if (i < candidates.length - 1) {
-                const isRateOrBusy = msg.includes("429") || msg.includes("503") || msg.includes("RESOURCE_EXHAUSTED") || mErr?.status === 429 || mErr?.status === 503;
-                await new Promise(r => setTimeout(r, isRateOrBusy ? 1400 : 500));
-              }
-            }
-          }
-          throw lastErr;
-        };
-
-        try {
-          const response = await runWithKey(primaryKey || apiKey);
-          return res.status(200).json({ text: response.text || "" });
-        } catch (primaryErr) {
-          const msg = primaryErr?.message || String(primaryErr);
-          const isQuota = msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("credits") || msg.includes("prepayment") || primaryErr?.status === 429;
-          
-          // Hvis Free Tier er overskredet og reservenøkkel finnes, failover til reserve:
-          if (isQuota && backupKey && backupKey !== primaryKey) {
-            console.warn("Free Tier-kvote nådd i exports.api. Failover til reservenøkkel...");
-            const backupResponse = await runWithKey(backupKey);
-            return res.status(200).json({ text: backupResponse.text || "" });
-          }
-          throw primaryErr;
-        }
-
+        const response = await generateWithFreeTierFirst(model, sanitizedContents, config);
+        return res.status(200).json({ text: response.text || "" });
       } catch (error) {
         console.error("Feil i Cloud Function /api/gemini/generate:", error);
         let errMsg = error?.message || String(error);
@@ -456,13 +616,13 @@ exports.api = onRequest(
           if (parsed?.error?.message) errMsg = parsed.error.message;
         } catch (e) {}
 
-        const isDepleted = errMsg.includes("prepayment credits are depleted") || errMsg.includes("credits are depleted");
+        const isDepleted = isDepletedCreditsError(error);
         const isRateLimit = errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || error?.status === 429;
         const isUnavailable = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || error?.status === 503 || errMsg.includes("high demand");
-        const isInvalidKey = errMsg.includes("API_KEY_INVALID") || errMsg.includes("API key not valid");
+        const isInvalidKey = isAuthOrKeyError(error);
 
         if (isInvalidKey) {
-          return res.status(401).json({ error: "Ugyldig Gemini API-nøkkel satt opp i Firebase Functions/GitHub Secrets." });
+          return res.status(401).json({ error: "Ugyldig eller uautorisert Gemini API-nøkkel satt opp i Firebase Functions/GitHub Secrets." });
         }
         if (isDepleted) {
           return res.status(429).json({ error: "API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på kreditt." });
@@ -484,8 +644,6 @@ exports.api = onRequest(
         if (!newMessage || typeof newMessage !== "string") {
           return res.status(400).json({ error: "Mangler 'newMessage' i forespørselen." });
         }
-
-        const ai = new GoogleGenAI({ apiKey });
 
         const systemInstruction = `Du er BLU-hjelperen, en støttende, anerkjennende og faglig dyktig pedagogisk veileder for norske barnehagelærerstudenter (BLU). Ditt hovedmål er å hjelpe studentene med å koble teori og praksis.`;
 
@@ -516,14 +674,9 @@ exports.api = onRequest(
           parts: [{ text: promptText }]
         });
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-          }
+        const response = await generateWithFreeTierFirst("gemini-4-hydrogen", contents, {
+          systemInstruction,
+          maxOutputTokens: 4096,
         });
 
         return res.status(200).json({ text: response.text || "" });
@@ -553,7 +706,6 @@ Dokumentinnhold:
           { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
         ];
 
-        const ai = new GoogleGenAI({ apiKey });
         const contents = [];
         if (Array.isArray(history)) {
           for (const item of history) {
@@ -568,14 +720,9 @@ Dokumentinnhold:
           parts: [{ text: message || "Vennligst analyser det vedlagte dokumentet." }]
         });
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-          }
+        const response = await generateWithFreeTierFirst("gemini-4-hydrogen", contents, {
+          systemInstruction: systemPrompt,
+          maxOutputTokens: 4096,
         });
 
         return res.status(200).json({ 
@@ -600,11 +747,7 @@ Dokumentinnhold:
           return res.status(400).json({ error: "Forespørselen overstiger maksimal tillatt lengde på 40 000 tegn." });
         }
 
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: prompt.trim(),
-        });
+        const response = await generateWithFreeTierFirst("gemini-4-hydrogen", prompt.trim());
 
         return res.status(200).json({
           reply: response.text || "",
@@ -648,18 +791,14 @@ exports.superveilederenChat = functions.region('europe-west1').https.onCall(asyn
     { role: "user", content: message || "Vennligst analyser det vedlagte dokumentet." }
   ];
 
-  let apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
-
-  if (!apiKey) {
+  if (getOrderedGeminiKeyCandidates().length === 0) {
     throw new functions.https.HttpsError(
       'failed-precondition',
-      "Mangler GEMINI_API_KEY på serveren. Vennligst legg inn GEMINI_API_KEY i miljøvariabler eller Firebase Functions config."
+      "Mangler Gemini API-nøkkel på serveren (GEMINI_API_KEY_PRIMARY eller GEMINI_API_KEY)."
     );
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
-
     // Transformer meldinger til Gemini contents format
     const contents = [];
     if (Array.isArray(history)) {
@@ -676,40 +815,16 @@ exports.superveilederenChat = functions.region('europe-west1').https.onCall(asyn
       parts: [{ text: message || "Vennligst analyser det vedlagte dokumentet." }]
     });
 
-    const candidates = [
-      "gemini-3.8-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-2.5-flash"
-    ];
+    const response = await generateWithFreeTierFirst("gemini-4-hydrogen", contents, {
+      systemInstruction: systemPrompt,
+      maxOutputTokens: 4096,
+    });
 
-    let lastErr = null;
-    for (const m of candidates) {
-      try {
-        const response = await ai.models.generateContent({
-          model: m,
-          contents,
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-          }
-        });
-
-        return {
-          text: response.text || "",
-          mode: documentContext ? "documentAnalysis" : "socratic",
-          aiMessages
-        };
-      } catch (err) {
-        lastErr = err;
-        const msg = err?.message || String(err);
-        if (msg.includes("API_KEY_INVALID") || msg.includes("API key not valid")) {
-          throw err;
-        }
-      }
-    }
-    throw lastErr;
+    return {
+      text: response.text || "",
+      mode: documentContext ? "documentAnalysis" : "socratic",
+      aiMessages
+    };
   } catch (error) {
     console.error("Feil i superveilederenChat:", error);
     throw new functions.https.HttpsError("internal", error?.message || "Feil under generering fra modellen.");
@@ -844,63 +959,12 @@ exports.kallGeminiAPI = onCall(
       const { model, contents, config } = data;
       const actualContents = contents || data.prompt || data;
 
-      let modelName = (typeof model === "string" && model.trim()) ? model.trim() : "gemini-3.8-flash";
-      if (modelName.includes("2.5") || modelName.includes("2.0") || modelName.includes("1.5") || modelName.includes("pro")) {
-        modelName = "gemini-3.8-flash";
+      if (getOrderedGeminiKeyCandidates().length === 0) {
+        throw new HttpsError("failed-precondition", "Mangler gyldig GEMINI_API_KEY_PRIMARY (eller GEMINI_API_KEY).");
       }
 
-      let { primaryKey, backupKey } = getGeminiKeys();
-      let textResult = "";
-
-      // Forsøk 1: Bruk ALLTID Free Tier først (primærnøkkel)
-      try {
-        if (!primaryKey && backupKey) {
-          primaryKey = backupKey;
-        }
-        if (!primaryKey) {
-          throw new HttpsError("failed-precondition", "Mangler gyldig GEMINI_API_KEY_PRIMARY (eller GEMINI_API_KEY).");
-        }
-
-        const aiPrimary = new GoogleGenAI({ apiKey: primaryKey });
-        const response = await aiPrimary.models.generateContent({
-          model: modelName,
-          contents: actualContents,
-          config: config || {}
-        });
-        textResult = response.text || "";
-      } catch (primaryError) {
-        const errMsg = primaryError?.message || String(primaryError);
-        const isQuotaError = 
-          primaryError?.status === 429 || 
-          primaryError?.status === 503 ||
-          errMsg.includes("RESOURCE_EXHAUSTED") ||
-          errMsg.includes("quota") ||
-          errMsg.includes("credits") ||
-          errMsg.includes("prepayment") ||
-          errMsg.includes("depleted");
-
-        // Hvis Free Tier-kvoten nås (429/Quota) og reservenøkkel finnes, failover til reserve:
-        if (isQuotaError && backupKey && backupKey !== primaryKey) {
-          console.warn("Free Tier-kvote nådd (429/Quota) i kallGeminiAPI. Bytter til reservenøkkel med saldo...");
-          const aiBackup = new GoogleGenAI({ apiKey: backupKey });
-          const backupResponse = await aiBackup.models.generateContent({
-            model: modelName,
-            contents: actualContents,
-            config: config || {}
-          });
-          textResult = backupResponse.text || "";
-        } else if (primaryError?.status === 404 || errMsg.includes("not found")) {
-          const aiPrimary = new GoogleGenAI({ apiKey: primaryKey });
-          const backupResponse = await aiPrimary.models.generateContent({
-            model: "gemini-3.1-flash-lite",
-            contents: actualContents,
-            config: config || {}
-          });
-          textResult = backupResponse.text || "";
-        } else {
-          throw primaryError;
-        }
-      }
+      const response = await generateWithFreeTierFirst(model, actualContents, config || {});
+      const textResult = response.text || "";
 
       return { 
         text: textResult, 
@@ -913,7 +977,7 @@ exports.kallGeminiAPI = onCall(
       if (error instanceof HttpsError) {
         throw error;
       }
-      const isDepleted = error?.message?.includes("prepayment") || error?.message?.includes("credits") || error?.status === 402;
+      const isDepleted = isDepletedCreditsError(error);
       const guidanceText = isDepleted 
         ? "Prosjektets forhåndsbetalte saldo er oppbrukt (Prepayment credits depleted). Oppdater nøkkelen eller fyll på saldo."
         : (error?.message || "En feil oppstod ved kommunikasjon med AI-assistenten.");
@@ -927,40 +991,24 @@ exports.kallGeminiAPI = onCall(
 // PEDPORTALEN: Felles AI-motor for Pedleder'n (PPT-logg, Sparring, Ukeplan)
 // ============================================================================
 exports.pedlederAI = functions.region('europe-west1').https.onCall(async (data, context) => {
-  
   // 1. Sikkerhetssjekk
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Du må være logget inn for å bruke KI-assistenten.');
   }
 
-  // 2. Henter Gemini på samme måte som du gjør i de andre funksjonene dine
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
-  
-  if (!apiKey) {
-    throw new functions.https.HttpsError('internal', 'API-nøkkel mangler på serveren.');
+  // 2. Valider prompt
+  const prompt = data?.prompt;
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    throw new functions.https.HttpsError('invalid-argument', 'Ingen prompt ble mottatt.');
   }
-  
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" }); 
 
+  // 3. Kall moderne @google/genai med Free Tier-dørvakt først
   try {
-    // 3. Henter teksten vi sender fra React-appen
-    const prompt = data.prompt;
-    if (!prompt) {
-      throw new functions.https.HttpsError('invalid-argument', 'Ingen prompt ble mottatt.');
-    }
-
-    // 4. Sender til Gemini og venter på svar
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    
-    // 5. Sender svaret tilbake til nettleseren
-    return { success: true, resultatTekst: response.text() };
-    
+    const response = await generateWithFreeTierFirst("gemini-4-hydrogen", prompt.trim());
+    return { success: true, resultatTekst: response.text || "" };
   } catch (error) {
     console.error("Gemini Feil i pedlederAI:", error);
-    throw new functions.https.HttpsError('internal', 'Kunne ikke kontakte Gemini: ' + error.message);
+    throw new functions.https.HttpsError('internal', 'Kunne ikke kontakte Gemini: ' + (error?.message || String(error)));
   }
 });
 
@@ -1001,24 +1049,17 @@ exports.askBlu = functions.region("europe-west1").https.onCall(async (data, cont
     );
   }
 
-  // 3. Hent API-nøkkel trygt på serveren
-  const apiKey = process.env.GEMINI_API_KEY || legacyConfig.gemini?.key || legacyConfig.gemini?.api_key;
-  if (!apiKey) {
+  // 3. Sjekk at minst én API-nøkkel er konfigurert og kall Gemini med Free Tier først
+  if (getOrderedGeminiKeyCandidates().length === 0) {
     throw new functions.https.HttpsError(
       "failed-precondition",
-      "GEMINI_API_KEY er ikke konfigurert i serverens miljø eller Secret Manager."
+      "Gemini API-nøkkel (GEMINI_API_KEY_PRIMARY / GEMINI_API_KEY) er ikke konfigurert i serverens miljø."
     );
   }
 
-  // 4. Kall Gemini
+  // 4. Kall Gemini via felles Free Tier-dørvakt
   try {
-    const { GoogleGenAI } = require("@google/genai");
-    const ai = new GoogleGenAI({ apiKey });
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: rawPrompt.trim(),
-    });
+    const response = await generateWithFreeTierFirst("gemini-4-hydrogen", rawPrompt.trim());
 
     return {
       success: true,
