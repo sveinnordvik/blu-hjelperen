@@ -28,17 +28,34 @@ jobs:
           npm install
 
       - name: Konfigurer miljøvariabler for backend
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          GEMINI_API_KEY_FREE: ${{ secrets.GEMINI_API_KEY_FREE }}
+          GEMINI_API_KEY_PRIMARY: ${{ secrets.GEMINI_API_KEY_PRIMARY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_PAID: ${{ secrets.GEMINI_API_KEY_PAID }}
+          GEMINI_API_KEY_BACKUP: ${{ secrets.GEMINI_API_KEY_BACKUP }}
         run: |
-          cd functions
-          rm -f .env
-          echo "FIRESTORE_DATABASE_ID=ai-studio-6d584f24-0d3b-4358-ba43-396b2f0a6101" >> .env
-          echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
-          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-          echo "GEMINI_API_KEY_FREE=${{ secrets.GEMINI_API_KEY_FREE }}" >> .env
-          echo "GEMINI_API_KEY_PRIMARY=${{ secrets.GEMINI_API_KEY_PRIMARY }}" >> .env
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
-          echo "GEMINI_API_KEY_PAID=${{ secrets.GEMINI_API_KEY_PAID }}" >> .env
-          echo "GEMINI_API_KEY_BACKUP=${{ secrets.GEMINI_API_KEY_BACKUP }}" >> .env
+          node -e '
+            const fs = require("fs");
+            const keys = [
+              "STRIPE_SECRET_KEY",
+              "STRIPE_WEBHOOK_SECRET",
+              "GEMINI_API_KEY_FREE",
+              "GEMINI_API_KEY_PRIMARY",
+              "GEMINI_API_KEY",
+              "GEMINI_API_KEY_PAID",
+              "GEMINI_API_KEY_BACKUP"
+            ];
+            const lines = ["FIRESTORE_DATABASE_ID=\"ai-studio-6d584f24-0d3b-4358-ba43-396b2f0a6101\""];
+            for (const k of keys) {
+              const v = (process.env[k] || "").trim();
+              if (v) lines.push(`${k}=${JSON.stringify(v)}`);
+            }
+            fs.writeFileSync("functions/.env", lines.join("\n") + "\n", "utf8");
+            console.log("Skrev functions/.env med variabler:", lines.map(l => l.split("=")[0]).join(", "));
+          '
 
       - name: Rydd funksjoner med feil triggertype eller generasjon før v2-utrulling
         env:
