@@ -40,39 +40,78 @@ jobs:
           echo "GEMINI_API_KEY_PAID=${{ secrets.GEMINI_API_KEY_PAID }}" >> .env
           echo "GEMINI_API_KEY_BACKUP=${{ secrets.GEMINI_API_KEY_BACKUP }}" >> .env
 
-      - name: Rydd eventuelle gamle v1-funksjoner før v2-utrulling
+      - name: Rydd funksjoner med feil triggertype eller generasjon før v2-utrulling
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          LIST_JSON=$(npx firebase-tools functions:list --json --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" 2>/dev/null || echo '{"result":[]}')
-          V1_TARGETS=$(node -e '
-            const raw = process.argv[1] || "{}";
+          LIST_RAW=$(npx --yes firebase-tools functions:list --json --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" 2>/dev/null || echo '{"result":[]}')
+          DELETE_TARGETS=$(node -e '
+            const raw = String(process.argv[1] || "");
+            const start = raw.indexOf("{");
+            const end = raw.lastIndexOf("}");
+            if (start === -1 || end === -1 || end < start) process.exit(0);
             let data;
-            try { data = JSON.parse(raw); } catch { process.exit(0); }
+            try { data = JSON.parse(raw.slice(start, end + 1)); } catch { process.exit(0); }
             const list = Array.isArray(data.result) ? data.result : (Array.isArray(data) ? data : []);
-            const v2Ids = new Set(["api", "kallGeminiAPI", "handleNewUserReferral", "handleNewUserReferralV2", "checklistDispatcher", "generateClosingChecklists"]);
+
+            const expected = {
+              stripeWebhook:             { platform: "gcfv1", trigger: "https" },
+              superveilederenChat:       { platform: "gcfv1", trigger: "https" },
+              pedlederAI:                { platform: "gcfv1", trigger: "https" },
+              askBlu:                    { platform: "gcfv1", trigger: "https" },
+              api:                       { platform: "gcfv2", trigger: "https" },
+              kallGeminiAPI:             { platform: "gcfv2", trigger: "https" },
+              handleNewUserReferralV2:   { platform: "gcfv2", trigger: "event" },
+              handleNewUserReferral:     { platform: "gcfv2", trigger: "event" },
+              checklistDispatcher:       { platform: "gcfv2", trigger: "schedule" },
+              generateClosingChecklists: { platform: "gcfv2", trigger: "schedule" },
+            };
+
+            const detectTrigger = (fn) => {
+              if (fn.scheduleTrigger) return "schedule";
+              if (fn.eventTrigger) {
+                const evtType = String(fn.eventTrigger.eventType || "").toLowerCase();
+                if (evtType.includes("schedule")) return "schedule";
+                return "event";
+              }
+              if (fn.httpsTrigger || fn.callableTrigger) return "https";
+              return "unknown";
+            };
+
+            const normalizePlatform = (fn) => {
+              const p = String(fn.platform || "").toLowerCase();
+              const env = String(fn.environment || "").toLowerCase();
+              if (p === "gcfv1" || env === "gen_1" || env === "1st gen") return "gcfv1";
+              if (p === "gcfv2" || env === "gen_2" || env === "2nd gen") return "gcfv2";
+              return p || "unknown";
+            };
+
             for (const fn of list) {
               const id = fn.id || (fn.name ? String(fn.name).split("/").pop() : "");
-              const platform = String(fn.platform || "").toLowerCase();
-              const env = String(fn.environment || "").toLowerCase();
-              const isV1 = platform === "gcfv1" || env === "gen_1" || env === "1st gen";
-              if (v2Ids.has(id) && isV1) {
-                const region = fn.region || "europe-west1";
-                console.log(id + "|" + region);
+              const spec = expected[id];
+              if (!spec) continue;
+              const actualPlatform = normalizePlatform(fn);
+              const actualTrigger = detectTrigger(fn);
+              const region = fn.region || "europe-west1";
+              const platformMismatch = actualPlatform !== "unknown" && actualPlatform !== spec.platform;
+              const triggerMismatch = actualTrigger !== "unknown" && actualTrigger !== spec.trigger;
+              console.error(`[Pre-flight] ${id} (${region}): actual=${actualPlatform}/${actualTrigger}, expected=${spec.platform}/${spec.trigger}`);
+              if (platformMismatch || triggerMismatch) {
+                console.log(`${id}|${region}|${actualPlatform}/${actualTrigger}->${spec.platform}/${spec.trigger}`);
               }
             }
-          ' "$LIST_JSON")
-          for entry in $V1_TARGETS; do
-            FN_ID="${entry%%|*}"
-            FN_REGION="${entry##*|}"
-            echo "Fjerner gammel v1-funksjon $FN_ID ($FN_REGION) før oppgradering til v2..."
-            npx firebase-tools functions:delete "$FN_ID" --region "$FN_REGION" --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" --force || true
+          ' "$LIST_RAW")
+
+          for entry in $DELETE_TARGETS; do
+            IFS='|' read -r FN_ID FN_REGION REASON <<< "$entry"
+            echo "Fjerner utdatert funksjon $FN_ID i $FN_REGION ($REASON) før ny utrulling..."
+            npx --yes firebase-tools functions:delete "$FN_ID" --region "$FN_REGION" --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" --force
           done
 
       - name: Rull ut Cloud Functions til Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: npx firebase-tools deploy --only functions --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}" --force --non-interactive
+        run: npx --yes firebase-tools deploy --only functions --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}" --force --non-interactive
 
       - name: Rull ut Hosting til Firebase
         env:
