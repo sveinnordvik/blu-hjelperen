@@ -64,14 +64,15 @@ export async function callGoogleAIProxy(params: {
 }) {
   const modelName = params.model || 'gemini-3.8-flash';
 
-  // Hent gjeldende brukers Firebase Auth ID-token (for autentiserte endepunkter i produksjon)
+  // Hent gjeldende brukers Firebase Auth-instans og ID-token (for autentiserte endepunkter i produksjon)
+  let authInstance: any = null;
   let authToken = '';
   try {
     const { getAuth } = await import('firebase/auth');
     const { app } = await import('../firebaseConfig');
-    const auth = getAuth(app);
-    if (auth.currentUser) {
-      authToken = await auth.currentUser.getIdToken();
+    authInstance = getAuth(app);
+    if (authInstance.currentUser) {
+      authToken = await authInstance.currentUser.getIdToken();
     }
   } catch (authErr) {
     console.warn("Kunne ikke hente Firebase Auth-token:", authErr);
@@ -92,17 +93,16 @@ export async function callGoogleAIProxy(params: {
     };
   }
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
-  };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
-  }
+  const sendProxyRequest = async (tokenToUse: string) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (tokenToUse) {
+      headers['Authorization'] = `Bearer ${tokenToUse}`;
+      headers['X-Firebase-Auth'] = tokenToUse;
+    }
 
-  // 1. Forsøk først Express / Firebase Hosting proxyen (/api/gemini/generate)
-  let lastProxyError = '';
-  try {
-    const proxyRes = await fetch('/api/gemini/generate', {
+    return fetch('/api/gemini/generate', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -111,21 +111,83 @@ export async function callGoogleAIProxy(params: {
         config: params.config
       })
     });
+  };
+
+  // 1. Forsøk først Express / Firebase Hosting proxyen (/api/gemini/generate)
+  let lastProxyError = '';
+  let cloudRunBlocked = false;
+  let didForceRefreshToken = false;
+
+  try {
+    let proxyRes = await sendProxyRequest(authToken);
+
+    // Dersom vår egen backend rapporterer ugyldig/utløpt token (JSON 401), forny tokenet stille én gang og prøv på nytt
+    if (proxyRes.status === 401) {
+      const contentType = (proxyRes.headers.get('content-type') || '').toLowerCase();
+      const isJson = contentType.includes('application/json');
+      const errJson = isJson ? await proxyRes.json().catch(() => null) : null;
+
+      if (isJson && (errJson?.code === 'AUTH_INVALID' || errJson?.code === 'AUTH_REQUIRED')) {
+        if (errJson.code === 'AUTH_INVALID' && authInstance?.currentUser && !didForceRefreshToken) {
+          try {
+            didForceRefreshToken = true;
+            authToken = await authInstance.currentUser.getIdToken(true);
+            proxyRes = await sendProxyRequest(authToken);
+          } catch (refreshErr) {
+            console.warn("Klarte ikke å fornye Firebase Auth-token:", refreshErr);
+          }
+        }
+
+        if (proxyRes.status === 401) {
+          const retryContentType = (proxyRes.headers.get('content-type') || '').toLowerCase();
+          const retryJson = retryContentType.includes('application/json')
+            ? await proxyRes.json().catch(() => errJson)
+            : errJson;
+
+          if (retryJson?.code === 'AUTH_INVALID' || retryJson?.code === 'AUTH_REQUIRED') {
+            return {
+              text: "🔒 **Innlogging kreves:**\n\nDin innloggingsøkt er utløpt eller mangler. Vennligst logg inn på nytt øverst til høyre for å fortsette veiledningssamtalen."
+            };
+          }
+        }
+      } else if (isJson) {
+        if (errJson?.code === 'GEMINI_API_KEY_ERROR' || errJson?.code === 'GEMINI_API_KEY_MISSING') {
+          return {
+            text: `⚠️ **Konfigurasjonsfeil på Gemini API-nøkkel:**\n\n${errJson.error}\n\nInnloggingen din fungerer som den skal, men serverens Gemini API-nøkkel (\`GEMINI_API_KEY_PRIMARY\` / \`GEMINI_API_KEY\`) ble avvist eller mangler.`
+          };
+        }
+        lastProxyError = errJson?.error || errJson?.text || 'Status 401';
+        console.warn("Proxy returnerte 401:", lastProxyError);
+      } else {
+        // HTML 401 fra Google Frontend / Cloud Run IAM betyr at tjenesten mangler offentlig HTTP-invoker, IKKE at brukeren er utlogget
+        cloudRunBlocked = true;
+        lastProxyError = `HTTP 401 (Google Cloud Run IAM blokkerer HTTP-kall til /api før Firebase-innloggingen sjekkes)`;
+        console.warn("Cloud Run IAM blokkerte /api/gemini/generate (HTML 401). Forsøker callable fallback.");
+      }
+    }
 
     if (proxyRes.ok) {
       const data = await proxyRes.json();
       if (data?.text) {
         return { text: data.text };
       }
-    } else {
-      if (proxyRes.status === 401) {
+    } else if (!cloudRunBlocked && !lastProxyError) {
+      const contentType = (proxyRes.headers.get('content-type') || '').toLowerCase();
+      const isJson = contentType.includes('application/json');
+      const errJson = isJson ? await proxyRes.json().catch(() => null) : null;
+
+      if (proxyRes.status === 403 && !isJson) {
+        cloudRunBlocked = true;
+        lastProxyError = `HTTP 403 (Google Cloud Run IAM blokkerer offentlig HTTP-tilgang til /api)`;
+        console.warn("Cloud Run IAM blokkerte /api/gemini/generate (HTML 403). Forsøker callable fallback.");
+      } else if (errJson?.code === 'GEMINI_API_KEY_ERROR' || errJson?.code === 'GEMINI_API_KEY_MISSING') {
         return {
-          text: "🔒 **Innlogging kreves:**\n\nDin innloggingsøkt er utløpt eller mangler. Vennligst logg inn på nytt øverst til høyre for å fortsette veiledningssamtalen."
+          text: `⚠️ **Konfigurasjonsfeil på Gemini API-nøkkel:**\n\n${errJson.error}\n\nInnloggingen din fungerer som den skal, men serverens Gemini API-nøkkel (\`GEMINI_API_KEY_PRIMARY\` / \`GEMINI_API_KEY\`) ble avvist eller mangler.`
         };
+      } else {
+        lastProxyError = errJson?.error || errJson?.text || `Status ${proxyRes.status}`;
+        console.warn("Proxy feilet:", lastProxyError);
       }
-      const errJson = await proxyRes.json().catch(() => null);
-      lastProxyError = errJson?.error || errJson?.text || `Status ${proxyRes.status}`;
-      console.warn("Proxy feilet:", lastProxyError);
     }
   } catch (proxyErr: any) {
     lastProxyError = proxyErr?.message || String(proxyErr);
@@ -155,13 +217,27 @@ export async function callGoogleAIProxy(params: {
         .join('\n\n');
     }
 
-    const callable = httpsCallable(functions, 'kallGeminiAPI'); 
-    const response: any = await callable({
+    const payload = {
       model: modelName,
       contents: params.contents,
       prompt: promptString || (typeof params.contents === 'string' ? params.contents : undefined),
       config: params.config
-    });
+    };
+
+    const callable = httpsCallable(functions, 'kallGeminiAPI');
+    let response: any;
+    try {
+      response = await callable(payload);
+    } catch (firstCloudErr: any) {
+      const isUnauth = firstCloudErr?.code === 'functions/unauthenticated' || firstCloudErr?.code === 'unauthenticated';
+      if (isUnauth && authInstance?.currentUser && !didForceRefreshToken) {
+        didForceRefreshToken = true;
+        await authInstance.currentUser.getIdToken(true);
+        response = await callable(payload);
+      } else {
+        throw firstCloudErr;
+      }
+    }
 
     if (response?.data?.text) {
       return { text: response.data.text };
@@ -171,18 +247,25 @@ export async function callGoogleAIProxy(params: {
   } catch (cloudErr: any) {
     lastCloudError = cloudErr?.message || String(cloudErr);
     console.warn("Firebase Cloud Function feilet:", cloudErr);
-    if (cloudErr?.code === 'unauthenticated' || cloudErr?.message?.includes('unauthenticated')) {
+    const isUnauth = cloudErr?.code === 'functions/unauthenticated' || cloudErr?.code === 'unauthenticated';
+    if (isUnauth && !cloudRunBlocked && !authInstance?.currentUser) {
       return {
         text: "🔒 **Innlogging kreves:**\n\nVennligst logg inn på din konto for å bruke KI-assistenten."
       };
     }
   }
 
-  // 3. Hvis begge feilet, returner en vennlig veiledningstekst med feildetaljer
+  // 3. Hvis begge feilet, returner en tydelig og ærlig veiledningstekst med riktige feildetaljer
   const errorDetails = [
     lastProxyError ? `Proxy: ${lastProxyError}` : '',
     lastCloudError ? `Cloud: ${lastCloudError}` : ''
   ].filter(Boolean).join(' | ');
+
+  if (cloudRunBlocked) {
+    return {
+      text: `⚠️ **Serveren blokkerer midlertidig forespørselen (Cloud Run-tilgang):**\n\nInnloggingen din er i orden, men Google Cloud Run avviser HTTP-kall til backend-funksjonene (\`api\` / \`kallGeminiAPI\`) før Firebase-innloggingen rekker å bli kontrollert.\n\n**Slik løses dette i Google Cloud Console (1 minutt):**\nÅpne **Cloud Run → \`api\` (og \`kallgeminiapi\`) → Security** og velg **Allow unauthenticated invocations** (\`allUsers\` får rollen \`Cloud Run Invoker\`). Selve appkoden krever fortsatt gyldig Firebase-innlogging på alle KI-kall.\n\n${errorDetails ? `*Teknisk feil: ${errorDetails}*` : ''}`
+    };
+  }
 
   return {
     text: `⚠️ **Kunne ikke kontakte AI-tjenesten akkurat nå:**\n\n${errorDetails ? `*Teknisk feil: ${errorDetails}*\n\n` : ''}Vennligst sjekk at Gemini API-nøkkelen er lagt inn under **Settings > Secrets** som \`GEMINI_API_KEY_PRIMARY\` (eller \`GEMINI_API_KEY\`) i GitHub eller AI Studio.\n\n*Du kan fortsette å bruke alle verktøy, veiledere, pensumlister og didaktiske maler i appen som vanlig.*`

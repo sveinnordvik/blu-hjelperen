@@ -541,12 +541,13 @@ function checkFuncRateLimit(ip, limit = 30, windowMs = 60000) {
 
 exports.api = onRequest(
   { 
-    region: "europe-west1"
+    region: "europe-west1",
+    invoker: "public"
   },
   async (req, res) => {
     // CORS headers
     res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-Auth");
     res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     if (req.method === "OPTIONS") {
       return res.status(204).send("");
@@ -569,14 +570,21 @@ exports.api = onRequest(
       return res.status(429).json({ error: "For mange forespørsler. Vennligst vent litt (Rate limit)." });
     }
 
-    // Krav om innlogging: Verifiser Firebase ID-token
+    // Krav om innlogging: Verifiser Firebase ID-token (støtter både Authorization: Bearer og X-Firebase-Auth)
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Innlogging kreves for å bruke denne KI-funksjonen." });
+    const altAuthHeader = req.headers["x-firebase-auth"];
+    let token = "";
+    if (typeof altAuthHeader === "string" && altAuthHeader.trim()) {
+      token = altAuthHeader.trim().replace(/^Bearer\s+/i, "").trim();
+    } else if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      token = authHeader.split("Bearer ")[1]?.trim() || "";
     }
-    const token = authHeader.split("Bearer ")[1]?.trim();
+
     if (!token) {
-      return res.status(401).json({ error: "Mangler gyldig autentiseringstoken." });
+      return res.status(401).json({
+        code: "AUTH_REQUIRED",
+        error: "Innlogging kreves for å bruke denne KI-funksjonen."
+      });
     }
 
     try {
@@ -584,11 +592,15 @@ exports.api = onRequest(
       req.user = decodedUser;
     } catch (authErr) {
       console.warn("Ugyldig eller utløpt innloggingstoken:", authErr?.message || authErr);
-      return res.status(401).json({ error: "Ugyldig eller utløpt innloggingstoken. Vennligst logg inn på nytt." });
+      return res.status(401).json({
+        code: "AUTH_INVALID",
+        error: "Ugyldig eller utløpt innloggingstoken. Vennligst logg inn på nytt."
+      });
     }
 
     if (getOrderedGeminiKeyCandidates().length === 0) {
       return res.status(500).json({
+        code: "GEMINI_API_KEY_MISSING",
         error: "Mangler Gemini API-nøkkel på serveren. Vennligst legg inn GEMINI_API_KEY_PRIMARY eller GEMINI_API_KEY i GitHub Secrets / Firebase Secrets.",
       });
     }
@@ -622,7 +634,10 @@ exports.api = onRequest(
         const isInvalidKey = isAuthOrKeyError(error);
 
         if (isInvalidKey) {
-          return res.status(401).json({ error: "Ugyldig eller uautorisert Gemini API-nøkkel satt opp i Firebase Functions/GitHub Secrets." });
+          return res.status(502).json({
+            code: "GEMINI_API_KEY_ERROR",
+            error: "Ugyldig eller uautorisert Gemini API-nøkkel satt opp i Firebase Functions/GitHub Secrets."
+          });
         }
         if (isDepleted) {
           return res.status(429).json({ error: "API-nøkkelen er tom for forhåndsbetalt saldo (Prepayment credits depleted). Gå til https://ai.studio/projects for å fylle på kreditt." });
@@ -943,7 +958,8 @@ exports.generateClosingChecklists = exports.checklistDispatcher;
 exports.kallGeminiAPI = onCall(
   { 
     region: "europe-west1", 
-    cors: true
+    cors: true,
+    invoker: "public"
   },
   async (request) => {
     // Sjekk autentisering hvis innlogging kreves
@@ -978,11 +994,14 @@ exports.kallGeminiAPI = onCall(
         throw error;
       }
       const isDepleted = isDepletedCreditsError(error);
+      const isInvalidKey = isAuthOrKeyError(error);
       const guidanceText = isDepleted 
         ? "Prosjektets forhåndsbetalte saldo er oppbrukt (Prepayment credits depleted). Oppdater nøkkelen eller fyll på saldo."
+        : isInvalidKey
+        ? "Ugyldig eller uautorisert Gemini API-nøkkel på serveren (GEMINI_API_KEY_PRIMARY / GEMINI_API_KEY)."
         : (error?.message || "En feil oppstod ved kommunikasjon med AI-assistenten.");
 
-      throw new HttpsError("internal", guidanceText);
+      throw new HttpsError(isInvalidKey ? "failed-precondition" : "internal", guidanceText);
     }
   }
 );

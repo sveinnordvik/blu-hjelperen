@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.6.9',
+    date: '2026-11-24',
+    title: 'Sky-autentisering, Cloud Run & Gemini 4',
+    changes: [
+      'Cloud Run & Firebase Auth: Eksplisitt offentlig HTTP-invoker på backend-endepunkter med streng Firebase ID-token-verifisering og automatisk token-fornyelse.',
+      'Presis feildiagnostikk: Skiller tydelig mellom utløpt brukerøkt, Cloud Run IAM-tilgang og Gemini API-nøkkelfeil.',
+      'Stabil utrulling & @google/genai 3.6.1: Free-Tier-først nøkkelrekkefølge, ryddig GitHub Actions-deploy og helhetlig versjonsoppgradering til v3.6.9.'
+    ]
+  },
+  {
     version: 'v3.6.8',
     date: '2026-11-11',
     title: 'Produksjonssikring & Feildiagnostikk',
