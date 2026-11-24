@@ -21,8 +21,6 @@ jobs:
         run: |
           npm install
           npm run build
-        env:
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       - name: Installer backend-avhengigheter (Functions)
         run: |
@@ -32,19 +30,51 @@ jobs:
       - name: Konfigurer miljøvariabler for backend
         run: |
           cd functions
+          rm -f .env
+          echo "FIRESTORE_DATABASE_ID=ai-studio-6d584f24-0d3b-4358-ba43-396b2f0a6101" >> .env
           echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
           echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "GEMINI_API_KEY_FREE=${{ secrets.GEMINI_API_KEY_FREE }}" >> .env
           echo "GEMINI_API_KEY_PRIMARY=${{ secrets.GEMINI_API_KEY_PRIMARY }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+          echo "GEMINI_API_KEY_PAID=${{ secrets.GEMINI_API_KEY_PAID }}" >> .env
           echo "GEMINI_API_KEY_BACKUP=${{ secrets.GEMINI_API_KEY_BACKUP }}" >> .env
 
-      - name: Rull ut Hosting til Firebase
+      - name: Rydd eventuelle gamle v1-funksjoner før v2-utrulling
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: npx firebase-tools deploy --only hosting --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}" --non-interactive
+        run: |
+          LIST_JSON=$(npx firebase-tools functions:list --json --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" 2>/dev/null || echo '{"result":[]}')
+          V1_TARGETS=$(node -e '
+            const raw = process.argv[1] || "{}";
+            let data;
+            try { data = JSON.parse(raw); } catch { process.exit(0); }
+            const list = Array.isArray(data.result) ? data.result : (Array.isArray(data) ? data : []);
+            const v2Ids = new Set(["api", "kallGeminiAPI", "handleNewUserReferral", "handleNewUserReferralV2", "checklistDispatcher", "generateClosingChecklists"]);
+            for (const fn of list) {
+              const id = fn.id || (fn.name ? String(fn.name).split("/").pop() : "");
+              const platform = String(fn.platform || "").toLowerCase();
+              const env = String(fn.environment || "").toLowerCase();
+              const isV1 = platform === "gcfv1" || env === "gen_1" || env === "1st gen";
+              if (v2Ids.has(id) && isV1) {
+                const region = fn.region || "europe-west1";
+                console.log(id + "|" + region);
+              }
+            }
+          ' "$LIST_JSON")
+          for entry in $V1_TARGETS; do
+            FN_ID="${entry%%|*}"
+            FN_REGION="${entry##*|}"
+            echo "Fjerner gammel v1-funksjon $FN_ID ($FN_REGION) før oppgradering til v2..."
+            npx firebase-tools functions:delete "$FN_ID" --region "$FN_REGION" --project gen-lang-client-0721397173 --token "$FIREBASE_TOKEN" --force || true
+          done
 
       - name: Rull ut Cloud Functions til Firebase
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: npx firebase-tools deploy --only functions --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}" --force --non-interactive
-        continue-on-error: true
+
+      - name: Rull ut Hosting til Firebase
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: npx firebase-tools deploy --only hosting --project gen-lang-client-0721397173 --token "${{ secrets.FIREBASE_TOKEN }}" --non-interactive
