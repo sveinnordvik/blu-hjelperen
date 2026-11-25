@@ -8,8 +8,12 @@ import {
   MessageSquareHeart, 
   PenTool, 
   CheckCircle2, 
-  Loader2
+  Loader2,
+  ArrowLeft,
+  AlertTriangle
 } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 /**
  * BetaContractModal
@@ -17,142 +21,92 @@ import {
  * En sperre-modal for betatestere av PedPortalen. Modalen tvinger brukeren
  * til å lese igjennom og akseptere betabetingelser, taushetsplikt og retningslinjer
  * før tilgang gis.
- * 
- * Props:
- * - isOpen: boolean (om modalen skal vises)
- * - userId: string (valgfri ID på brukeren)
- * - userEmail: string (valgfri e-post)
- * - onSignComplete: function (kalles når kontrakten er signert og lagret)
  */
 export default function BetaContractModal({ 
   isOpen = true, 
-  userId = 'current-user-id',
-  userEmail = 'bruker@example.com',
-  onSignComplete 
+  userId = '',
+  userEmail = '',
+  onSignComplete,
+  onCancel
 }) {
   const [isChecked, setIsChecked] = useState(false);
   const [typedName, setTypedName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   if (!isOpen) return null;
 
   const isFormValid = isChecked && typedName.trim().length > 2;
 
-  /**
-   * handleSignContract
-   * Håndterer digital signering og mockup av Firebase backend-operasjoner.
-   */
   const handleSignContract = async (e) => {
     e.preventDefault();
     if (!isFormValid || isSubmitting) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       const timestamp = new Date().toISOString();
-      const signedName = typedName.trim().toUpperCase();
+      const signedName = typedName.trim().toUpperCase().slice(0, 200);
+      const normalizedEmail = (userEmail || '').trim();
 
-      // =========================================================================
-      // MOCKUP / PLACEHOLDER FOR FIREBASE & PDF GENERATION BACKEND LOGIC
-      // =========================================================================
+      if (userId) {
+        const userDocRef = doc(db, 'users', userId);
+        await setDoc(
+          userDocRef,
+          {
+            uid: userId,
+            email: normalizedEmail,
+            harSignertBetaKontrakt: true,
+            signaturNavn: signedName,
+            signaturDato: timestamp,
+            updatedAt: timestamp
+          },
+          { merge: true }
+        );
 
-      /* 
-       STEP 1: GENERER PDF AV KONTRAKTEN (pseudokode med jsPDF)
-       -------------------------------------------------------------------------
-       import { jsPDF } from "jspdf";
-       const doc = new jsPDF();
-       doc.setFontSize(16);
-       doc.text("PedPortalen - Betatesteravtale & Taushetsplikt", 20, 20);
-       doc.setFontSize(11);
-       doc.text(`Signert av: ${signedName}`, 20, 35);
-       doc.text(`E-post: ${userEmail}`, 20, 42);
-       doc.text(`Tidsstempel: ${timestamp}`, 20, 49);
-       doc.text("Status: Godkjent & Akseptert", 20, 56);
-       // ... legg til avtaleteks ...
-       const pdfBlob = doc.output('blob');
-      */
-      console.log(`[PDF Gen] Genererer kontrakt PDF for ${signedName} (${timestamp})...`);
-
-      /* 
-       STEP 2: LAST OPP PDF TIL FIREBASE STORAGE
-       -------------------------------------------------------------------------
-       import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-       const storage = getStorage();
-       const storageRef = ref(storage, `users/${userId}/contracts/betakontrakt.pdf`);
-       const snapshot = await uploadBytes(storageRef, pdfBlob);
-       const pdfDownloadUrl = await getDownloadURL(snapshot.ref);
-      */
-      console.log(`[Firebase Storage] Laster opp betakontrakt.pdf til /users/${userId}/contracts/betakontrakt.pdf`);
-      const pdfDownloadUrl = `https://storage.googleapis.com/pedportalen-mock/users/${userId}/contracts/betakontrakt.pdf`;
-
-      /* 
-       STEP 3: OPPDATER BRUKERENS FIRESTORE-DOKUMENT
-       -------------------------------------------------------------------------
-       import { db } from '../firebase';
-       import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-       const userDocRef = doc(db, 'users', userId);
-       await updateDoc(userDocRef, {
-         harSignertBetaKontrakt: true,
-         signaturNavn: signedName,
-         signaturDato: serverTimestamp(),
-         kontraktPdfUrl: pdfDownloadUrl
-       });
-      */
-      console.log(`[Firestore] Oppdaterer users/${userId}: harSignertBetaKontrakt = true`);
-
-      /* 
-       STEP 4: OPPRETT MAIL-DOKUMENT (for Firebase Trigger Email Extension)
-       -------------------------------------------------------------------------
-       import { collection, addDoc } from 'firebase/firestore';
-       await addDoc(collection(db, 'mail'), {
-         to: ['svein.nordvik@gmail.com'],
-         message: {
-           subject: `ATT: PedPortalen Kontrakt - Signert av ${signedName}`,
-           html: `
-             <h2>Ny signert betakontrakt mottatt!</h2>
-             <p><strong>Tester:</strong> ${signedName} (${userEmail})</p>
-             <p><strong>Bruker-ID:</strong> ${userId}</p>
-             <p><strong>Tidsstempel:</strong> ${timestamp}</p>
-             <p><a href="${pdfDownloadUrl}">Klikk her for å laste ned signert PDF-kontrakt</a></p>
-           `
-         }
-       });
-      */
-      console.log(`[Firebase Mail] Sendt varsel om signert kontrakt til svein.nordvik@gmail.com`);
-
-      // Simulert nettverksforsinkelse
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+        try {
+          localStorage.setItem(
+            `blu_beta_contract_signed_${userId}`,
+            JSON.stringify({
+              signed: true,
+              signaturNavn: signedName,
+              signaturDato: timestamp
+            })
+          );
+        } catch {
+          // Ignorer localStorage-feil i privat modus
+        }
+      }
 
       setIsSuccess(true);
 
-      // Korte sekunder visning før modal lukkes
       setTimeout(() => {
         if (onSignComplete) {
-          onSignComplete();
+          onSignComplete({ signaturNavn: signedName, signaturDato: timestamp });
         }
-      }, 600);
-
+      }, 500);
     } catch (error) {
-      console.error("Feil ved signering av betakontrakt:", error);
-      alert("Kunne ikke fullføre signeringen. Vennligst prøv igjen.");
+      console.error('Feil ved signering av betakontrakt:', error);
+      setSubmitError('Kunne ikke lagre godkjenningen akkurat nå. Sjekk tilkoblingen og prøv igjen.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto">
       {/* Modal Container */}
       <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col max-h-[90vh] overflow-hidden text-slate-800">
         
         {/* Header (Sticky top) */}
-        <div className="sticky top-0 z-10 bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 px-6 py-5 text-white flex items-center justify-between shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md">
+        <div className="sticky top-0 z-10 bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 px-6 py-5 text-white flex items-center justify-between gap-4 shadow-md">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md shrink-0">
               <ShieldCheck className="w-7 h-7 text-teal-100" />
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="inline-block px-2.5 py-0.5 mb-1 text-[11px] font-semibold tracking-wider text-teal-100 uppercase bg-white/20 rounded-full">
                 Eksklusiv Pilot-Tilgang
               </span>
@@ -161,6 +115,17 @@ export default function BetaContractModal({
               </h2>
             </div>
           </div>
+
+          {onCancel && !isSubmitting && !isSuccess && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Tilbake</span>
+            </button>
+          )}
         </div>
 
         {/* Scrollable Content Area */}
@@ -257,6 +222,15 @@ export default function BetaContractModal({
 
         {/* Digital Signatur Sticky Footer */}
         <div className="sticky bottom-0 z-20 bg-slate-50 border-t border-slate-200 p-5 sm:p-6 shadow-lg space-y-4">
+          {submitError && (
+            <div
+              role="alert"
+              className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2"
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{submitError}</span>
+            </div>
+          )}
           <form onSubmit={handleSignContract} className="space-y-4">
             {/* Avkrysningsboks */}
             <label className="flex items-start gap-3 cursor-pointer group select-none">

@@ -13,7 +13,7 @@ import { EmpiricalAnalysis } from '../tools/EmpiricalAnalysis';
 import { Resources } from '../Resources';
 import { KildebankView } from '../tools/KildebankView';
 import { Profile as ProfileComponent } from '../Profile';
-import { isUnlimitedUser, isAdminUser } from '../../config/accessConfig';
+import { isUnlimitedUser, isAdminUser, PODCAST_SEMESTER_INCLUDED_MINUTES } from '../../config/accessConfig';
 import { FieldNotes } from '../mobile/FieldNotes';
 import { FieldAssistant } from '../mobile/FieldAssistant';
 import { ProjectorDisplayScreen } from '../presentation/ProjectorDisplayScreen';
@@ -21,6 +21,7 @@ import { VersionBanner } from '../VersionBanner';
 import { useNavigate } from 'react-router-dom';
 import { usePensumHub } from '../../context/PensumHubContext';
 import { FlashcardModule } from '../FlashcardModule';
+import { PodcastModule } from '../PodcastModule';
 
 /**
  * @license
@@ -809,6 +810,17 @@ export default function StudentnApp() {
     const saved = localStorage.getItem('blu_humanizer_credits');
     return saved !== null ? parseInt(saved, 10) : 1;
   });
+
+  const [podcastAudioMinutes, setPodcastAudioMinutes] = useState<number>(() => {
+    const saved = localStorage.getItem('blu_podcast_audio_minutes');
+    return saved !== null ? parseInt(saved, 10) || 0 : 0;
+  });
+
+  const [semesterPodcastGrantApplied, setSemesterPodcastGrantApplied] = useState<boolean>(() => {
+    return localStorage.getItem('blu_semester_podcast_grant_applied') === 'true';
+  });
+
+  const [hasSyncedUserBilling, setHasSyncedUserBilling] = useState<boolean>(() => !auth.currentUser);
 
   const [milestones, setMilestones] = useState<{ id: string; title: string; date: string; completed: boolean }[]>(() => {
     const saved = localStorage.getItem('blu_milestones_guest');
@@ -2443,6 +2455,41 @@ export default function StudentnApp() {
     }
   }, [user?.email, profile.email, pricingTier]);
 
+  useEffect(() => {
+    if (!user) {
+      setHasSyncedUserBilling(true);
+    }
+  }, [user]);
+
+  // Tildel 60 inkluderte podcast-lydminutter én gang når Semester-pakka er aktiv (ikke for VIP som har ubegrenset)
+  useEffect(() => {
+    if (!hasSyncedUserBilling) return;
+    if (isUnlimitedUser(user?.email || profile.email)) return;
+    if (!['semester', 'yearly', 'preview'].includes(pricingTier)) return;
+    if (semesterPodcastGrantApplied) return;
+
+    setSemesterPodcastGrantApplied(true);
+    localStorage.setItem('blu_semester_podcast_grant_applied', 'true');
+    setPodcastAudioMinutes((prev) => {
+      const next = prev + PODCAST_SEMESTER_INCLUDED_MINUTES;
+      localStorage.setItem('blu_podcast_audio_minutes', String(next));
+      return next;
+    });
+
+    if (user) {
+      setDoc(
+        doc(db, 'users', user.uid),
+        {
+          uid: user.uid,
+          email: user.email || 'unknown@example.com',
+          podcastAudioMinutes: increment(PODCAST_SEMESTER_INCLUDED_MINUTES),
+          semesterPodcastGrantApplied: true
+        },
+        { merge: true }
+      ).catch(console.error);
+    }
+  }, [hasSyncedUserBilling, pricingTier, semesterPodcastGrantApplied, user, profile.email]);
+
   // Security Redirect Effect for Admin/System
   useEffect(() => {
     const isAdmin = isAdminUser(user?.email || profile.email);
@@ -2466,12 +2513,11 @@ export default function StudentnApp() {
     const success = params.get('success');
     const planId = params.get('plan_id');
     const buyCredits = params.get('buy_credits');
+    const buyPodcastMinutes = params.get('buy_podcast_minutes');
 
-    if (success === 'true' && (planId || buyCredits)) {
+    if (success === 'true' && (planId || buyCredits || buyPodcastMinutes)) {
       setIsVerifyingPayment(true);
       
-      // In a production app with a backend, you would verify the session_id here
-      // For this client-side implementation, we wait for the return signal
       setTimeout(() => {
         if (planId) {
           setPricingTier(planId as any);
@@ -2490,6 +2536,22 @@ export default function StudentnApp() {
           } else {
             const current = parseInt(localStorage.getItem('blu_humanizer_credits') || '1', 10);
             localStorage.setItem('blu_humanizer_credits', (current + count).toString());
+          }
+        }
+
+        if (buyPodcastMinutes) {
+          const mins = parseInt(buyPodcastMinutes, 10) || 30;
+          setPodcastAudioMinutes(prev => {
+            const next = prev + mins;
+            localStorage.setItem('blu_podcast_audio_minutes', String(next));
+            return next;
+          });
+          if (user) {
+            setDoc(doc(db, 'users', user.uid), {
+              uid: user.uid,
+              email: user.email || 'unknown@example.com',
+              podcastAudioMinutes: increment(mins)
+            }, { merge: true }).catch(console.error);
           }
         }
 
@@ -2526,6 +2588,52 @@ export default function StudentnApp() {
     } else {
       const current = parseInt(localStorage.getItem('blu_humanizer_credits') || '1', 10);
       localStorage.setItem('blu_humanizer_credits', (current + count).toString());
+    }
+  };
+
+  const handleDeductPodcastMinutes = async (minutes: number) => {
+    const safeMinutes = Math.max(0, Math.round(minutes));
+    if (safeMinutes === 0) return;
+
+    setPodcastAudioMinutes((prev) => {
+      const next = Math.max(0, prev - safeMinutes);
+      localStorage.setItem('blu_podcast_audio_minutes', String(next));
+      return next;
+    });
+
+    if (user) {
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          uid: user.uid,
+          email: user.email || 'unknown@example.com',
+          podcastAudioMinutes: increment(-safeMinutes)
+        },
+        { merge: true }
+      ).catch(console.error);
+    }
+  };
+
+  const handleAddPodcastMinutes = async (minutes: number) => {
+    const safeMinutes = Math.max(0, Math.round(minutes));
+    if (safeMinutes === 0) return;
+
+    setPodcastAudioMinutes((prev) => {
+      const next = prev + safeMinutes;
+      localStorage.setItem('blu_podcast_audio_minutes', String(next));
+      return next;
+    });
+
+    if (user) {
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          uid: user.uid,
+          email: user.email || 'unknown@example.com',
+          podcastAudioMinutes: increment(safeMinutes)
+        },
+        { merge: true }
+      ).catch(console.error);
     }
   };
 
@@ -2622,6 +2730,7 @@ export default function StudentnApp() {
       stripeUrl: 'https://buy.stripe.com/14AeV61EebcNd8YdCQ18c08',
       features: [
         'Alt i Måned, pluss:', 
+        '60 min AI-lydnedlasting (.wav) i Pensum-Podden',
         'Sensor-modulen: Dyp pedagogisk analyse & kildesjekk',
         'Visuell innholdsgenerator / Imagen 3',
         'Presentasjons-generator (NotebookLM-logikk)',
@@ -3450,6 +3559,17 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           if (data.humanizerCredits !== undefined) {
             setHumanizerCredits(data.humanizerCredits);
           }
+          if (data.podcastAudioMinutes !== undefined) {
+            const mins = Math.max(0, Number(data.podcastAudioMinutes) || 0);
+            setPodcastAudioMinutes(mins);
+            localStorage.setItem('blu_podcast_audio_minutes', String(mins));
+          }
+          if (data.semesterPodcastGrantApplied !== undefined) {
+            const applied = Boolean(data.semesterPodcastGrantApplied);
+            setSemesterPodcastGrantApplied(applied);
+            localStorage.setItem('blu_semester_podcast_grant_applied', String(applied));
+          }
+          setHasSyncedUserBilling(true);
           if (data.profile) {
             setProfile(prev => {
               const studiestedFromDb = data.profile.studiested || data.profile.college || prev?.studiested || prev?.college || '';
@@ -3564,6 +3684,17 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           const data = userSnap.data();
           if (data.pricingTier) { setPricingTier(data.pricingTier); mainData.pricingTier = data.pricingTier; }
           if (data.humanizerCredits !== undefined) { setHumanizerCredits(data.humanizerCredits); }
+          if (data.podcastAudioMinutes !== undefined) {
+            const mins = Math.max(0, Number(data.podcastAudioMinutes) || 0);
+            setPodcastAudioMinutes(mins);
+            localStorage.setItem('blu_podcast_audio_minutes', String(mins));
+          }
+          if (data.semesterPodcastGrantApplied !== undefined) {
+            const applied = Boolean(data.semesterPodcastGrantApplied);
+            setSemesterPodcastGrantApplied(applied);
+            localStorage.setItem('blu_semester_podcast_grant_applied', String(applied));
+          }
+          setHasSyncedUserBilling(true);
           if (data.profile) { 
             const studiestedFromDb = data.profile.studiested || data.profile.college || '';
             const normalized = {
@@ -3618,6 +3749,8 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
             name: auth.currentUser?.displayName || user?.displayName || '',
             pricingTier: 'free',
             humanizerCredits: isReferred ? 6 : 1, // 1 basisvask + 5 vask velkomstbonus hvis vervet
+            podcastAudioMinutes: 0,
+            semesterPodcastGrantApplied: false,
             hasCompletedOnboarding: false,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
@@ -3638,6 +3771,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
           } catch (createErr) {
             console.error("Feil ved opprettelse av nytt brukerdokument i Firestore:", createErr);
           }
+          setHasSyncedUserBilling(true);
         }
 
         // 2. Project data
@@ -4009,6 +4143,8 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
         isGuest={isGuest}
         humanizerCredits={humanizerCredits}
         onBuyCredits={handleAddHumanizerCredits}
+        podcastAudioMinutes={podcastAudioMinutes}
+        onBuyPodcastMinutes={handleAddPodcastMinutes}
         userUid={user?.uid}
         userEmail={user?.email || undefined}
       />
@@ -5594,6 +5730,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       userEmail={user?.email || profile.email}
                       humanizerCredits={humanizerCredits}
                       onBuyCredits={handleAddHumanizerCredits}
+                      podcastAudioMinutes={podcastAudioMinutes}
                       onNavigateToResources={() => setActiveTab('file-archive')}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
@@ -5624,6 +5761,29 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                         }}
                         onNavigateToResources={() => {
                           setPendingAction('flashcards');
+                          setActiveTab('file-archive');
+                        }}
+                      />
+                    </div>
+                  );
+                case 'podcast':
+                  return (
+                    <div className="w-full max-w-7xl mx-auto py-2 px-2">
+                      <PodcastModule
+                        key="podcast-view"
+                        userId={user?.uid}
+                        userEmail={user?.email || profile.email}
+                        pricingTier={pricingTier}
+                        podcastAudioMinutes={podcastAudioMinutes}
+                        onDeductPodcastMinutes={handleDeductPodcastMinutes}
+                        onAddPodcastMinutes={handleAddPodcastMinutes}
+                        onUpgrade={() => setActiveTab('pricing')}
+                        onBackToTools={() => {
+                          setActiveSubTab('tools-overview');
+                          setActiveTab('verktoy');
+                        }}
+                        onNavigateToResources={() => {
+                          setPendingAction('podcast');
                           setActiveTab('file-archive');
                         }}
                       />
@@ -5712,6 +5872,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                       userEmail={user?.email || profile.email}
                       humanizerCredits={humanizerCredits}
                       onBuyCredits={handleAddHumanizerCredits}
+                      podcastAudioMinutes={podcastAudioMinutes}
                       onNavigateToResources={() => setActiveTab('resources')}
                       onSelectTool={(toolId) => {
                         if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {
@@ -5748,6 +5909,7 @@ Ditt mål er å hjelpe studenter med å skrive sine oppgaver og bacheloroppgaver
                 userEmail={user?.email || profile.email}
                 humanizerCredits={humanizerCredits}
                 onBuyCredits={handleAddHumanizerCredits}
+                podcastAudioMinutes={podcastAudioMinutes}
                 onNavigateToResources={() => setActiveTab('resources')}
                 onSelectTool={(toolId) => {
                   if (toolId === 'document-analysis-humanizer' || toolId === 'humanizer') {

@@ -355,12 +355,33 @@ exports.stripeWebhook = functions
           }
         };
 
-        // Sjekk om det er kjøp av Humanizer-vaskekreditter
+        // Sjekk om det er kjøp av Podcast-lydminutter (Pay-per-use)
         if (
+          metadata.productType === "podcast_minutes" ||
+          metadata.type === "podcast_minutes" ||
+          metadata.buy_podcast_minutes ||
+          (mode === "payment" && (amountTotal === 2900 || amountTotal === 6900))
+        ) {
+          let minutesToAdd = 30;
+          if (metadata.minutes) {
+            minutesToAdd = parseInt(metadata.minutes, 10) || 30;
+          } else if (metadata.buy_podcast_minutes) {
+            minutesToAdd = parseInt(metadata.buy_podcast_minutes, 10) || 30;
+          } else if (amountTotal === 6900) {
+            minutesToAdd = 90;
+          } else if (amountTotal === 2900) {
+            minutesToAdd = 30;
+          }
+
+          updateData.podcastAudioMinutes = admin.firestore.FieldValue.increment(minutesToAdd);
+          console.log(`[Stripe Webhook] Podcast-minutter kjøpt: Legger til ${minutesToAdd} min for bruker ${uid}`);
+        }
+        // Sjekk om det er kjøp av Humanizer-vaskekreditter
+        else if (
           metadata.productType === "humanizer_credits" || 
           metadata.type === "credits" ||
           metadata.buy_credits ||
-          mode === "payment" && (amountTotal === 1000 || amountTotal === 10000)
+          (mode === "payment" && (amountTotal === 1000 || amountTotal === 10000))
         ) {
           // Finn antall vask (standard: 10 vask hvis beløp er 100 kr / 10000 øre, ellers 1 vask for 10 kr)
           let creditsToAdd = 10;
@@ -384,6 +405,10 @@ exports.stripeWebhook = functions
           updateData.subscriptionStatus = "active";
           if (session.subscription) {
             updateData.stripeSubscriptionId = session.subscription;
+          }
+          if (planId === "semester" || planId === "yearly") {
+            updateData.podcastAudioMinutes = admin.firestore.FieldValue.increment(60);
+            updateData.semesterPodcastGrantApplied = true;
           }
           console.log(`[Stripe Webhook] Abonnement aktivert: Setter pricingTier='${planId}' for bruker ${uid}`);
         }

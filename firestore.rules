@@ -18,7 +18,7 @@ service cloud.firestore {
     }
     
     function isVerified() {
-      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com"]);
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com", "helen.mari.bitnes@gmail.com"]);
     }
 
     function isOwner(userId) {
@@ -27,7 +27,7 @@ service cloud.firestore {
     
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com"] ||
+        request.auth.token.email in ["svein.nordvik@gmail.com", "sunniva.nordvik2@gmail.com", "helen.mari.bitnes@gmail.com"] ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -51,7 +51,12 @@ service cloud.firestore {
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email']) &&
              data.uid == request.auth.uid &&
-             data.email is string && data.email.size() > 0 && data.email.size() < 255;
+             data.email is string && data.email.size() > 0 && data.email.size() < 255 &&
+             (!('podcastAudioMinutes' in data) || ((data.podcastAudioMinutes is int || data.podcastAudioMinutes is float) && data.podcastAudioMinutes >= 0 && data.podcastAudioMinutes <= 10000)) &&
+             (!('semesterPodcastGrantApplied' in data) || data.semesterPodcastGrantApplied is bool) &&
+             (!('harSignertBetaKontrakt' in data) || data.harSignertBetaKontrakt is bool) &&
+             (!('signaturNavn' in data) || (data.signaturNavn is string && data.signaturNavn.size() <= 200)) &&
+             (!('signaturDato' in data) || (data.signaturDato is string && data.signaturDato.size() <= 64));
     }
 
     function isValidDocument(data) {
@@ -197,9 +202,26 @@ service cloud.firestore {
     function isValidLiteratureDocument(data) {
       return (('title' in data && data.title is string) || ('tittel' in data && data.tittel is string)) &&
              (('authors' in data && data.authors is list) || ('forfattere' in data && data.forfattere is list)) &&
-             (('year' in data && (data.year is int || data.year is number)) || ('utgivelsesår' in data && (data.utgivelsesår is int || data.utgivelsesår is number)) || ('utgivelsesar' in data && (data.utgivelsesar is int || data.utgivelsesar is number))) &&
+             (('year' in data && (data.year is int || data.year is float)) || ('utgivelsesår' in data && (data['utgivelsesår'] is int || data['utgivelsesår'] is float)) || ('utgivelsesar' in data && (data.utgivelsesar is int || data.utgivelsesar is float))) &&
              (('sourceType' in data && data.sourceType is string) || ('kildetype' in data && data.kildetype is string)) &&
              (('access' in data && data.access is string) || ('tilgang' in data && data.tilgang is string));
+    }
+
+    function isValidPodcastEpisode(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'summary', 'estimatedMinutes', 'lengthPreset', 'angle', 'sourceTitles', 'wordCount', 'dialogue', 'createdAt']) &&
+             data.keys().hasOnly(['id', 'userId', 'title', 'summary', 'estimatedMinutes', 'lengthPreset', 'angle', 'focusNote', 'sourceTitles', 'wordCount', 'dialogue', 'createdAt']) &&
+             isValidId(data.id) &&
+             data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 250 &&
+             data.summary is string && data.summary.size() <= 1000 &&
+             (data.estimatedMinutes is int || data.estimatedMinutes is float) && data.estimatedMinutes >= 1 && data.estimatedMinutes <= 60 &&
+             data.lengthPreset in ['short', 'medium', 'long'] &&
+             data.angle in ['oversikt', 'praksisnaer', 'eksamen'] &&
+             (!('focusNote' in data) || (data.focusNote is string && data.focusNote.size() <= 500)) &&
+             data.sourceTitles is list && data.sourceTitles.size() <= 25 && (data.sourceTitles.size() == 0 || data.sourceTitles[0] is string) &&
+             (data.wordCount is int || data.wordCount is float) && data.wordCount >= 0 && data.wordCount <= 50000 &&
+             data.dialogue is list && data.dialogue.size() > 0 && data.dialogue.size() <= 120 && data.dialogue[0] is map &&
+             data.createdAt is string && data.createdAt.size() > 0 && data.createdAt.size() <= 64;
     }
 
     // ===============================================================
@@ -212,7 +234,7 @@ service cloud.firestore {
       allow update: if isOwner(userId) && isValidUser(incoming()) && (
         isAdmin() || 
         // Action: standard profile and app state sync
-        (incoming().diff(existing()).affectedKeys().hasOnly(['profile', 'pedagogicalProfile', 'hasCompletedOnboarding', 'notificationSettings', 'theme', 'settings', 'notificationsEnabled', 'onboardingComplete', 'lowStressMode', 'activeTab', 'writingStep', 'selectedReferenceStyle', 'aiTerms', 'searchCounts', 'updatedAt', 'pricingTier', 'humanizerCredits', 'referredBy', 'documents', 'folders', 'fcmToken', 'name', 'uid', 'email']))
+        (incoming().diff(existing()).affectedKeys().hasOnly(['profile', 'pedagogicalProfile', 'hasCompletedOnboarding', 'notificationSettings', 'theme', 'settings', 'notificationsEnabled', 'onboardingComplete', 'lowStressMode', 'activeTab', 'writingStep', 'selectedReferenceStyle', 'aiTerms', 'searchCounts', 'updatedAt', 'pricingTier', 'humanizerCredits', 'podcastAudioMinutes', 'semesterPodcastGrantApplied', 'harSignertBetaKontrakt', 'signaturNavn', 'signaturDato', 'referredBy', 'documents', 'folders', 'fcmToken', 'name', 'uid', 'email']))
       );
       allow delete: if isOwner(userId) || isAdmin();
       
@@ -271,6 +293,17 @@ service cloud.firestore {
         allow get, list: if isOwner(userId) || isAdmin();
         allow create, update: if isOwner(userId);
         allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /podcastEpisodes/{episodeId} {
+        allow get: if isValidId(episodeId) && (isOwner(userId) || isAdmin());
+        allow list: if isOwner(userId);
+        allow create: if isValidId(episodeId) && isOwner(userId) && isValidPodcastEpisode(incoming());
+        allow update: if isValidId(episodeId) && isOwner(userId) && isValidPodcastEpisode(incoming()) &&
+                      incoming().userId == existing().userId &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary', 'estimatedMinutes', 'lengthPreset', 'angle', 'focusNote', 'sourceTitles', 'wordCount', 'dialogue']);
+        allow delete: if isValidId(episodeId) && (isOwner(userId) || isAdmin());
       }
     }
 

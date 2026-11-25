@@ -742,6 +742,197 @@ Når du svarer, følg disse retningslinjene:
     }
   });
 
+  // Gemini Multi-Speaker / Standard Podcast Audio (TTS -> WAV) Endpoint
+  app.post(["/api/gemini/podcast-audio", "/api/gemini/podcast-audio/", "/gemini/podcast-audio"], async (req, res) => {
+    try {
+      const { dialogue, qualityLevel = "studio", hostVoiceName, expertVoiceName } = req.body || {};
+      if (!Array.isArray(dialogue) || dialogue.length === 0) {
+        return res.status(400).json({ error: "Mangler gyldig 'dialogue'-liste for lydgenerering." });
+      }
+      if (dialogue.length > 20) {
+        return res.status(400).json({ error: "For mange replikker i én lydbolk (maks 20 per kall)." });
+      }
+
+      const normalizedTurns = dialogue
+        .map((turn: any) => ({
+          speaker: turn?.speaker === "Ekspert" ? "Ekspert" : "Programleder",
+          text: String(turn?.text || "").replace(/\s+/g, " ").trim().slice(0, 2500),
+        }))
+        .filter((turn) => turn.text.length > 0);
+
+      if (normalizedTurns.length === 0) {
+        return res.status(400).json({ error: "Ingen lesbar tekst å gjøre om til lyd." });
+      }
+
+      const totalChars = normalizedTurns.reduce((sum, t) => sum + t.text.length, 0);
+      if (totalChars > 15000) {
+        return res.status(400).json({ error: "Lydbolken overstiger maksimal lengde på 15 000 tegn." });
+      }
+
+      const candidates = getOrderedGeminiKeyCandidates();
+      if (candidates.length === 0) {
+        return res.status(503).json({
+          error: "Ingen aktiv Gemini API-nøkkel er konfigurert på serveren for talesyntese."
+        });
+      }
+
+      const ALLOWED_VOICES = new Set(["Kore", "Charon", "Puck", "Fenrir", "Zephyr"]);
+      const safeHostVoice = ALLOWED_VOICES.has(hostVoiceName) ? hostVoiceName : "Kore";
+      const safeExpertVoice = ALLOWED_VOICES.has(expertVoiceName) ? expertVoiceName : "Charon";
+      const isStandardQuality = qualityLevel === "standard";
+
+      const { GoogleGenAI } = await import("@google/genai");
+
+      const targetModel = isStandardQuality
+        ? "gemini-3.8-flash-lite-tts"
+        : "gemini-3.8-flash-tts";
+
+      const plainParts = [
+        {
+          text: isStandardQuality
+            ? normalizedTurns.map((turn) => turn.text).join("\n\n")
+            : normalizedTurns.map((turn) => `${turn.speaker}: ${turn.text}`).join("\n\n"),
+        },
+      ];
+
+      const partsWithMetadata = normalizedTurns.map((turn) => ({
+        text: isStandardQuality ? turn.text : `${turn.speaker}: ${turn.text}`,
+        speechMetadata: {
+          ...(isStandardQuality ? {} : { speaker: turn.speaker }),
+          style: isStandardQuality
+            ? "Clear, warm, fluent Norwegian educational narrator speaking natural Bokmål"
+            : turn.speaker === "Programleder"
+              ? "Warm, curious, engaging Norwegian podcast host speaking natural Bokmål"
+              : "Articulate, knowledgeable, friendly Norwegian pedagogy expert speaking natural Bokmål",
+        },
+      }));
+
+      const ttsConfig = isStandardQuality
+        ? {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: safeHostVoice },
+              },
+            },
+          }
+        : {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              multiSpeakerVoiceConfig: {
+                speakerVoiceConfigs: [
+                  {
+                    speaker: "Programleder",
+                    voiceConfig: {
+                      prebuiltVoiceConfig: { voiceName: safeHostVoice },
+                    },
+                  },
+                  {
+                    speaker: "Ekspert",
+                    voiceConfig: {
+                      prebuiltVoiceConfig: { voiceName: safeExpertVoice },
+                    },
+                  },
+                ],
+              },
+            },
+          };
+
+      let lastError: any = null;
+      let audioBase64 = "";
+      let mimeType = "audio/wav";
+
+      for (let i = 0; i < candidates.length; i++) {
+        if (audioBase64) break;
+        const candidate = candidates[i];
+        const modesToTry = candidate.prefixType === "AQ" ? [false, true] : [false];
+
+        for (let mIdx = 0; mIdx < modesToTry.length; mIdx++) {
+          if (audioBase64) break;
+          const useVertexAI = modesToTry[mIdx];
+
+          const payloadAttempts = [
+            { label: "plain-v1beta", apiVersion: undefined as string | undefined, parts: plainParts },
+            { label: "meta-v1alpha", apiVersion: "v1alpha", parts: partsWithMetadata },
+          ];
+
+          for (const attempt of payloadAttempts) {
+            try {
+              const ai = new GoogleGenAI({
+                apiKey: candidate.key,
+                ...(useVertexAI ? { vertexai: true } : {}),
+                ...(attempt.apiVersion ? { apiVersion: attempt.apiVersion } : {}),
+                httpOptions: {
+                  headers: {
+                    "User-Agent": "aistudio-build",
+                  },
+                },
+              });
+
+              const response: any = await ai.models.generateContent({
+                model: targetModel,
+                contents: [{ role: "user", parts: attempt.parts }],
+                config: ttsConfig,
+              });
+
+              for (const cand of response?.candidates || []) {
+                for (const part of cand?.content?.parts || []) {
+                  if (part?.inlineData?.data) {
+                    audioBase64 = part.inlineData.data;
+                    mimeType = part.inlineData.mimeType || "audio/wav";
+                    break;
+                  }
+                }
+                if (audioBase64) break;
+              }
+              if (audioBase64) break;
+            } catch (err: any) {
+              lastError = err;
+              const errMsg = err?.message || String(err);
+              console.warn(
+                `[Gemini TTS] ${candidate.envName} (${useVertexAI ? "vertex-express" : "gemini-api"}, ${targetModel}, ${attempt.label}) feilet:`,
+                errMsg.slice(0, 220)
+              );
+              if (isAuthOrKeyError(err) || isDepletedCreditsError(err) || isQuotaOrTransientError(err)) {
+                break;
+              }
+            }
+          }
+
+          if (audioBase64) break;
+          if (mIdx === 0 && lastError) {
+            const errMsg = lastError?.message || String(lastError);
+            const shouldTryVertex =
+              errMsg.includes("ACCESS_TOKEN_TYPE_UNSUPPORTED") ||
+              errMsg.includes("API keys are not supported");
+            if (!shouldTryVertex) break;
+          }
+        }
+      }
+
+      if (!audioBase64) {
+        const errMsg = lastError?.message || String(lastError || "");
+        if (isQuotaOrTransientError(lastError)) {
+          return res.status(429).json({
+            error: "Talesyntesen opplever stor pågang eller nådd kvote akkurat nå. Vent litt og prøv igjen – minuttene dine ble ikke trukket."
+          });
+        }
+        return res.status(502).json({
+          error: errMsg
+            ? `Kunne ikke generere AI-lyd akkurat nå (${errMsg.slice(0, 140)}). Minuttene dine ble ikke trukket.`
+            : "Kunne ikke generere AI-lyd akkurat nå. Minuttene dine ble ikke trukket."
+        });
+      }
+
+      res.json({ audioBase64, mimeType });
+    } catch (error: any) {
+      console.error("Gemini Podcast TTS error:", error);
+      res.status(500).json({
+        error: "Uventet feil ved generering av podcast-lydfil. Minuttene dine ble ikke trukket."
+      });
+    }
+  });
+
   // Superveilederen Chat Endpoint med dynamisk system-prompt
   app.post(["/api/superveilederen", "/api/superveilederenChat"], async (req, res) => {
     try {

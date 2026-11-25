@@ -8,13 +8,30 @@
 export const UNLIMITED_ACCESS_EMAILS = [
   'svein.nordvik@gmail.com',
   'sunniva.nordvik2@gmail.com',
+  'helen.mari.bitnes@gmail.com',
   'annkarin78@hotmail.no'
 ];
 
 export const ADMIN_EMAILS = [
   'svein.nordvik@gmail.com',
-  'sunniva.nordvik2@gmail.com'
+  'sunniva.nordvik2@gmail.com',
+  'helen.mari.bitnes@gmail.com'
 ];
+
+/**
+ * Brukere som har tilgang til de øvrige Portalen-modusene (Styrern, Pedledern,
+ * Fagarbeidern, Assistentn, Vikarn), men som må lese og godkjenne betatester-skjemaet
+ * før de får tilgang til disse modusene.
+ */
+export const BETA_CONTRACT_REQUIRED_EMAILS = [
+  'helen.mari.bitnes@gmail.com'
+];
+
+export const requiresPortalBetaContract = (email?: string | null): boolean => {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return BETA_CONTRACT_REQUIRED_EMAILS.some(e => e.toLowerCase() === normalized);
+};
 
 /**
  * Betabrukere for Portalen (Styrern, Pedledern, Fagarbeidern, Assistentn, Vikarn).
@@ -73,6 +90,17 @@ export const isAdminUser = (email?: string | null): boolean => {
  */
 export const STRIPE_HUMANIZER_CREDITS_1_URL = 'https://buy.stripe.com/test_humanizer_1';
 export const STRIPE_HUMANIZER_CREDITS_10_URL = 'https://buy.stripe.com/test_humanizer_10';
+
+/**
+ * Kvote og Stripe Payment Links for AI-lydnedlasting i Pensum-Podden (.wav):
+ * - Semester-pakka inkluderer 60 minutter per semester
+ * - Tilleggspakker (Pay-per-use): +30 min (29 kr) og +90 min (69 kr)
+ */
+export const PODCAST_SEMESTER_INCLUDED_MINUTES = 60;
+export const PODCAST_MINUTES_PACK_30_PRICE = 29;
+export const PODCAST_MINUTES_PACK_90_PRICE = 69;
+export const STRIPE_PODCAST_MINUTES_30_URL = 'https://buy.stripe.com/test_podcast_minutes_30';
+export const STRIPE_PODCAST_MINUTES_90_URL = 'https://buy.stripe.com/test_podcast_minutes_90';
 
 /**
  * Bygger en Stripe betalingslenke med brukerens Firebase UID som client_reference_id

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { auth, onAuthStateChanged, signInWithPopup, googleProvider, signInWithEmailAndPassword } from './firebase';
-import { isUnlimitedUser, isAdminUser, isPortalBetaUser, hasBluAccess } from './config/accessConfig';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, onAuthStateChanged, signInWithPopup, googleProvider, signInWithEmailAndPassword } from './firebase';
+import { isAdminUser, isPortalBetaUser, hasBluAccess, requiresPortalBetaContract } from './config/accessConfig';
 import { RoleProvider, useRole, Role } from './context/RoleContext';
 import { PensumHubProvider } from './context/PensumHubContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, X } from 'lucide-react';
+import { Lock, X, Loader2 } from 'lucide-react';
+import BetaContractModal from './components/BetaContractModal';
 
 // Global Auth Modal implementation
 const AuthModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
@@ -168,8 +170,65 @@ const ModeBanner = () => {
   );
 };
 
-const MainApp = () => {
-  const { role, canSwitch, hasBluAccess } = useRole();
+const PORTAL_ROLES: Role[] = ['STYRERN', 'PEDLEDERN', 'FAGARBEIDERN', 'ASSISTENTN', 'VIKARN'];
+const PORTAL_PATHS = ['/styrer', '/pedleder', '/fagarbeider', '/assistent', '/vikar', '/tiltaksplan'];
+
+interface MainAppProps {
+  currentUserUid: string | null;
+  currentUserEmail: string | null;
+  mustSignBetaContract: boolean;
+  hasSignedBetaContract: boolean;
+  isCheckingBetaContract: boolean;
+  onBetaContractSigned: () => void;
+}
+
+const MainApp = ({
+  currentUserUid,
+  currentUserEmail,
+  mustSignBetaContract,
+  hasSignedBetaContract,
+  isCheckingBetaContract,
+  onBetaContractSigned
+}: MainAppProps) => {
+  const { role, setRole, canSwitch, hasBluAccess } = useRole();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isViewingPortalRole = Boolean(
+    canSwitch && role && role !== 'STYRERN' && PORTAL_ROLES.includes(role)
+  );
+  const isOnPortalPath = PORTAL_PATHS.some(
+    (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
+  );
+  const isAccessingOtherMode = isViewingPortalRole || isOnPortalPath;
+
+  if (mustSignBetaContract && isAccessingOtherMode && !hasSignedBetaContract) {
+    if (isCheckingBetaContract) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <div className="flex items-center gap-3 text-slate-600 text-sm font-semibold">
+            <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
+            <span>Sjekker betatester-tilgang...</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-100">
+        <BetaContractModal
+          isOpen
+          userId={currentUserUid || ''}
+          userEmail={currentUserEmail || ''}
+          onSignComplete={onBetaContractSigned}
+          onCancel={() => {
+            setRole('STUDENTN');
+            navigate('/blu-hjelperen');
+          }}
+        />
+      </div>
+    );
+  }
 
   const renderActiveApp = () => {
     switch (role) {
@@ -215,16 +274,84 @@ const MainApp = () => {
 };
 
 const App = () => {
+  const [currentUserUid, setCurrentUserUid] = useState<string | null>(() => {
+    return auth.currentUser?.uid || null;
+  });
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(() => {
     return auth.currentUser?.email || null;
   });
+  const [hasSignedBetaContract, setHasSignedBetaContract] = useState<boolean>(false);
+  const [isCheckingBetaContract, setIsCheckingBetaContract] = useState<boolean>(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUserUid(user?.uid || null);
       setCurrentUserEmail(user?.email || null);
     });
     return () => unsubscribe();
   }, []);
+
+  const mustSignBetaContract = requiresPortalBetaContract(currentUserEmail);
+
+  useEffect(() => {
+    if (!mustSignBetaContract || !currentUserUid) {
+      setHasSignedBetaContract(false);
+      setIsCheckingBetaContract(false);
+      return;
+    }
+
+    let cancelled = false;
+    let locallySigned = false;
+    try {
+      const cached = localStorage.getItem(`blu_beta_contract_signed_${currentUserUid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.signed === true) {
+          locallySigned = true;
+          setHasSignedBetaContract(true);
+        }
+      }
+    } catch {
+      // Ignorer ugyldig localStorage-verdi
+    }
+
+    setIsCheckingBetaContract(!locallySigned);
+
+    getDoc(doc(db, 'users', currentUserUid))
+      .then((snap) => {
+        if (cancelled) return;
+        const signedInCloud = snap.exists() && snap.data()?.harSignertBetaKontrakt === true;
+        if (signedInCloud) {
+          setHasSignedBetaContract(true);
+          try {
+            localStorage.setItem(
+              `blu_beta_contract_signed_${currentUserUid}`,
+              JSON.stringify({
+                signed: true,
+                signaturNavn: snap.data()?.signaturNavn || '',
+                signaturDato: snap.data()?.signaturDato || ''
+              })
+            );
+          } catch {
+            // Ignorer localStorage-feil
+          }
+        } else if (!locallySigned) {
+          setHasSignedBetaContract(false);
+        }
+      })
+      .catch((err) => {
+        console.error('Feil ved henting av betakontrakt-status:', err);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsCheckingBetaContract(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mustSignBetaContract, currentUserUid]);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -236,6 +363,7 @@ const App = () => {
 
   const isSvein = currentUserEmail?.toLowerCase() === 'svein.nordvik@gmail.com' || 
                   currentUserEmail?.toLowerCase() === 'sunniva.nordvik2@gmail.com' || 
+                  currentUserEmail?.toLowerCase() === 'helen.mari.bitnes@gmail.com' || 
                   isAdminUser(currentUserEmail);
 
   const isPortalBeta = isPortalBetaUser(currentUserEmail);
@@ -253,7 +381,14 @@ const App = () => {
       currentUserEmail={currentUserEmail}
     >
       <PensumHubProvider>
-        <MainApp />
+        <MainApp
+          currentUserUid={currentUserUid}
+          currentUserEmail={currentUserEmail}
+          mustSignBetaContract={mustSignBetaContract}
+          hasSignedBetaContract={hasSignedBetaContract}
+          isCheckingBetaContract={isCheckingBetaContract}
+          onBetaContractSigned={() => setHasSignedBetaContract(true)}
+        />
         <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
       </PensumHubProvider>
     </RoleProvider>

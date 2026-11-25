@@ -3398,3 +3398,215 @@ Svar i strukturert JSON i henhold til angitt skjema.`;
     throw error;
   }
 }
+
+export interface GeneratePodcastScriptParams {
+  sourceText: string;
+  sourceTitles: string[];
+  lengthPreset: 'short' | 'medium' | 'long';
+  angle: 'oversikt' | 'praksisnaer' | 'eksamen';
+  focusNote?: string;
+}
+
+export interface GeneratedPodcastScript {
+  title: string;
+  summary: string;
+  estimatedMinutes: number;
+  dialogue: Array<{
+    speaker: 'Programleder' | 'Ekspert';
+    text: string;
+  }>;
+}
+
+export async function generatePodcastScript(
+  params: GeneratePodcastScriptParams
+): Promise<GeneratedPodcastScript> {
+  const { sourceText, sourceTitles, lengthPreset, angle, focusNote } = params;
+
+  const lengthConfig = {
+    short: {
+      estimatedMinutes: 5,
+      wordRange: '650–750 ord',
+      turnRange: '14–18 replikker',
+      depthNote: 'Kjapp, konsis og energisk oversikt over de viktigste kjernebegrepene og teoretikerne.'
+    },
+    medium: {
+      estimatedMinutes: 10,
+      wordRange: '1 300–1 500 ord',
+      turnRange: '24–32 replikker',
+      depthNote: 'Grundig gjennomgang der teori og begreper kobles til konkrete eksempler fra barnehagehverdagen.'
+    },
+    long: {
+      estimatedMinutes: 20,
+      wordRange: '2 500–2 800 ord',
+      turnRange: '42–56 replikker',
+      depthNote: 'Dybdedrøfting med flere teoretiske perspektiver, kritiske spørsmål, profesjonsetiske dilemmaer og eksamensvinkling.'
+    }
+  }[lengthPreset];
+
+  const angleDirective = {
+    oversikt:
+      'VINKLING – OVERSIKT: Gjør stoffet krystallklart og oversiktlig. Definer sentrale fagbegreper muntlig, forklar hvem hovedteoretikerne er og oppsummer den røde tråden mot slutten.',
+    praksisnaer:
+      'VINKLING – PRAKSISNÆR: Knytt teorien kontinuerlig til levende hverdagssituasjoner i barnehagen (frilek, garderobe, måltid, tur, samlingsstund, foreldresamarbeid). Programlederen etterspør konkrete eksempler på hvordan man faktisk gjør dette på avdelingen.',
+    eksamen:
+      'VINKLING – EKSAMENSDRØFTING: Vinkle samtalen mot muntlig og skriftlig eksamen i barnehagelærerutdanningen (BLU). Still kritiske oppfølgingsspørsmål, drøft motsetninger og dilemmaer, og vis hvordan man kobler teori til Rammeplanen (2017) og Barnehageloven for å løfte karakteren.'
+  }[angle];
+
+  const systemInstruction = `Du er produsent og manusforfatter for «Pensum-Podden» – en engasjerende norsk studiepodcast for barnehagelærerstudenter (BLU).
+
+ROLLER:
+1. "Programleder": Nysgjerrig, varm, engasjert og praksisnær. Leder samtalen naturlig, stiller både de «dumme» spørsmålene alle lurer på og skarpe oppfølgingsspørsmål, og kobler teorien til barnehagehverdagen.
+2. "Ekspert": Kunnskapsrik, pedagogisk skarp fagekspert innen barnehagepedagogikk. Forklarer teori, teoretikere og funn fra de vedlagte kildene presist, men i levende og forståelig muntlig språk.
+
+SPRÅK OG FORMATREGLER (STRENGT):
+- Skriv naturlig, muntlig norsk (bokmål) med ekte samtaleflyt, korte overganger og naturlige oppfølginger – IKKE stivt bokspråk eller tørr opplesning.
+- IKKE bruk markdown-symboler (*, #, _, **), kulepunkter eller regianvisninger i parentes/klammer som [ler], (pause) eller *nikker*, fordi replikkene skal leses direkte opp av talesyntese.
+- Forankre alt faglig innhold i det vedlagte pensummaterialet. Hvis kildematerialet kun inneholder kort informasjon, bruk presis norsk barnehagepedagogisk kunnskap knyttet direkte til temaet og Rammeplan for barnehagen (2017) uten å dikte opp falske sitater.
+- Returner KUN gyldig JSON som følger skjemaet nøyaktig.`;
+
+  const trimmedSource = (sourceText || '').trim().slice(0, 45000);
+  const sourcesHeader =
+    sourceTitles.length > 0 ? sourceTitles.join(', ') : 'Valgt pensumgrunnlag';
+
+  const userPrompt = `Lag en komplett podcast-episode for «Pensum-Podden» basert på kildene under.
+
+MÅL FOR LENGDE (VIKTIG – FØLG ORDTALLET):
+- Valgt lengde: ca. ${lengthConfig.estimatedMinutes} minutter
+- Mål for totalt antall ord på tvers av hele dialogen: ${lengthConfig.wordRange}
+- Anbefalt antall dialogvekslinger: ${lengthConfig.turnRange}
+- Dybdekrav: ${lengthConfig.depthNote}
+
+${angleDirective}
+
+${focusNote && focusNote.trim() ? `STUDENTENS SPESIELLE FOKUSØNSKE:\n"${focusNote.trim()}"\nSørg for at dette fokuset får en tydelig og naturlig plass i samtalen.\n` : ''}
+VALGTE KILDER: ${sourcesHeader}
+
+PENSUMMATERIALE / NOTATER:
+"""
+${trimmedSource}
+"""
+
+KRAV TIL JSON-STRUKTUR:
+- "title": Fengende, tydelig norsk episodetittel (maks 90 tegn).
+- "summary": Presis beskrivelse på nøyaktig 2 setninger av hva studenten lærer i episoden.
+- "estimatedMinutes": ${lengthConfig.estimatedMinutes}
+- "dialogue": Liste med vekselsvise replikker der "speaker" KUN er enten "Programleder" eller "Ekspert", og "text" er ren muntlig tekst klar for opplesning. Start med en kort, varm velkomst som setter temaet, og avslutt med en kort og nyttig oppsummering av de viktigste hovedpunktene.`;
+
+  const response = await callGoogleAIProxy({
+    model: 'gemini-4-hydrogen',
+    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+    config: {
+      systemInstruction,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: 'Fengende norsk episodetittel'
+          },
+          summary: {
+            type: Type.STRING,
+            description: 'Kort beskrivelse av episoden på 2 setninger'
+          },
+          estimatedMinutes: {
+            type: Type.INTEGER,
+            description: 'Estimert spilletid i minutter (5, 10 eller 20)'
+          },
+          dialogue: {
+            type: Type.ARRAY,
+            description: 'Vekselsvis dialog mellom Programleder og Ekspert',
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                speaker: {
+                  type: Type.STRING,
+                  description: 'Enten Programleder eller Ekspert'
+                },
+                text: {
+                  type: Type.STRING,
+                  description: 'Muntlig replikk på naturlig norsk uten markdown eller regianvisninger'
+                }
+              },
+              required: ['speaker', 'text']
+            }
+          }
+        },
+        required: ['title', 'summary', 'estimatedMinutes', 'dialogue']
+      }
+    }
+  });
+
+  const rawText = (response?.text || '').trim();
+  if (!rawText) {
+    throw new Error('Mottok tomt svar fra KI-tjenesten. Prøv igjen om et øyeblikk.');
+  }
+
+  // Hvis backend returnerte en veilednings-/feilmelding i klartekst i stedet for JSON
+  if (rawText.startsWith('🔒') || rawText.startsWith('⚠️')) {
+    throw new Error(rawText.replace(/\*\*/g, ''));
+  }
+
+  let cleaned = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  // Trekk ut første JSON-objekt dersom modellen la til ekstra tekst rundt
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (parseErr) {
+    console.error('Klarte ikke å parse podcast-JSON:', parseErr);
+    throw new Error(
+      'Klarte ikke å tolke manuset fra KI-tjenesten. Prøv igjen – eller velg en kortere lengde dersom kildematerialet er svært stort.'
+    );
+  }
+
+  const rawDialogue = Array.isArray(parsed?.dialogue) ? parsed.dialogue : [];
+  const normalizedDialogue = rawDialogue
+    .map((item: any, idx: number) => {
+      const rawSpeaker = String(item?.speaker || '').toLowerCase();
+      const speaker: 'Programleder' | 'Ekspert' =
+        rawSpeaker.includes('ekspert') || rawSpeaker.includes('fag')
+          ? 'Ekspert'
+          : rawSpeaker.includes('program') || rawSpeaker.includes('vert')
+          ? 'Programleder'
+          : idx % 2 === 0
+          ? 'Programleder'
+          : 'Ekspert';
+
+      const cleanLine = String(item?.text || '')
+        .replace(/[*#_`]/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return { speaker, text: cleanLine };
+    })
+    .filter((item: { speaker: 'Programleder' | 'Ekspert'; text: string }) => item.text.length > 0);
+
+  if (normalizedDialogue.length === 0) {
+    throw new Error('KI-tjenesten returnerte ingen gyldige replikker. Prøv igjen.');
+  }
+
+  return {
+    title: String(parsed?.title || 'Pensum-Podden: Fagprat').trim(),
+    summary: String(
+      parsed?.summary || 'En muntlig gjennomgang av de viktigste begrepene og perspektivene fra valgt pensum.'
+    ).trim(),
+    estimatedMinutes:
+      typeof parsed?.estimatedMinutes === 'number' && parsed.estimatedMinutes > 0
+        ? Math.round(parsed.estimatedMinutes)
+        : lengthConfig.estimatedMinutes,
+    dialogue: normalizedDialogue
+  };
+}
+

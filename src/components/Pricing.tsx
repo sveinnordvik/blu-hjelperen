@@ -9,11 +9,22 @@ import {
   ShieldCheck,
   Users,
   CreditCard,
-  Copy
+  Copy,
+  Headphones
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { STRIPE_HUMANIZER_CREDITS_1_URL, STRIPE_HUMANIZER_CREDITS_10_URL, getStripePaymentUrl } from '../config/accessConfig';
+import {
+  STRIPE_HUMANIZER_CREDITS_1_URL,
+  STRIPE_HUMANIZER_CREDITS_10_URL,
+  STRIPE_PODCAST_MINUTES_30_URL,
+  STRIPE_PODCAST_MINUTES_90_URL,
+  PODCAST_SEMESTER_INCLUDED_MINUTES,
+  PODCAST_MINUTES_PACK_30_PRICE,
+  PODCAST_MINUTES_PACK_90_PRICE,
+  isUnlimitedUser,
+  getStripePaymentUrl
+} from '../config/accessConfig';
 
 interface PricingModel {
   id: string;
@@ -39,6 +50,8 @@ interface PricingProps {
   isGuest: boolean;
   humanizerCredits?: number;
   onBuyCredits?: (count: number) => void;
+  podcastAudioMinutes?: number;
+  onBuyPodcastMinutes?: (minutes: number) => void;
   userUid?: string;
   userEmail?: string;
 }
@@ -53,9 +66,12 @@ export const Pricing: React.FC<PricingProps> = ({
   isGuest,
   humanizerCredits,
   onBuyCredits,
+  podcastAudioMinutes,
+  onBuyPodcastMinutes,
   userUid,
   userEmail
 }) => {
+  const isUnlimited = isUnlimitedUser(userEmail);
   const [copiedLink, setCopiedLink] = React.useState(false);
 
   const handleCopyReferralLink = () => {
@@ -313,8 +329,8 @@ export const Pricing: React.FC<PricingProps> = ({
                 </div>
               </div>
 
-              {/* Tilleggsmoduler & Kampanjer: Humanizer-bot & Verveprogram */}
-              <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              {/* Tilleggsmoduler & Kampanjer: Humanizer-bot, Podcast-lydminutter & Verveprogram */}
+              <div className="md:col-span-3 grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6">
                 {/* Humanizer-bot Mikrotransaksjon */}
                 <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
                   <div className="space-y-3">
@@ -333,8 +349,8 @@ export const Pricing: React.FC<PricingProps> = ({
                       {humanizerCredits !== undefined && (
                         <div className="text-right">
                           <span className="text-[10px] text-slate-500 font-semibold uppercase block">Din saldo</span>
-                          <span className="inline-block text-xs font-black text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-200">
-                            {humanizerCredits} {humanizerCredits === 1 ? 'vask' : 'vask'}
+                          <span className="inline-block text-xs font-black text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-lg border border-amber-200 tabular-nums">
+                            {humanizerCredits} vask
                           </span>
                         </div>
                       )}
@@ -362,28 +378,102 @@ export const Pricing: React.FC<PricingProps> = ({
                           if (STRIPE_HUMANIZER_CREDITS_1_URL && !STRIPE_HUMANIZER_CREDITS_1_URL.includes('test_humanizer')) {
                             window.open(getStripePaymentUrl(STRIPE_HUMANIZER_CREDITS_1_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
                           } else {
-                            // Hvis live Stripe-lenke ikke er lagt inn enda, åpne URL med ?success=true&buy_credits=1
                             window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_credits=1`, '_self');
                           }
                         }}
                         className="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                       >
                         <CreditCard className="w-3.5 h-3.5" />
-                        <span>Kjøp 1 vask (10,-)</span>
+                        <span>1 vask (10,-)</span>
                       </button>
                       <button
                         onClick={() => {
                           if (STRIPE_HUMANIZER_CREDITS_10_URL && !STRIPE_HUMANIZER_CREDITS_10_URL.includes('test_humanizer')) {
                             window.open(getStripePaymentUrl(STRIPE_HUMANIZER_CREDITS_10_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
                           } else {
-                            // Hvis live Stripe-lenke ikke er lagt inn enda, åpne URL med ?success=true&buy_credits=10
                             window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_credits=10`, '_self');
                           }
                         }}
                         className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                       >
                         <Coins className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Kjøp 10 vask (100,-)</span>
+                        <span>10 vask (100,-)</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pensum-Podden Lydminutter Mikrotransaksjon */}
+                <div className="p-6 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                          <Headphones className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-base">Podcast-lydfil (.wav)</h4>
+                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            {PODCAST_SEMESTER_INCLUDED_MINUTES} min i Semester-pakka
+                          </span>
+                        </div>
+                      </div>
+                      {podcastAudioMinutes !== undefined && (
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 font-semibold uppercase block">Din saldo</span>
+                          <span className="inline-block text-xs font-black text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg border border-emerald-200 tabular-nums">
+                            {isUnlimited ? 'VIP' : `${podcastAudioMinutes} min`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Last ned episoder fra Pensum-Podden som ekte to-stemmers lydfiler (<strong>.wav</strong>) til mobil, trening og bil. Semester-pakka inkluderer <strong>{PODCAST_SEMESTER_INCLUDED_MINUTES} minutter</strong>.
+                    </p>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5 text-slate-800">
+                        <Headphones className="w-3.5 h-3.5 text-emerald-600" /> Påfyll ved behov
+                      </p>
+                      <p>
+                        Nettleseravspilling og kopiering av manus er alltid gratis. Minutter trekkes kun når du genererer en ny nedlastbar AI-lydfil.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">Påfyllspakker via Stripe</span>
+                      <span className="text-xs font-black text-emerald-700">Fra {PODCAST_MINUTES_PACK_30_PRICE} kr</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => {
+                          if (STRIPE_PODCAST_MINUTES_30_URL && !STRIPE_PODCAST_MINUTES_30_URL.includes('test_podcast_minutes')) {
+                            window.open(getStripePaymentUrl(STRIPE_PODCAST_MINUTES_30_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
+                          } else if (onBuyPodcastMinutes) {
+                            onBuyPodcastMinutes(30);
+                          } else {
+                            window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_podcast_minutes=30`, '_self');
+                          }
+                        }}
+                        className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer tabular-nums"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>+30 min ({PODCAST_MINUTES_PACK_30_PRICE},-)</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (STRIPE_PODCAST_MINUTES_90_URL && !STRIPE_PODCAST_MINUTES_90_URL.includes('test_podcast_minutes')) {
+                            window.open(getStripePaymentUrl(STRIPE_PODCAST_MINUTES_90_URL, userUid, userEmail), '_blank', 'noopener,noreferrer');
+                          } else if (onBuyPodcastMinutes) {
+                            onBuyPodcastMinutes(90);
+                          } else {
+                            window.open(`${window.location.origin}${window.location.pathname}?success=true&buy_podcast_minutes=90`, '_self');
+                          }
+                        }}
+                        className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer tabular-nums"
+                      >
+                        <Headphones className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>+90 min ({PODCAST_MINUTES_PACK_90_PRICE},-)</span>
                       </button>
                     </div>
                   </div>

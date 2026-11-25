@@ -21,6 +21,7 @@ import {
   Download,
   X,
   Sparkles,
+  ArrowLeft,
   ArrowRight,
   Pin,
   PinOff,
@@ -177,7 +178,7 @@ export function Resources({
   const [lastSyncTime, setLastSyncTime] = useState<string>(() => new Date().toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' }));
 
   // Pensum-Hub / Multi-select state for Filarkiv
-  const { activePensumFiles, pendingAction, startPensumAction } = usePensumHub();
+  const { activePensumFiles, pendingAction, startPensumAction, setPendingAction } = usePensumHub();
   const [selectedFiles, setSelectedFiles] = useState<string[]>(() => {
     if (activePensumFiles && activePensumFiles.length > 0) {
       return activePensumFiles.map(f => f.id);
@@ -208,7 +209,6 @@ export function Resources({
     }));
 
     if (pendingAction) {
-      console.log("Resources: Direct navigation to pendingAction:", pendingAction, selectedFilesList);
       startPensumAction(selectedFilesList, pendingAction);
       if (onNavigateToTools) {
         onNavigateToTools(pendingAction);
@@ -219,6 +219,43 @@ export function Resources({
     } else {
       setIsPensumHubMenuOpen(true);
     }
+  };
+
+  const pendingToolLabel =
+    pendingAction === 'podcast'
+      ? 'Pensum-Podden'
+      : pendingAction === 'flashcards'
+      ? 'Flashcards'
+      : pendingAction === 'quiz'
+      ? 'Quiz-verktøyet'
+      : null;
+
+  const handleReturnToPendingTool = () => {
+    if (!pendingAction) return;
+    const target = pendingAction;
+    const selectedFilesList = items
+      .filter((f) => selectedFiles.includes(f.id))
+      .map((f) => ({
+        id: f.id,
+        title: f.name,
+        content: f.content && f.content.trim().length > 0 ? f.content : f.name,
+        fileType: f.fileType
+      }));
+
+    if (selectedFilesList.length > 0) {
+      startPensumAction(selectedFilesList, target);
+    } else {
+      setPendingAction(null);
+    }
+
+    if (onNavigateToTools) {
+      onNavigateToTools(target);
+    } else if (onNavigateToWorkshop) {
+      onNavigateToWorkshop('verktoy');
+    }
+    window.dispatchEvent(
+      new CustomEvent('blu-switch-tab', { detail: { tab: 'verktoy', subTab: target } })
+    );
   };
 
   // Files & folders state
@@ -1219,6 +1256,31 @@ export function Resources({
                 ) : (
                   /* OVERSIKT OVER FILER OG MAPPER */
                   <>
+                    {pendingToolLabel && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs sm:text-sm font-bold text-emerald-950">
+                            Velg én eller flere kilder til {pendingToolLabel}
+                          </p>
+                          <p className="text-xs text-emerald-800/80">
+                            Huk av ønskede filer under, eller gå rett tilbake når du er klar.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleReturnToPendingTool}
+                          className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" />
+                          <span>
+                            {selectedFiles.length > 0
+                              ? `Bruk valgte (${selectedFiles.length}) i ${pendingToolLabel}`
+                              : `Tilbake til ${pendingToolLabel}`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <h2 className="text-2xl font-black text-slate-800">Filarkiv & Dokumenter</h2>
@@ -1622,9 +1684,13 @@ export function Resources({
                             <button
                               type="button"
                               onClick={handleBrukKilderClick}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                             >
-                              <span>Bruk kilder</span>
+                              <span>
+                                {pendingToolLabel
+                                  ? `Bruk valgte i ${pendingToolLabel}`
+                                  : 'Bruk kilder'}
+                              </span>
                               <ArrowRight className="w-3.5 h-3.5" />
                             </button>
 

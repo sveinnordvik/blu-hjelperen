@@ -7,7 +7,8 @@ import {
   Headphones, 
   ArrowRight,
   BookOpen,
-  CheckCircle2
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +42,7 @@ export const PensumHubActionMenu: React.FC<PensumHubActionMenuProps> = ({
   const [selectedCardCount, setSelectedCardCount] = useState<number>(10);
 
   const handleActionClick = (actionType: PensumHubAction) => {
+    if (actionType === 'quiz') return;
     console.log("PensumHubActionMenu: handleActionClick triggered for:", actionType);
     
     // Bygg samling av filer som sendes inn i global context
@@ -101,24 +103,26 @@ export const PensumHubActionMenu: React.FC<PensumHubActionMenuProps> = ({
       icon: HelpCircle,
       title: 'Eksamens-Quiz (Grill meg!)',
       subtitle: 'Få flervalgsspørsmål og caser basert på teorien.',
-      badge: 'Eksamensspurring',
+      badge: 'Kommer snart',
+      comingSoon: true,
       color: 'from-amber-500 to-orange-600',
-      bgColor: 'bg-amber-50/70 hover:bg-amber-100/60',
-      borderColor: 'border-amber-200 hover:border-amber-400',
-      iconBg: 'bg-amber-600 text-white',
-      badgeStyle: 'bg-amber-100 text-amber-800 border-amber-200'
+      bgColor: 'bg-slate-50',
+      borderColor: 'border-slate-200',
+      iconBg: 'bg-slate-300 text-slate-600',
+      badgeStyle: 'bg-amber-100 text-amber-900 border-amber-300'
     },
     {
       id: 'podcast' as PensumHubAction,
       icon: Headphones,
       title: 'Pensum-Podden',
       subtitle: 'Lag en lydoppsummering du kan høre på farten.',
-      badge: 'Lyd & Lytting',
+      badge: 'Beta',
+      comingSoon: false,
       color: 'from-emerald-500 to-teal-600',
       bgColor: 'bg-emerald-50/70 hover:bg-emerald-100/60',
       borderColor: 'border-emerald-200 hover:border-emerald-400',
       iconBg: 'bg-emerald-600 text-white',
-      badgeStyle: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+      badgeStyle: 'bg-emerald-100 text-emerald-900 border-emerald-300'
     }
   ];
 
@@ -206,45 +210,59 @@ export const PensumHubActionMenu: React.FC<PensumHubActionMenuProps> = ({
               <div className="grid grid-cols-1 gap-3.5">
                 {actionOptions.map((opt) => {
                   const Icon = opt.icon;
+                  const isDisabled = Boolean((opt as { comingSoon?: boolean }).comingSoon);
                   return (
                     <button
                       key={opt.id}
                       type="button"
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
+                        if (isDisabled) return;
                         handleActionClick(opt.id);
                       }}
                       className={cn(
-                        "w-full text-left p-5 sm:p-6 rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group hover:scale-[1.015] hover:shadow-lg active:scale-[0.99]",
+                        "w-full text-left p-5 sm:p-6 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+                        isDisabled
+                          ? "cursor-not-allowed opacity-75"
+                          : "cursor-pointer group hover:scale-[1.015] hover:shadow-lg active:scale-[0.99]",
                         opt.bgColor,
                         opt.borderColor
                       )}
                     >
                       <div className="flex items-start gap-4 min-w-0 flex-1">
-                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md transition-transform group-hover:scale-110", opt.iconBg)}>
+                        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md transition-transform", !isDisabled && "group-hover:scale-110", opt.iconBg)}>
                           <Icon className="w-6 h-6 pointer-events-none" />
                         </div>
 
                         <div className="space-y-1 min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-indigo-900 transition-colors">
+                            <h3 className={cn("text-base sm:text-lg font-black transition-colors", isDisabled ? "text-slate-600" : "text-slate-900 group-hover:text-indigo-900")}>
                               {opt.title}
                             </h3>
                             <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-md border", opt.badgeStyle)}>
                               {opt.badge}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+                          <p className={cn("text-xs sm:text-sm font-medium leading-relaxed", isDisabled ? "text-slate-500" : "text-slate-600")}>
                             {opt.subtitle}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 group-hover:text-indigo-800 shrink-0 self-end sm:self-center bg-white px-3 py-2 rounded-xl shadow-2xs border border-slate-200 group-hover:border-indigo-300">
-                        <span>Generer</span>
-                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 pointer-events-none" />
-                      </div>
+                      {isDisabled ? (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 shrink-0 self-end sm:self-center bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 whitespace-nowrap">
+                          <Lock className="w-3.5 h-3.5 pointer-events-none" />
+                          <span>Kommer snart</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 group-hover:text-indigo-800 shrink-0 self-end sm:self-center bg-white px-3 py-2 rounded-xl shadow-2xs border border-slate-200 group-hover:border-indigo-300">
+                          <span>Generer</span>
+                          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 pointer-events-none" />
+                        </div>
+                      )}
                     </button>
                   );
                 })}

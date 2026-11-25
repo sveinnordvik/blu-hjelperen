@@ -36,6 +36,7 @@ interface ToolsDashboardProps {
   onUpgrade?: () => void;
   humanizerCredits?: number;
   onBuyCredits?: (count: number) => void;
+  podcastAudioMinutes?: number;
   onNavigateToResources?: () => void;
 }
 
@@ -46,6 +47,7 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
   onUpgrade,
   humanizerCredits: externalCredits,
   onBuyCredits,
+  podcastAudioMinutes: externalPodcastMinutes,
   onNavigateToResources
 }) => {
   const currentUserEmail = userEmail || getAuth().currentUser?.email || '';
@@ -78,6 +80,13 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
   });
 
   const humanizerCredits = externalCredits !== undefined ? externalCredits : localCredits;
+  const podcastAudioMinutes =
+    externalPodcastMinutes !== undefined
+      ? externalPodcastMinutes
+      : (() => {
+          const saved = localStorage.getItem('blu_podcast_audio_minutes');
+          return saved !== null ? parseInt(saved, 10) || 0 : 0;
+        })();
 
   const [showHumanizerModal, setShowHumanizerModal] = useState(false);
   const [mobileCategoryFilter, setMobileCategoryFilter] = useState<'all' | 'analyse' | 'trening' | 'kilder'>('all');
@@ -186,45 +195,48 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
           {/* NYHET 2: Eksamens-Quiz (Grill meg!) */}
           <div 
             id="tool-card-quiz"
-            className="group relative bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs hover:shadow-xl hover:border-amber-300 hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+            aria-disabled="true"
+            className="relative bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs opacity-85 flex flex-col justify-between select-none"
           >
             <div>
               <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 text-amber-600/80 flex items-center justify-center shadow-2xs">
                   <HelpCircle className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 border border-amber-500 shadow-2xs whitespace-nowrap">
-                  <Sparkles className="w-3 h-3 fill-current text-amber-950" />
-                  <span>Kommer snart!</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs whitespace-nowrap">
+                  <Lock className="w-3 h-3 text-amber-800" />
+                  <span>Kommer snart</span>
                 </span>
               </div>
 
-              <h2 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-amber-700 transition-colors">
+              <h2 className="text-lg font-bold text-slate-700 tracking-tight">
                 Eksamens-Quiz (Grill meg!)
               </h2>
-              <p className="mt-1 text-xs text-slate-600 leading-snug">
+              <p className="mt-1 text-xs text-slate-500 leading-snug">
                 Få flervalgsspørsmål, dilemmaer og caser basert på teorien fra det valgte pensumet.
               </p>
 
-              <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
+              <div className="mt-3 space-y-1.5 border-t border-slate-200/70 pt-3 text-[11px] text-slate-500">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">Caselæring og eksamensspørsmål</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">Direkte tilbakemelding & fasit</span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="mt-4 pt-3 border-t border-slate-200/70">
               <button
-                onClick={() => handleSelectPensumTool('quiz', 'quiz', 'Eksamens-Quiz (Grill meg!)')}
-                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="w-full py-2.5 px-4 bg-slate-200 text-slate-500 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
               >
-                <span>Start Eksamens-Quiz</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <Lock className="w-3.5 h-3.5" />
+                <span>Kommer snart</span>
               </button>
             </div>
           </div>
@@ -239,9 +251,8 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                 <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 shadow-2xs">
                   <Headphones className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-slate-950 border border-amber-500 shadow-2xs whitespace-nowrap">
-                  <Sparkles className="w-3 h-3 fill-current text-amber-950" />
-                  <span>Kommer snart!</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs whitespace-nowrap">
+                  <span>Beta</span>
                 </span>
               </div>
 
@@ -249,17 +260,25 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                 Pensum-Podden
               </h2>
               <p className="mt-1 text-xs text-slate-600 leading-snug">
-                Lag en lydoppsummering og muntlig dialog av teorien du kan lytte til på farten.
+                Gjør pensum om til en to-stemmers samtale med synkronisert manus du kan lytte til på farten.
               </p>
 
               <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-700">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="truncate">Lydoppsummering & talemanus</span>
+                  <span className="truncate">Velg lengde (5, 10 eller 20 min) og vinkling</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                  <span className="truncate">Muntlig pensumgjennomgang</span>
+                  <span className="truncate">Synkronisert manus & nedlasting som .wav-lydfil</span>
+                </div>
+                <div className="flex items-center gap-1.5 tabular-nums">
+                  <Headphones className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate font-semibold text-emerald-800">
+                    {isUnlimited
+                      ? 'VIP · Ubegrenset lydnedlasting'
+                      : `${podcastAudioMinutes} min lydnedlasting tilgjengelig`}
+                  </span>
                 </div>
               </div>
             </div>
@@ -762,32 +781,37 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
 
           {/* Mobile NYHET 2: Quiz */}
           {(mobileCategoryFilter === 'all' || mobileCategoryFilter === 'trening') && (
-            <div className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs flex flex-col justify-between gap-3">
+            <div
+              aria-disabled="true"
+              className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs opacity-85 flex flex-col justify-between gap-3 select-none"
+            >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600/80 flex items-center justify-center shrink-0">
                       <HelpCircle className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-slate-900 text-base">Eksamens-Quiz (Grill meg!)</h3>
+                      <h3 className="font-extrabold text-slate-700 text-base">Eksamens-Quiz (Grill meg!)</h3>
                       <p className="text-[11px] text-slate-500 font-medium">Eksamensspurring</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 border border-amber-500">
-                    Nyhet!
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
+                    Kommer snart
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                <p className="text-xs text-slate-500 leading-relaxed mb-3">
                   Få flervalgsspørsmål, dilemmaer og caser basert på teorien fra det valgte pensumet.
                 </p>
               </div>
               <button
-                onClick={() => handleSelectPensumTool('quiz', 'quiz', 'Eksamens-Quiz (Grill meg!)')}
-                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="w-full py-2.5 px-4 bg-slate-200 text-slate-500 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 cursor-not-allowed"
               >
-                <span>Start Eksamens-Quiz</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <Lock className="w-3.5 h-3.5" />
+                <span>Kommer snart</span>
               </button>
             </div>
           )}
@@ -806,12 +830,17 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                       <p className="text-[11px] text-slate-500 font-medium">Lyd & lytting</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 border border-amber-500">
-                    Nyhet!
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 whitespace-nowrap">
+                    Beta
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                  Lag en lydoppsummering og muntlig dialog av teorien du kan lytte til på farten.
+                <p className="text-xs text-slate-600 leading-relaxed mb-2">
+                  Lag en lydoppsummering og muntlig dialog av teorien du kan lytte til på farten eller laste ned som lydfil (.wav).
+                </p>
+                <p className="text-[11px] font-semibold text-emerald-800 mb-3 tabular-nums">
+                  {isUnlimited
+                    ? 'VIP · Ubegrenset lydnedlasting'
+                    : `${podcastAudioMinutes} min lydnedlasting tilgjengelig`}
                 </p>
               </div>
               <button
@@ -1225,6 +1254,23 @@ export const ToolsDashboard: React.FC<ToolsDashboardProps> = ({
                   <BookMarked className="w-4 h-4 text-indigo-600" />
                   <span>Gå til Kildebanken (APA 7)</span>
                 </button>
+
+                {gatewayActionType && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetTool = gatewayActionType;
+                      setIsGatewayModalOpen(false);
+                      handleSelectTool(targetTool);
+                    }}
+                    className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>
+                      Åpne {gatewayToolName} direkte (egne notater / temaer)
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

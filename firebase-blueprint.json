@@ -42,9 +42,32 @@
           "type": "number",
           "description": "Available credits for Humanizer-bot washes"
         },
+        "podcastAudioMinutes": {
+          "type": "number",
+          "description": "Available minutes for AI-generated two-speaker podcast WAV downloads"
+        },
+        "semesterPodcastGrantApplied": {
+          "type": "boolean",
+          "description": "Whether the 60 included podcast audio minutes for Semester-pakka have been granted"
+        },
         "referredBy": {
           "type": "string",
           "description": "UID of the student who referred this user"
+        },
+        "harSignertBetaKontrakt": {
+          "type": "boolean",
+          "description": "Whether the user has approved and digitally signed the PedPortalen beta tester agreement"
+        },
+        "signaturNavn": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Typed digital signature name for the beta tester agreement"
+        },
+        "signaturDato": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "ISO timestamp of when the beta tester agreement was signed"
         },
         "createdAt": {
           "type": "string",
@@ -623,6 +646,38 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["caseCode", "department", "status"]
+    },
+    "PodcastEpisode": {
+      "title": "PodcastEpisode",
+      "description": "User-generated Pensum-Podden study podcast episode with two-speaker dialogue transcript",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 250 },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "estimatedMinutes": { "type": "number" },
+        "lengthPreset": { "type": "string", "enum": ["short", "medium", "long"] },
+        "angle": { "type": "string", "enum": ["oversikt", "praksisnaer", "eksamen"] },
+        "focusNote": { "type": "string", "maxLength": 500 },
+        "sourceTitles": { "type": "array" },
+        "wordCount": { "type": "number" },
+        "dialogue": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time", "maxLength": 64 }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "summary",
+        "estimatedMinutes",
+        "lengthPreset",
+        "angle",
+        "sourceTitles",
+        "wordCount",
+        "dialogue",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -709,6 +764,10 @@
     "/users/{userId}/projects/main": {
       "schema": "Project",
       "description": "User's main project state"
+    },
+    "/users/{userId}/podcastEpisodes/{episodeId}": {
+      "schema": "PodcastEpisode",
+      "description": "User's saved Pensum-Podden episodes and synchronized dialogue scripts"
     },
     "/context_files/{fileId}": {
       "schema": "ContextFile",
