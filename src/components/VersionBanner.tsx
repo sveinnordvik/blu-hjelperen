@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, RefreshCw, X } from 'lucide-react';
 
-const CURRENT_VERSION = 'v3.6.9';
+const CURRENT_VERSION = 'v3.7.0';
 const VERSION_KEY = 'blu_app_version';
 
 export const VersionBanner: React.FC = () => {
@@ -45,7 +45,7 @@ export const VersionBanner: React.FC = () => {
       <div className="flex items-center gap-2 truncate">
         <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
         <span className="truncate">
-          <strong className="font-bold text-white">Ny oppdatering ({CURRENT_VERSION}) er klar!</strong> Tøm hurtigbufferen for å sikre nyeste veilederfunksjoner.
+          <strong className="font-bold text-white">Ny oppdatering ({CURRENT_VERSION}) er klar!</strong> Rullet ut Pensum-podden i Beta – last inn på nytt for nyeste funksjoner.
         </span>
       </div>
 

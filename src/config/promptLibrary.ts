@@ -430,6 +430,16 @@ export const STRESS_TEST_SUITE: StressTestCase[] = [
  */
 export const PROMPT_CHANGELOG = [
   {
+    version: 'v3.7.0',
+    date: '2026-11-24',
+    title: 'Rullet ut Pensum-podden i Beta',
+    changes: [
+      'Pensum-podden (Beta): Lansert i Beta med to-stemmers samtale, synkronisert manus, innebygd flervalgs-filvelger med direkte opplasting fra Filarkivet og lagring av episoder.',
+      'AI-lyd og stemmevalg: Tydelig skille mellom gratis nettleserstemmer og AI-studio med to kvalitetsnivåer (Standard AI 0,5× og Studio To-stemmers 1×), minutt-kvote og .wav-nedlasting.',
+      'Tilgang og betatesting: Digital betatester-godkjenning for Portalen-modusene og Eksamens-Quiz markert som Kommer snart.'
+    ]
+  },
+  {
     version: 'v3.6.9',
     date: '2026-11-24',
     title: 'Sky-autentisering, Cloud Run & Gemini 4',
